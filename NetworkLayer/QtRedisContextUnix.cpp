@@ -6,10 +6,12 @@
 //! \param host IP-адрес
 //! \param port Порт
 //!
-QtRedisContextUnix::QtRedisContextUnix(const QString &sockPath)
+QtRedisContextUnix::QtRedisContextUnix(const QString &sockPath, const bool supportSignals)
     : QtRedisContext(sockPath, -1)
     , _socket(new QLocalSocket(this))
 {
+    if (supportSignals)
+        connect(_socket, &QLocalSocket::readyRead, this, &QtRedisContext::readyRead);
 }
 
 //!

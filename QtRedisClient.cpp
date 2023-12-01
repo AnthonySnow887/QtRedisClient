@@ -4,6 +4,11 @@
 //!
 //! \brief Деструктор класса
 //!
+QtRedisClient::QtRedisClient()
+    : QObject()
+{
+}
+
 QtRedisClient::~QtRedisClient()
 {
     _lastError.clear();
@@ -92,11 +97,14 @@ bool QtRedisClient::redisConnect(const QString &host,
         && _transporter->port() == port)
         return true;
 
-    if (!_transporter)
+    if (!_transporter) {
         _transporter = new QtRedisTransporter();
-    else
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+                         this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+    } else {
         _transporter->clearTransporter();
-
+    }
     _transporter->initTransporter(QtRedisTransporter::TransporterType::Tcp, host, port);
     return _transporter->connectToServer(timeOutMsec);
 }
@@ -125,11 +133,14 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
         && _transporter->type() == QtRedisTransporter::TransporterType::Ssl)
         return true;
 
-    if (!_transporter)
+    if (!_transporter) {
         _transporter = new QtRedisTransporter();
-    else
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+                         this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+    } else {
         _transporter->clearTransporter();
-
+    }
     _transporter->initTransporter(QtRedisTransporter::TransporterType::Ssl, host, port);
     return _transporter->connectToServer(timeOutMsec);
 }
@@ -155,11 +166,14 @@ bool QtRedisClient::redisConnectUnix(const QString &sockPath, const int timeOutM
         && _transporter->type() == QtRedisTransporter::TransporterType::Unix)
         return true;
 
-    if (!_transporter)
+    if (!_transporter) {
         _transporter = new QtRedisTransporter();
-    else
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+                         this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+    } else {
         _transporter->clearTransporter();
-
+    }
     _transporter->initTransporter(QtRedisTransporter::TransporterType::Unix, sockPath, -1);
     return _transporter->connectToServer(timeOutMsec);
 }
@@ -3697,6 +3711,66 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
     return this->replyToLong(this->redisExecCommandArgv(argv));
 }
 
+//!
+//! \brief QtRedisClient::redisSubscribe
+//! \param channel
+//! \return
+//!
+bool QtRedisClient::redisSubscribe(const QString &channel)
+{
+    QMutexLocker lock(&_mutex);
+    if (channel.trimmed().isEmpty()) {
+        this->setLastError("Invalid input arguments!");
+        return false;
+    }
+    if (!_transporter) {
+        this->setLastError("QtRedisTransporter is NULL!");
+        return false;
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError("Client is not connected!");
+        return false;
+    }
+    if (!_transporter->isSubscribed()
+        && !_transporter->subscribeToServer()) {
+        this->setLastError("Subscribe to the server failed!");
+        return false;
+    }
+    QStringList argv;
+    argv << "SUBSCRIBE" << channel.trimmed().toUtf8();
+    return this->isReplyWithValues(_transporter->sendSubscribeCommand(argv));
+}
+
+//!
+//! \brief QtRedisClient::redisSubscribe
+//! \param channels
+//! \return
+//!
+bool QtRedisClient::redisSubscribe(const QStringList &channels)
+{
+    QMutexLocker lock(&_mutex);
+    if (channels.isEmpty()) {
+        this->setLastError("Invalid input arguments!");
+        return false;
+    }
+    if (!_transporter) {
+        this->setLastError("QtRedisTransporter is NULL!");
+        return false;
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError("Client is not connected!");
+        return false;
+    }
+    if (!_transporter->isSubscribed()
+        && !_transporter->subscribeToServer()) {
+        this->setLastError("Subscribe to the server failed!");
+        return false;
+    }
+    QStringList argv;
+    argv << "SUBSCRIBE" << channels;
+    return this->isReplyWithValues(_transporter->sendSubscribeCommand(argv));
+}
+
 
 // ------------------------------------------------------------------------
 // -- TOOLS COMMANDS ------------------------------------------------------
@@ -3787,4 +3861,9 @@ bool QtRedisClient::replySimpleStringToBool(const QtRedisReply &reply)
         return true;
 
     return false;
+}
+
+bool QtRedisClient::isReplyWithValues(const QtRedisReply &reply)
+{
+    return reply.isValue();
 }

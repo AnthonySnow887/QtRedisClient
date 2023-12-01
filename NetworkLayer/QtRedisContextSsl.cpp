@@ -6,11 +6,14 @@
 //! \param host IP-адрес
 //! \param port Порт
 //!
-QtRedisContextSsl::QtRedisContextSsl(const QString &host, const uint port)
+QtRedisContextSsl::QtRedisContextSsl(const QString &host, const uint port, const bool supportSignals)
     : QtRedisContext(host, port)
     , _socket(new QSslSocket(this))
 {
     _socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
+
+    if (supportSignals)
+        connect(_socket, &QSslSocket::readyRead, this, &QtRedisContext::readyRead);
 }
 
 //!

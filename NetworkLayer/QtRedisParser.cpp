@@ -286,12 +286,13 @@ QtRedisReply QtRedisParser::parseRawDataToInt(const QByteArray &data, int &index
         return QtRedisReply();
     }
     QByteArray buffData = data;
-    buffData.remove(0, 1);
     int buffIndex = buffData.indexOf("\r\n");
     if (buffIndex == -1)
         return QtRedisReply();
-    if (buffIndex != -1)
+    if (buffIndex != -1) {
         buffData = buffData.remove(buffIndex, 2);
+        buffData.remove(0, 1);
+    }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Integer);
     reply.setRawValue(buffData);

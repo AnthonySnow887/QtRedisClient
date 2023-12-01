@@ -8,10 +8,12 @@
 //! \param host Хост
 //! \param port Порт
 //!
-QtRedisContextTcp::QtRedisContextTcp(const QString &host, const uint port)
+QtRedisContextTcp::QtRedisContextTcp(const QString &host, const uint port, const bool supportSignals)
     : QtRedisContext(host, port)
     , _socket(new QTcpSocket(this))
 {
+    if (supportSignals)
+        connect(_socket, &QTcpSocket::readyRead, this, &QtRedisContext::readyRead);
 }
 
 //!

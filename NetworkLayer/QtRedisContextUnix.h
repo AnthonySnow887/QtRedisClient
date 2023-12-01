@@ -19,7 +19,7 @@ class QtRedisContextUnix : public QtRedisContext
     Q_DISABLE_COPY(QtRedisContextUnix)
 
 public:
-    explicit QtRedisContextUnix(const QString &sockPath);
+    explicit QtRedisContextUnix(const QString &sockPath, const bool supportSignals = false);
     virtual ~QtRedisContextUnix();
 
     bool connectToServer(const int msecs = 300000) final;

@@ -20,11 +20,13 @@
 //!
 //! Документация по командам: https://redis.io/commands
 //!
-class QtRedisClient
+class QtRedisClient : public QObject
 {
+    Q_OBJECT
+
 public:
-    QtRedisClient() = default;
-    ~QtRedisClient();
+    QtRedisClient();
+    virtual ~QtRedisClient();
 
     static QString libraryVersion();
 
@@ -254,6 +256,8 @@ public:
     // ------------------------------------------------------------------------
     qlonglong redisPublish(const QString &channel, const QString &message);
     qlonglong redisPublish(const QString &channel, const QByteArray &message);
+    bool redisSubscribe(const QString &channel);
+    bool redisSubscribe(const QStringList &channels);
 
     // ------------------------------------------------------------------------
     // -- TOOLS COMMANDS ------------------------------------------------------
@@ -264,11 +268,16 @@ public:
     bool replyIntToBool(const QtRedisReply &reply);
     bool replySimpleStringToBool(const QtRedisReply &reply);
 
+    bool isReplyWithValues(const QtRedisReply &reply);
+
 protected:
     mutable QMutex      _mutex;                 //!< мьютекс
     mutable QMutex      _mutexErr;              //!< мьютекс
     QString             _lastError;             //!< ошибка
     QtRedisTransporter *_transporter {nullptr}; //!< слой взаимодействия с redis
+
+signals:
+    void incomingChannelMessage(QString channel, QtRedisReply data);
 };
 
 #endif // QTREDISCLIENT_H

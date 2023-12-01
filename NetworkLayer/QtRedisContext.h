@@ -122,6 +122,9 @@ protected:
     QString _host;                  //!< хост
     uint    _port {0};              //!< порт
     int     _currentDbIndex {0};    //!< текущий индекс БД
+
+signals:
+    void readyRead();
 };
 
 #endif // QTREDISCONTEXT_H
