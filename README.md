@@ -1,11 +1,242 @@
 # QtRedisClient
+
+[![License](https://img.shields.io/github/license/AnthonySnow887/QtRedisClient)](https://github.com/AnthonySnow887/FlyCubeMigration/blob/master/LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/AnthonySnow887/QtRedisClient?label=release)](https://github.com/AnthonySnow887/QtRedisClient/releases)
+![Last Commit](https://img.shields.io/github/last-commit/AnthonySnow887/QtRedisClient/develop)
+
 NoSQL Redis client library based on Qt 5.
 
 ## Usage
 To use the library, simply include the "QtRedisClient.pri" file in your project:
 
-```
+```cpp
 include(QtRedisClient/QtRedisClient.pri)
+```
+
+## Supported Redis commands
+
+### Base commands
+```cpp
+QtRedisReply redisExecCommand(const QString &command);
+QtRedisReply redisExecCommand(const QByteArray &command);
+QtRedisReply redisExecCommandArgv(const QStringList &commandArgv);
+QtRedisReply redisExecCommandArgv(const QList<QByteArray> &commandArgv);
+```
+
+### Server commands
+```cpp
+bool redisAuth(const QString &password);
+bool redisPing(const QString &msg = QString());
+QtRedisReply redisEcho(const QString &msg);
+QMap<QString, QVariant> redisInfo(const QString &section = QString());
+QtRedisReply redisTime();
+bool redisSelect(const int dbIndex);
+int redisSelectedDb();
+qlonglong redisDbSize();
+bool redisFlushAll(const bool async = false);
+bool redisFlushDb(const bool async = false);
+
+// -- SAVE-methods --
+bool redisSave();
+QtRedisReply redisBgSave();
+uint redisLastSave();
+
+// -- CONFIG-methods --
+QtRedisReply redisConfigGet(const QString &param);
+bool redisConfigSet(const QString &param, const QString &value);
+bool redisConfigReWrite();
+bool redisConfigResetStat();
+
+// -- CLIENT-methods --
+QVector<QtRedisClientInfo> redisClientList();
+bool redisClientSetName(const QString &connectionName);
+QString redisClientGetName();
+bool redisClientKill(const QString &ip, const uint port);
+bool redisClientKill(const QString &id);
+```
+
+### Key-Value commands
+```cpp
+QStringList redisKeys(const QString &arg = QString("*"));
+QString redisRandomKey();
+qlonglong redisExists(const QStringList &keyList);
+QtRedisReply redisGet(const QString &key);
+QString redisGetRange(const QString &key, const int startPos, const int endPos);
+QtRedisReply redisGetSet(const QString &key, const QString &value);
+qlonglong redisAppend(const QString &key, const QString &appendValue);
+bool redisSet(const QString &key,
+                const QString &value,
+                const uint exSec = 0,
+                const uint pxMSec = 0,
+                const QString existFlag = QString());
+
+qlonglong redisSetRange(const QString &key, const QString &value, const int offset);
+qlonglong redisDel(const QStringList &keyList);
+qlonglong redisStrlen(const QString &key);
+bool redisExpire(const QString &key, const uint sec);
+bool redisExpireAt(const QString &key, const uint utcSec);
+bool redisPExpire(const QString &key, const uint msec);
+bool redisPExpireAt(const QString &key, const qint64 utcMsec);
+bool redisPersist(const QString &key);
+qlonglong redisTtl(const QString &key);
+qlonglong redisPTtl(const QString &key);
+qlonglong redisDecr(const QString &key);
+qlonglong redisDecrBy(const QString &key, const qint64 decr);
+qlonglong redisIncr(const QString &key);
+qlonglong redisIncrBy(const QString &key, const qint64 incr);
+qlonglong redisIncrByFloat(const QString &key, const float incr);
+bool redisRename(const QString &key, const QString &newKey);
+bool redisRenameNx(const QString &key, const QString &newKey);
+QString redisType(const QString &key);
+bool redisMSet(const QMap<QString, QString> &keyValue);
+bool redisMSetNx(const QMap<QString, QString> &keyValue);
+QtRedisReply redisMGet(const QStringList &keyList);
+bool redisMove(const QString &key, const int dbIndex);
+QtRedisReply redisDump(const QString &key);
+```
+
+### List commands
+```cpp
+QString redisLIndex(const QString &key, const int index);
+qlonglong redisLInsert(const QString &key,
+                        const QString &pilot,
+                        const QString &value,
+                        const QString &insertFlag = QString("AFTER"));
+
+qlonglong redisLLen(const QString &key);
+QString redisLPop(const QString &key);
+qlonglong redisLPush(const QString &key, const QStringList &valueList);
+qlonglong redisLPushX(const QString &key, const QString &value);
+QtRedisReply redisLRange(const QString &key, const int start, const int stop);
+qlonglong redisLRem(const QString &key, const QString &value, const int count);
+bool redisLSet(const QString &key, const QString &value, const int index);
+bool redisLTrim(const QString &key, const int start, const int stop);
+QString redisRPop(const QString &key);
+QString redisRPopLPush(const QString &sourceKey, const QString &destKey);
+qlonglong redisRPush(const QString &key, const QStringList &valueList);
+qlonglong redisRPushX(const QString &key, const QString &value);
+```
+
+### Stored commands
+```cpp
+qlonglong redisSAdd(const QString &key, const QStringList &memberList);
+qlonglong redisSCard(const QString &key);
+QtRedisReply redisSDiff(const QStringList &keyList);
+qlonglong redisSDiffStore(const QString &dest, const QStringList &keyList);
+QtRedisReply redisSInter(const QStringList &keyList);
+qlonglong redisSInterStore(const QString &dest, const QStringList &keyList);
+bool redisSIsMember(const QString &key, const QString &member);
+QStringList redisSMembers(const QString &key);
+bool redisSMove(const QString &sourceKey, const QString &destKey, const QString &member);
+QtRedisReply redisSPop(const QString &key, const uint count = 1);
+QtRedisReply redisSRandMember(const QString &key, const int count = 1);
+qlonglong redisSRem(const QString &key, const QStringList &memberList);
+QtRedisReply redisSUnion(const QStringList &keyList);
+qlonglong redisSUnionStore(const QString &dest, const QStringList &keyList);
+```
+
+### Sorted stored commands
+```cpp
+QtRedisReply redisZAdd(const QString &key,
+                        const QMultiMap<QString, QString> scoreMember,
+                        const QString &updFlag = QString(),
+                        const bool chFlag = false,
+                        const bool incrFlag = false);
+
+qlonglong redisZCard(const QString &key);
+qlonglong redisZCount(const QString &key,
+                        const QVariant &min = QVariant(),
+                        const QVariant &max = QVariant());
+
+QtRedisReply redisZIncrBy(const QString &key, const QString &member, const qint64 incr);
+
+qlonglong redisZInterStore(const QString &destKey,
+                            const QStringList &keyList,
+                            const QList<int> &weightList = QList<int>(),
+                            const QString &aggregateFlag = QString());
+
+qlonglong redisZLexCount(const QString &key, const QString &min, const QString &max);
+
+QtRedisReply redisZRange(const QString &key,
+                            const int start,
+                            const int stop,
+                            const bool withScores = false);
+
+QtRedisReply redisZRangeByLex(const QString &key,
+                                const QString &min,
+                                const QString &max,
+                                const int offset = -1,
+                                const int count = -1);
+
+QtRedisReply redisZRangeByScore(const QString &key,
+                                const QString &min,
+                                const QString &max,
+                                const bool withScores = false,
+                                const int offset = -1,
+                                const int count = -1);
+
+qlonglong redisZRank(const QString &key, const QString &member);
+qlonglong redisZRem(const QString &key, const QStringList &members);
+qlonglong redisZRemRangeByLex(const QString &key, const QString &min, const QString &max);
+qlonglong redisZRemRangeByRank(const QString &key, const int start, const int stop);
+qlonglong redisZRemRangeByScore(const QString &key, const QString &min, const QString &max);
+
+QtRedisReply redisZRevRange(const QString &key,
+                            const int start,
+                            const int stop,
+                            const bool withScores = false);
+
+QtRedisReply redisZRevRangeByLex(const QString &key,
+                                    const QString &max,
+                                    const QString &min,
+                                    const int offset = -1,
+                                    const int count = -1);
+
+QtRedisReply redisZRevRangeByScore(const QString &key,
+                                    const QString &max,
+                                    const QString &min,
+                                    const bool withScores = false,
+                                    const int offset = -1,
+                                    const int count = -1);
+
+qlonglong redisZRevRank(const QString &key, const QString &member);
+QtRedisReply redisZScore(const QString &key, const QString &member);
+
+qlonglong redisZUnionStore(const QString &destKey,
+                            const QStringList &keyList,
+                            const QList<int> &weightList = QList<int>(),
+                            const QString &aggregateFlag = QString());
+```
+
+### Pub/Sub commands
+```cpp
+QStringList redisPubSubChannels(const QString &pattern = QString());
+qlonglong redisPubSubNumPat();
+QMap<QString, qlonglong> redisPubSubNumSub(const QString &channel = QString());
+QMap<QString, qlonglong> redisPubSubNumSub(const QStringList &channels);
+QStringList redisPubSubShardChannels(const QString &pattern = QString());
+QMap<QString, qlonglong> redisPubSubShardNumSub(const QString &shardChannel = QString());
+QMap<QString, qlonglong> redisPubSubShardNumSub(const QStringList &shardChannels);
+
+qlonglong redisPublish(const QString &channel, const QString &message);
+qlonglong redisPublish(const QString &channel, const QByteArray &message);
+qlonglong redisSPublish(const QString &shardChannel, const QString &message);
+qlonglong redisSPublish(const QString &shardChannel, const QByteArray &message);
+
+bool redisSubscribe(const QString &channel);
+bool redisSubscribe(const QStringList &channels);
+bool redisUnsubscribe(const QString &channel = QString());
+bool redisUnsubscribe(const QStringList &channels);
+
+bool redisPSubscribe(const QString &pattern);
+bool redisPSubscribe(const QStringList &patterns);
+bool redisPUnsubscribe(const QString &pattern = QString());
+bool redisPUnsubscribe(const QStringList &patterns);
+
+bool redisSSubscribe(const QString &shardChannel);
+bool redisSSubscribe(const QStringList &shardChannels);
+bool redisSUnsubscribe(const QString &shardChannel = QString());
+bool redisSUnsubscribe(const QStringList &shardChannels);
 ```
 
 ## Code examples
@@ -16,47 +247,49 @@ include(QtRedisClient/QtRedisClient.pri)
 > See file "QtRedisClient.h" for a list of available commands.
 >
 
+### Base Redis client example
 ```cpp
 #include "QtRedisClient/QtRedisClient.h"
 
 // Create client & connect
-QtRedisClient *_redisClient = new QtRedisClient();
-if (!_redisClient->redisConnect("127.0.0.1", 6379)) {
+QtRedisClient _redisClient;
+if (!_redisClient.redisConnect("127.0.0.1", 6379)) {
     qCritical() << "Connect to redis failed!";
-    delete _redisClient;
     return;
 }
 qDebug() << "Connect to redis success";
 
 // Send Redis ping command
-_redisClient->clearLastError();
-if (!_redisClient->redisPing()) {
+_redisClient.clearLastError();
+if (!_redisClient.redisPing()) {
     qCritical() << qPrintable(QString("Redis PING failed! Error: %1")
-                              .arg(_redisClient->lastError()));
-    delete _redisClient;
+                              .arg(_redisClient.lastError()));
     return;
 }
 
 // Select Redis keys
-QStringList redisKeysList = _redisClient->redisKeys();
+QStringList redisKeysList = _redisClient.redisKeys();
 qDebug() << "Redis keys:" << redisKeysList;
 
+// Select Redis version
+qDebug() << "Redis version:" << _redisClient.redisInfo("server").value("redis_version", "?.?.?");
+
 // Remove all Redis keys (ver. 1)
-_redisClient->clearLastError();
-if (!_redisClient->redisDel(redisKeysList)) {
+_redisClient.clearLastError();
+if (!_redisClient.redisDel(redisKeysList)) {
     qWarning() << qPrintable(QString("Del redis keys failed! Error: %1")
-                             .arg(_redisClient->lastError()));
+                             .arg(_redisClient.lastError()));
 } else {
     qDebug() << qPrintable(QString("Del redis keys success"));
 }
 
 // Remove all Redis keys (ver. 2)
 for (const QString &key : qAsConst(redisKeysList)) {
-    _redisClient->clearLastError();
-    if (!_redisClient->redisDel(QStringList(key))) {
+    _redisClient.clearLastError();
+    if (!_redisClient.redisDel(QStringList(key))) {
         qWarning() << qPrintable(QString("Del redis key (%1) failed! Error: %2")
                                  .arg(key)
-                                 .arg(_redisClient->lastError()));
+                                 .arg(_redisClient.lastError()));
     } else {
         qDebug() << qPrintable(QString("Del redis key (%1) success")
                                .arg(key));
@@ -66,16 +299,181 @@ for (const QString &key : qAsConst(redisKeysList)) {
 // Set Redis value
 QString rKey("my_redis_key");
 QString rValue("my_redis_value");
-_redisClient->clearLastError();
-if (!_redisClient->redisSet(rKey, rValue)) {
+_redisClient.clearLastError();
+if (!_redisClient.redisSet(rKey, rValue)) {
     qWarning() << qPrintable(QString("Add redis key-value failed (key: %1)! Error: %2")
                              .arg(rKey)
-                             .arg(_redisClient->lastError()));
+                             .arg(_redisClient.lastError()));
 }
 
 // Disconnect
-_redisClient->redisDisconnect();
-delete _redisClient;
+_redisClient.redisDisconnect();
 ```
 
+### Base Redis pub/sub client examples
+
+>
+> NOTE: 
+> If you receive an error like: 
+> 
+> ```ERR Can't execute 'publish': only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT / RESET are allowed in this context-ERR unknown command `023`, with args beginning with: \r\n```
+> 
+> then this indicates that you are trying to both publish and read messages from the same client!
+> Just create a new connection with a new client.
+>
+
+
+>
+> NOTE:
+> To use a separate connection for channels use the following code:
+>
+> ```cpp
+> // Create client with separate connection & connect
+> QtRedisClient _redisPub;
+> if (!_redisPub.redisConnect("127.0.0.1", 6379, -1, QtRedisTransporter::TransporterChannelMode::SeparateConnection)) {
+>     qCritical() << "Connect to redis failed!";
+>     return;
+> }
+> ``` 
+>
+
+#### Redis client with base pub/sub channels
+```cpp
+#include "QtRedisClient/QtRedisClient.h"
+
+// Create client & connect
+QtRedisClient _redisPub;
+if (!_redisPub.redisConnect("127.0.0.1", 6379)) {
+    qCritical() << "Connect to redis failed!";
+    return;
+}
+QtRedisClient _redisSub;
+if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
+    qCritical() << "Connect to redis failed!";
+    return;
+}
+qDebug() << "Connect to redis success";
+
+// Subscribe to the channel
+_redisClient.clearLastError();
+if (!_redisClient.redisSubscribe("my_channel"))
+    qCritical() << qPrintable(QString("Subscribe to the channel failed! Error: %1")
+                              .arg(_redisClient.lastError()));
+    return;
+}
+
+// Connect Qt signals for incoming channel messages
+connect(&_redisSub, &QtRedisClient::incomingChannelMessage, this, [](QString channel, QtRedisReply data) {
+    qDebug() << "Incoming SUB:" << channel << data;
+});
+
+//
+// ...
+//
+
+// Publishing a message to a channel
+qDebug() << "pub:" << _redisPub.redisPublish("my_channel", QDateTime::currentDateTime().toString("hh:mm:ss.zzz"));
+
+//
+// ...
+//
+
+// Disconnect
+_redisClient.redisDisconnect();
+```
+
+#### Redis client with pattern pub/sub channel
+```cpp
+#include "QtRedisClient/QtRedisClient.h"
+
+// Create client & connect
+QtRedisClient _redisPub;
+if (!_redisPub.redisConnect("127.0.0.1", 6379)) {
+    qCritical() << "Connect to redis failed!";
+    return;
+}
+QtRedisClient _redisSub;
+if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
+    qCritical() << "Connect to redis failed!";
+    return;
+}
+qDebug() << "Connect to redis success";
+
+// Subscribe to the channel
+_redisClient.clearLastError();
+if (!_redisClient.redisPSubscribe("my_channe*"))
+    qCritical() << qPrintable(QString("Subscribe to the channel failed! Error: %1")
+                              .arg(_redisClient.lastError()));
+    return;
+}
+
+// Connect Qt signals for incoming pattern channel messages
+connect(&_redisSub, &QtRedisClient::incomingChannelPatternMessage, this, [](QString pattern, QString channel, QtRedisReply data) {
+    qDebug() << "Incoming PSUB:" << pattern << channel << data;
+});
+
+//
+// ...
+//
+
+// Publishing a message to a channel
+qDebug() << "pub:" << _redisPub.redisPublish("my_channel", QDateTime::currentDateTime().toString("hh:mm:ss.zzz"));
+
+//
+// ...
+//
+
+// Disconnect
+_redisClient.redisDisconnect();
+```
+
+#### Redis client with shard pub/sub channel
+
+>
+> NOTE: This functionality has appeared in Redis since version 7.0.0!
+>
+
+```cpp
+#include "QtRedisClient/QtRedisClient.h"
+
+// Create client & connect
+QtRedisClient _redisPub;
+if (!_redisPub.redisConnect("127.0.0.1", 6379)) {
+    qCritical() << "Connect to redis failed!";
+    return;
+}
+QtRedisClient _redisSub;
+if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
+    qCritical() << "Connect to redis failed!";
+    return;
+}
+qDebug() << "Connect to redis success";
+
+// Subscribe to the channel
+_redisClient.clearLastError();
+if (!_redisClient.redisSSubscribe("my_shard_channel"))
+    qCritical() << qPrintable(QString("Subscribe to the shard channel failed! Error: %1")
+                              .arg(_redisClient.lastError()));
+    return;
+}
+
+// Connect Qt signals for incoming shard channel messages
+connect(&_redisSub, &QtRedisClient::incomingChannelShardMessage, this, [](QString shardChannel, QtRedisReply data) {
+    qDebug() << "Incoming SSUB:" << shardChannel << data;
+});
+
+//
+// ...
+//
+
+// Publishing a message to a shard channel
+qDebug() << "spub:" << _redisPub.redisSPublish("my_shard_channel", QDateTime::currentDateTime().toString("hh:mm:ss.zzz"));
+
+//
+// ...
+//
+
+// Disconnect
+_redisClient.redisDisconnect();
+```
 
