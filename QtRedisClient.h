@@ -37,18 +37,24 @@ public:
 
     bool redisIsConnected();
 
+    QtRedisTransporter::TransporterType redisContextType();
+    QtRedisTransporter::TransporterChannelMode redisContextChannelMode();
+
     bool redisConnect(const QString &host,
                       const int port = 6379,
-                      const int timeOutMsec = -1);
+                      const int timeOutMsec = -1,
+                      const QtRedisTransporter::TransporterChannelMode contextChannelMode = QtRedisTransporter::TransporterChannelMode::CurrentConnection);
 
     // NOTE: not tested!
     bool redisConnectEncrypted(const QString &host,
                                const int port,
-                               const int timeOutMsec = -1);
+                               const int timeOutMsec = -1,
+                               const QtRedisTransporter::TransporterChannelMode contextChannelMode = QtRedisTransporter::TransporterChannelMode::CurrentConnection);
 
 #if defined(Q_OS_LINUX)
     bool redisConnectUnix(const QString &sockPath = QString("/tmp/redis.sock"),
-                          const int timeOutMsec = -1);
+                          const int timeOutMsec = -1,
+                          const QtRedisTransporter::TransporterChannelMode contextChannelMode = QtRedisTransporter::TransporterChannelMode::CurrentConnection);
 #endif
 
     bool redisReconnect(const int timeOutMsec = -1);
@@ -254,10 +260,33 @@ public:
     // ------------------------------------------------------------------------
     // -- PUB/SUB COMMANDS ----------------------------------------------------
     // ------------------------------------------------------------------------
+    QStringList redisPubSubChannels(const QString &pattern = QString());
+    qlonglong redisPubSubNumPat();
+    QMap<QString, qlonglong> redisPubSubNumSub(const QString &channel = QString());
+    QMap<QString, qlonglong> redisPubSubNumSub(const QStringList &channels);
+    QStringList redisPubSubShardChannels(const QString &pattern = QString());
+    QMap<QString, qlonglong> redisPubSubShardNumSub(const QString &shardChannel = QString());
+    QMap<QString, qlonglong> redisPubSubShardNumSub(const QStringList &shardChannels);
+
     qlonglong redisPublish(const QString &channel, const QString &message);
     qlonglong redisPublish(const QString &channel, const QByteArray &message);
+    qlonglong redisSPublish(const QString &shardChannel, const QString &message);
+    qlonglong redisSPublish(const QString &shardChannel, const QByteArray &message);
+
     bool redisSubscribe(const QString &channel);
     bool redisSubscribe(const QStringList &channels);
+    bool redisUnsubscribe(const QString &channel = QString());
+    bool redisUnsubscribe(const QStringList &channels);
+
+    bool redisPSubscribe(const QString &pattern);
+    bool redisPSubscribe(const QStringList &patterns);
+    bool redisPUnsubscribe(const QString &pattern = QString());
+    bool redisPUnsubscribe(const QStringList &patterns);
+
+    bool redisSSubscribe(const QString &shardChannel);
+    bool redisSSubscribe(const QStringList &shardChannels);
+    bool redisSUnsubscribe(const QString &shardChannel = QString());
+    bool redisSUnsubscribe(const QStringList &shardChannels);
 
     // ------------------------------------------------------------------------
     // -- TOOLS COMMANDS ------------------------------------------------------
@@ -268,16 +297,20 @@ public:
     bool replyIntToBool(const QtRedisReply &reply);
     bool replySimpleStringToBool(const QtRedisReply &reply);
 
-    bool isReplyWithValues(const QtRedisReply &reply);
-
 protected:
     mutable QMutex      _mutex;                 //!< мьютекс
     mutable QMutex      _mutexErr;              //!< мьютекс
     QString             _lastError;             //!< ошибка
     QtRedisTransporter *_transporter {nullptr}; //!< слой взаимодействия с redis
 
+private:
+    bool redisSubscribe_safe(const QString &command, const QStringList &channels);
+    bool redisUnsubscribe_safe(const QString &command, const QStringList &channels);
+
 signals:
     void incomingChannelMessage(QString channel, QtRedisReply data);
+    void incomingChannelShardMessage(QString shardChannel, QtRedisReply data);
+    void incomingChannelPatternMessage(QString pattern, QString channel, QtRedisReply data);
 };
 
 #endif // QTREDISCLIENT_H

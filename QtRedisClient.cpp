@@ -75,6 +75,34 @@ bool QtRedisClient::redisIsConnected()
 }
 
 //!
+//! \brief Тип соединения с Redis
+//! \return
+//!
+QtRedisTransporter::TransporterType QtRedisClient::redisContextType()
+{
+    QMutexLocker lock(&_mutex);
+    if (!_transporter) {
+        this->setLastError("QtRedisTransporter is NULL!");
+        return QtRedisTransporter::TransporterType::NoType;
+    }
+    return _transporter->type();
+}
+
+//!
+//! \brief Тип работы в режиме подписки на каналы
+//! \return
+//!
+QtRedisTransporter::TransporterChannelMode QtRedisClient::redisContextChannelMode()
+{
+    QMutexLocker lock(&_mutex);
+    if (!_transporter) {
+        this->setLastError("QtRedisTransporter is NULL!");
+        return QtRedisTransporter::TransporterChannelMode::CurrentConnection;
+    }
+    return _transporter->channelMode();
+}
+
+//!
 //! \brief Подключиться к серверу Redis
 //! \param host IP-адрес
 //! \param port Порт
@@ -85,7 +113,8 @@ bool QtRedisClient::redisIsConnected()
 //!
 bool QtRedisClient::redisConnect(const QString &host,
                                  const int port,
-                                 const int timeOutMsec)
+                                 const int timeOutMsec,
+                                 const QtRedisTransporter::TransporterChannelMode contextChannelMode)
 {
     QMutexLocker lock(&_mutex);
     if (host.isEmpty() || port == 0) {
@@ -98,9 +127,15 @@ bool QtRedisClient::redisConnect(const QString &host,
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter();
+        _transporter = new QtRedisTransporter(contextChannelMode);
         QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+                         this, &QtRedisClient::incomingChannelShardMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+                         this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
         _transporter->clearTransporter();
@@ -120,7 +155,8 @@ bool QtRedisClient::redisConnect(const QString &host,
 //!
 bool QtRedisClient::redisConnectEncrypted(const QString &host,
                                           const int port,
-                                          const int timeOutMsec)
+                                          const int timeOutMsec,
+                                          const QtRedisTransporter::TransporterChannelMode contextChannelMode)
 {
     QMutexLocker lock(&_mutex);
     if (host.isEmpty() || port == 0) {
@@ -134,9 +170,15 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter();
+        _transporter = new QtRedisTransporter(contextChannelMode);
         QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+                         this, &QtRedisClient::incomingChannelShardMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+                         this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
         _transporter->clearTransporter();
@@ -154,7 +196,9 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
 //!
 //! Данный метод сипользует UNIX-sockets.
 //!
-bool QtRedisClient::redisConnectUnix(const QString &sockPath, const int timeOutMsec)
+bool QtRedisClient::redisConnectUnix(const QString &sockPath,
+                                     const int timeOutMsec,
+                                     const QtRedisTransporter::TransporterChannelMode contextChannelMode)
 {
     QMutexLocker lock(&_mutex);
     if (sockPath.isEmpty()) {
@@ -167,9 +211,15 @@ bool QtRedisClient::redisConnectUnix(const QString &sockPath, const int timeOutM
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter();
+        _transporter = new QtRedisTransporter(contextChannelMode);
         QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+                         this, &QtRedisClient::incomingChannelShardMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+                         this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
         _transporter->clearTransporter();
@@ -3678,27 +3728,319 @@ qlonglong QtRedisClient::redisZUnionStore(const QString &destKey,
 // ------------------------------------------------------------------------
 
 //!
-//! \brief QtRedisClient::redisPublish
-//! \param channel
-//! \param message
-//! \return The number of clients that received the message.
+//! \brief Получить список каналов, на которые выполнена подписка
+//! \param pattern
+//! \return
 //!
-qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &message)
+//! Syntax
+//!
+//! PUBSUB CHANNELS [pattern]
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(N) where N is the number of active channels, and assuming constant time pattern matching (relatively short channels and patterns)
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Lists the currently active channels.
+//!
+//! An active channel is a Pub/Sub channel with one or more subscribers (excluding clients subscribed to patterns).
+//!
+//! If no pattern is specified, all the channels are listed, otherwise if pattern is specified only channels matching the specified glob-style pattern are listed.
+//!
+//! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
+//! The cluster will make sure that published messages are forwarded as needed.
+//! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
 {
-    if (channel.trimmed().isEmpty() || message.trimmed().isEmpty()) {
-        this->setLastError("Invalid input arguments!");
-        return -1;
-    }
     QStringList argv;
-    argv << "PUBLISH" << channel.trimmed() << message.trimmed();
+    argv << "PUBSUB" << "CHANNELS";
+    if (!pattern.trimmed().isEmpty())
+        argv << pattern.trimmed();
+    return this->replyToArray(this->redisExecCommandArgv(argv));
+}
+
+//!
+//! \brief Получить число уникальных шаблонов, на которые подписаны клиенты.
+//! \return The number of unique patterns that are subscribed to by clients
+//!
+//! Syntax
+//!
+//! PUBSUB NUMPAT
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of unique patterns that are subscribed to by clients (that are performed using the PSUBSCRIBE command).
+//!
+//! Note that this isn't the count of clients subscribed to patterns, but the total number of unique patterns all the clients are subscribed to.
+//!
+//! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
+//! The cluster will make sure that published messages are forwarded as needed.
+//! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+qlonglong QtRedisClient::redisPubSubNumPat()
+{
+    QStringList argv;
+    argv << "PUBSUB" << "NUMPAT";
     return this->replyToLong(this->redisExecCommandArgv(argv));
 }
 
 //!
-//! \brief QtRedisClient::redisPublish
+//! \brief Получить число подписчиков на каждый канал
 //! \param channel
-//! \param message
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB NUMSUB [channel [channel ...]]
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(N) for the NUMSUB subcommand, where N is the number of requested channels
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of subscribers (exclusive of clients subscribed to patterns) for the specified channels.
+//!
+//! Note that it is valid to call this command without channels. In this case it will just return an empty list.
+//!
+//! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
+//! The cluster will make sure that published messages are forwarded as needed.
+//! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QString &channel)
+{
+    return this->redisPubSubNumSub(QStringList(channel));
+}
+
+//!
+//! \brief Получить число подписчиков на каждый канал
+//! \param channels
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB NUMSUB [channel [channel ...]]
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(N) for the NUMSUB subcommand, where N is the number of requested channels
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of subscribers (exclusive of clients subscribed to patterns) for the specified channels.
+//!
+//! Note that it is valid to call this command without channels. In this case it will just return an empty list.
+//!
+//! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
+//! The cluster will make sure that published messages are forwarded as needed.
+//! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &channels)
+{
+    // make valid list
+    QStringList tmpChannels = channels;
+    tmpChannels.removeAll(QString());
+    // make args
+    QStringList argv;
+    argv << "PUBSUB" << "NUMSUB";
+    if (!tmpChannels.isEmpty())
+        argv << tmpChannels;
+    QtRedisReply reply = this->redisExecCommandArgv(argv);
+    if (reply.arrayValueSize() != tmpChannels.size() * 2)
+        return QMap<QString, qlonglong>();
+    // parse result
+    QMap<QString, qlonglong> tmpRes;
+    const QVector<QtRedisReply> replyArr = reply.arrayValue();
+    for (int i = 0; i < replyArr.size(); i += 2) {
+        const QtRedisReply chName = replyArr[i];
+        const QtRedisReply chSubNum = replyArr[i + 1];
+        tmpRes.insert(chName.strValue(), chSubNum.intValue());
+    }
+    return tmpRes;
+}
+
+//!
+//! \brief Получить список каналов сегмента
+//! \param pattern
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB SHARDCHANNELS [pattern]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of active shard channels, and assuming constant time pattern matching (relatively short shard channels).
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Lists the currently active shard channels.
+//!
+//! An active shard channel is a Pub/Sub shard channel with one or more subscribers.
+//!
+//! If no pattern is specified, all the channels are listed, otherwise if pattern is specified only channels matching the specified glob-style pattern are listed.
+//!
+//! The information returned about the active shard channels are at the shard level and not at the cluster level.
+//! Examples
+//!
+//! > PUBSUB SHARDCHANNELS
+//! 1) "orders"
+//! > PUBSUB SHARDCHANNELS o*
+//! 1) "orders"
+//!
+QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
+{
+    QStringList argv;
+    argv << "PUBSUB" << "SHARDCHANNELS";
+    if (!pattern.trimmed().isEmpty())
+        argv << pattern;
+    return this->replyToArray(this->redisExecCommandArgv(argv));
+}
+
+//!
+//! \brief Получить число подписчиков на каждый канал сегмента
+//! \param shardChannel
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB SHARDNUMSUB [shardchannel [shardchannel ...]]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) for the SHARDNUMSUB subcommand, where N is the number of requested shard channels
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of subscribers for the specified shard channels.
+//!
+//! Note that it is valid to call this command without channels, in this case it will just return an empty list.
+//!
+//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+//! Examples
+//!
+//! > PUBSUB SHARDNUMSUB orders
+//! 1) "orders"
+//! 2) (integer) 1
+//!
+QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QString &shardChannel)
+{
+    return this->redisPubSubShardNumSub(QStringList(shardChannel));
+}
+
+//!
+//! \brief Получить число подписчиков на каждый канал сегмента
+//! \param shardChannels
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB SHARDNUMSUB [shardchannel [shardchannel ...]]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) for the SHARDNUMSUB subcommand, where N is the number of requested shard channels
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of subscribers for the specified shard channels.
+//!
+//! Note that it is valid to call this command without channels, in this case it will just return an empty list.
+//!
+//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+//! Examples
+//!
+//! > PUBSUB SHARDNUMSUB orders
+//! 1) "orders"
+//! 2) (integer) 1
+//!
+QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList &shardChannels)
+{
+    // make valid list
+    QStringList tmpChannels = shardChannels;
+    tmpChannels.removeAll(QString());
+    // make args
+    QStringList argv;
+    argv << "PUBSUB" << "SHARDNUMSUB";
+    if (!tmpChannels.isEmpty())
+        argv << tmpChannels;
+    QtRedisReply reply = this->redisExecCommandArgv(argv);
+    if (reply.arrayValueSize() != tmpChannels.size() * 2)
+        return QMap<QString, qlonglong>();
+    // parse result
+    QMap<QString, qlonglong> tmpRes;
+    const QVector<QtRedisReply> replyArr = reply.arrayValue();
+    for (int i = 0; i < replyArr.size(); i += 2) {
+        const QtRedisReply chName = replyArr[i];
+        const QtRedisReply chSubNum = replyArr[i + 1];
+        tmpRes.insert(chName.strValue(), chSubNum.intValue());
+    }
+    return tmpRes;
+}
+
+//!
+//! \brief Отправить сообщение в канал сообщений
+//! \param channel Название канала
+//! \param message Сообщение
 //! \return The number of clients that received the message.
+//!
+//! Syntax
+//!
+//! PUBLISH channel message
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N+M) where N is the number of clients subscribed to the receiving channel and M is the total number of subscribed patterns (by any client).
+//! ACL categories:
+//!     @pubsub, @fast
+//!
+//! Posts a message to the given channel.
+//!
+//! In a Redis Cluster clients can publish to every node. The cluster makes sure that published messages are forwarded as needed,
+//! so clients can subscribe to any channel by connecting to any one of the nodes.
+//!
+qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &message)
+{
+    return this->redisPublish(channel, message.toUtf8());
+}
+
+//!
+//! \brief Отправить сообщение в канал сообщений
+//! \param channel Название канала
+//! \param message Сообщение
+//! \return The number of clients that received the message.
+//!
+//! Syntax
+//!
+//! PUBLISH channel message
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N+M) where N is the number of clients subscribed to the receiving channel and M is the total number of subscribed patterns (by any client).
+//! ACL categories:
+//!     @pubsub, @fast
+//!
+//! Posts a message to the given channel.
+//!
+//! In a Redis Cluster clients can publish to every node. The cluster makes sure that published messages are forwarded as needed,
+//! so clients can subscribe to any channel by connecting to any one of the nodes.
 //!
 qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &message)
 {
@@ -3712,63 +4054,453 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
 }
 
 //!
-//! \brief QtRedisClient::redisSubscribe
-//! \param channel
-//! \return
+//! \brief Отправить сообщение в указанный канал сегмента.
+//! \param shardChannel Название канала
+//! \param message Сообщение
+//! \return The number of clients that received the message.
 //!
-bool QtRedisClient::redisSubscribe(const QString &channel)
+//! Syntax
+//!
+//! SPUBLISH shardchannel message
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of clients subscribed to the receiving shard channel.
+//! ACL categories:
+//!     @pubsub, @fast
+//!
+//! Posts a message to the given shard channel.
+//!
+//! In Redis Cluster, shard channels are assigned to slots by the same algorithm used to assign keys to slots.
+//! A shard message must be sent to a node that own the slot the shard channel is hashed to.
+//! The cluster makes sure that published shard messages are forwarded to all the node in the shard,
+//! so clients can subscribe to a shard channel by connecting to any one of the nodes in the shard.
+//!
+//! For more information about sharded pubsub, see Sharded Pubsub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! Examples
+//!
+//! For example the following command publish to channel orders with a subscriber already waiting for message(s).
+//!
+//! > spublish orders hello
+//! (integer) 1
+//!
+qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QString &message)
 {
-    QMutexLocker lock(&_mutex);
-    if (channel.trimmed().isEmpty()) {
-        this->setLastError("Invalid input arguments!");
-        return false;
-    }
-    if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
-        return false;
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError("Client is not connected!");
-        return false;
-    }
-    if (!_transporter->isSubscribed()
-        && !_transporter->subscribeToServer()) {
-        this->setLastError("Subscribe to the server failed!");
-        return false;
-    }
-    QStringList argv;
-    argv << "SUBSCRIBE" << channel.trimmed().toUtf8();
-    return this->isReplyWithValues(_transporter->sendSubscribeCommand(argv));
+    return this->redisSPublish(shardChannel, message.toUtf8());
 }
 
 //!
-//! \brief QtRedisClient::redisSubscribe
-//! \param channels
+//! \brief Отправить сообщение в указанный канал сегмента.
+//! \param shardChannel Название канала
+//! \param message Сообщение
+//! \return The number of clients that received the message.
+//!
+//! Syntax
+//!
+//! SPUBLISH shardchannel message
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of clients subscribed to the receiving shard channel.
+//! ACL categories:
+//!     @pubsub, @fast
+//!
+//! Posts a message to the given shard channel.
+//!
+//! In Redis Cluster, shard channels are assigned to slots by the same algorithm used to assign keys to slots.
+//! A shard message must be sent to a node that own the slot the shard channel is hashed to.
+//! The cluster makes sure that published shard messages are forwarded to all the node in the shard,
+//! so clients can subscribe to a shard channel by connecting to any one of the nodes in the shard.
+//!
+//! For more information about sharded pubsub, see Sharded Pubsub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! Examples
+//!
+//! For example the following command publish to channel orders with a subscriber already waiting for message(s).
+//!
+//! > spublish orders hello
+//! (integer) 1
+//!
+qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteArray &message)
+{
+    if (shardChannel.trimmed().isEmpty() || message.isEmpty()) {
+        this->setLastError("Invalid input arguments!");
+        return -1;
+    }
+    QList<QByteArray> argv;
+    argv << "SPUBLISH" << shardChannel.trimmed().toUtf8() << message;
+    return this->replyToLong(this->redisExecCommandArgv(argv));
+}
+
+//!
+//! \brief Подписаться на канал сообщений
+//! \param channel Название канала
 //! \return
+//!
+//! Syntax
+//!
+//! SUBSCRIBE channel [channel ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of channels to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the specified channels.
+//!
+//! Once the client enters the subscribed state it is not supposed to issue any other commands,
+//! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
+//! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+bool QtRedisClient::redisSubscribe(const QString &channel)
+{
+    return this->redisSubscribe_safe("SUBSCRIBE", QStringList(channel));
+}
+
+//!
+//! \brief Подписаться на канал сообщений
+//! \param channels Названия каналов
+//! \return
+//!
+//! Syntax
+//!
+//! SUBSCRIBE channel [channel ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of channels to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the specified channels.
+//!
+//! Once the client enters the subscribed state it is not supposed to issue any other commands,
+//! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
+//! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
 //!
 bool QtRedisClient::redisSubscribe(const QStringList &channels)
 {
-    QMutexLocker lock(&_mutex);
-    if (channels.isEmpty()) {
-        this->setLastError("Invalid input arguments!");
-        return false;
-    }
-    if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
-        return false;
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError("Client is not connected!");
-        return false;
-    }
-    if (!_transporter->isSubscribed()
-        && !_transporter->subscribeToServer()) {
-        this->setLastError("Subscribe to the server failed!");
-        return false;
-    }
-    QStringList argv;
-    argv << "SUBSCRIBE" << channels;
-    return this->isReplyWithValues(_transporter->sendSubscribeCommand(argv));
+    return this->redisSubscribe_safe("SUBSCRIBE", channels);
+}
+
+//!
+//! \brief Отписаться от канала сообщений
+//! \param channel Название канала
+//! \return
+//!
+//! Syntax
+//!
+//! UNSUBSCRIBE [channel [channel ...]]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of channels to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given channels, or from all of them if none is given.
+//!
+//! When no channels are specified, the client is unsubscribed from all the previously subscribed channels.
+//! In this case, a message for every unsubscribed channel will be sent to the client.
+//!
+bool QtRedisClient::redisUnsubscribe(const QString &channel)
+{
+    return this->redisUnsubscribe_safe("UNSUBSCRIBE", QStringList(channel));
+}
+
+//!
+//! \brief Отписаться от канала сообщений
+//! \param channels Названия каналов
+//! \return
+//!
+//! Syntax
+//!
+//! UNSUBSCRIBE [channel [channel ...]]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of channels to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given channels, or from all of them if none is given.
+//!
+//! When no channels are specified, the client is unsubscribed from all the previously subscribed channels.
+//! In this case, a message for every unsubscribed channel will be sent to the client.
+//!
+bool QtRedisClient::redisUnsubscribe(const QStringList &channels)
+{
+    return this->redisUnsubscribe_safe("UNSUBSCRIBE", channels);
+}
+
+//!
+//! \brief Подписаться на канал по заданному шаблону
+//! \param pattern
+//! \return
+//!
+//! Syntax
+//!
+//! PSUBSCRIBE pattern [pattern ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of patterns to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the given patterns.
+//!
+//! Supported glob-style patterns:
+//!
+//!     h?llo subscribes to hello, hallo and hxllo
+//!     h*llo subscribes to hllo and heeeello
+//!     h[ae]llo subscribes to hello and hallo, but not hillo
+//!
+//! Use \ to escape special characters if you want to match them verbatim.
+//!
+//! Once the client enters the subscribed state it is not supposed to issue any other commands,
+//! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
+//! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+bool QtRedisClient::redisPSubscribe(const QString &pattern)
+{
+    return this->redisSubscribe_safe("PSUBSCRIBE", QStringList(pattern));
+}
+
+//!
+//! \brief Подписаться на канал по заданному шаблону
+//! \param patterns
+//! \return
+//!
+//! Syntax
+//!
+//! PSUBSCRIBE pattern [pattern ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of patterns to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the given patterns.
+//!
+//! Supported glob-style patterns:
+//!
+//!     h?llo subscribes to hello, hallo and hxllo
+//!     h*llo subscribes to hllo and heeeello
+//!     h[ae]llo subscribes to hello and hallo, but not hillo
+//!
+//! Use \ to escape special characters if you want to match them verbatim.
+//!
+//! Once the client enters the subscribed state it is not supposed to issue any other commands,
+//! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
+//! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+bool QtRedisClient::redisPSubscribe(const QStringList &patterns)
+{
+    return this->redisSubscribe_safe("PSUBSCRIBE", patterns);
+}
+
+//!
+//! \brief Отписаться от канала по заданному шаблону
+//! \param pattern
+//! \return
+//!
+//! Syntax
+//!
+//! PUNSUBSCRIBE [pattern [pattern ...]]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of patterns to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given patterns, or from all of them if none is given.
+//!
+//! When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns.
+//! In this case, a message for every unsubscribed pattern will be sent to the client.
+//!
+bool QtRedisClient::redisPUnsubscribe(const QString &pattern)
+{
+    return this->redisUnsubscribe_safe("PUNSUBSCRIBE", QStringList(pattern));
+}
+
+//!
+//! \brief Отписаться от канала по заданному шаблону
+//! \param patterns
+//! \return
+//!
+//! Syntax
+//!
+//! PUNSUBSCRIBE [pattern [pattern ...]]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of patterns to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given patterns, or from all of them if none is given.
+//!
+//! When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns.
+//! In this case, a message for every unsubscribed pattern will be sent to the client.
+//!
+bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
+{
+    return this->redisUnsubscribe_safe("PUNSUBSCRIBE", patterns);
+}
+
+//!
+//! \brief Подписаться на сообщения указанного канала сегмента.
+//! \param shardChannel Название канала
+//! \return
+//!
+//! Syntax
+//!
+//! SSUBSCRIBE shardchannel [shardchannel ...]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of shard channels to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the specified shard channels.
+//!
+//! In a Redis cluster, shard channels are assigned to slots by the same algorithm used to assign keys to slots.
+//! Client(s) can subscribe to a node covering a slot (primary/replica) to receive the messages published.
+//! All the specified shard channels needs to belong to a single slot to subscribe in a given SSUBSCRIBE call,
+//! A client can subscribe to channels across different slots over separate SSUBSCRIBE call.
+//!
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//!
+//! Examples
+//!
+//! > ssubscribe orders
+//! Reading messages... (press Ctrl-C to quit)
+//! 1) "ssubscribe"
+//! 2) "orders"
+//! 3) (integer) 1
+//! 1) "smessage"
+//! 2) "orders"
+//! 3) "hello"
+//!
+bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
+{
+    return this->redisSubscribe_safe("SSUBSCRIBE", QStringList(shardChannel));
+}
+
+//!
+//! \brief Подписаться на сообщения указанного канала сегмента.
+//! \param shardChannels Название канала
+//! \return
+//!
+//! Syntax
+//!
+//! SSUBSCRIBE shardchannel [shardchannel ...]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of shard channels to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the specified shard channels.
+//!
+//! In a Redis cluster, shard channels are assigned to slots by the same algorithm used to assign keys to slots.
+//! Client(s) can subscribe to a node covering a slot (primary/replica) to receive the messages published.
+//! All the specified shard channels needs to belong to a single slot to subscribe in a given SSUBSCRIBE call,
+//! A client can subscribe to channels across different slots over separate SSUBSCRIBE call.
+//!
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//!
+//! Examples
+//!
+//! > ssubscribe orders
+//! Reading messages... (press Ctrl-C to quit)
+//! 1) "ssubscribe"
+//! 2) "orders"
+//! 3) (integer) 1
+//! 1) "smessage"
+//! 2) "orders"
+//! 3) "hello"
+//!
+bool QtRedisClient::redisSSubscribe(const QStringList &shardChannels)
+{
+    return this->redisSubscribe_safe("SSUBSCRIBE", shardChannels);
+}
+
+//!
+//! \brief Отписаться от сообщений указанного канала сегмента.
+//! \param shardChannel
+//! \return
+//!
+//! Syntax
+//!
+//! SUNSUBSCRIBE [shardchannel [shardchannel ...]]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of shard channels to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given shard channels, or from all of them if none is given.
+//!
+//! When no shard channels are specified, the client is unsubscribed from all the previously subscribed shard channels.
+//! In this case a message for every unsubscribed shard channel will be sent to the client.
+//!
+//! Note: The global channels and shard channels needs to be unsubscribed from separately.
+//!
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//!
+bool QtRedisClient::redisSUnsubscribe(const QString &shardChannel)
+{
+    return this->redisUnsubscribe_safe("SUNSUBSCRIBE", QStringList(shardChannel));
+}
+
+//!
+//! \brief Отписаться от сообщений указанного канала сегмента.
+//! \param shardChannels
+//! \return
+//!
+//! Syntax
+//!
+//! SUNSUBSCRIBE [shardchannel [shardchannel ...]]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of shard channels to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given shard channels, or from all of them if none is given.
+//!
+//! When no shard channels are specified, the client is unsubscribed from all the previously subscribed shard channels.
+//! In this case a message for every unsubscribed shard channel will be sent to the client.
+//!
+//! Note: The global channels and shard channels needs to be unsubscribed from separately.
+//!
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//!
+bool QtRedisClient::redisSUnsubscribe(const QStringList &shardChannels)
+{
+    return this->redisUnsubscribe_safe("SUNSUBSCRIBE", shardChannels);
 }
 
 
@@ -3863,7 +4595,84 @@ bool QtRedisClient::replySimpleStringToBool(const QtRedisReply &reply)
     return false;
 }
 
-bool QtRedisClient::isReplyWithValues(const QtRedisReply &reply)
+bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringList &channels)
 {
-    return reply.isValue();
+    QMutexLocker lock(&_mutex);
+    // make valid list
+    QStringList tmpChannels = channels;
+    tmpChannels.removeAll(QString());
+    // check
+    if (tmpChannels.isEmpty()) {
+        this->setLastError("Invalid input arguments!");
+        return false;
+    }
+    if (!_transporter) {
+        this->setLastError("QtRedisTransporter is NULL!");
+        return false;
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError("Client is not connected!");
+        return false;
+    }
+    if (!_transporter->isSubscribed()
+        && !_transporter->subscribeToServer()) {
+        this->setLastError("Subscribe to the server failed!");
+        return false;
+    }
+    // make args
+    QStringList argv;
+    argv << command.trimmed().toUpper() << tmpChannels;
+    const QList<QtRedisReply> replyList = _transporter->sendChannelCommand_lst(argv);
+    if (replyList.size() != tmpChannels.size())
+        return false;
+    bool isOk = true;
+    for (int i = 0; i < tmpChannels.size(); i++) {
+        const QtRedisReply reply = replyList[i];
+        const QString channel = tmpChannels[i];
+        isOk = isOk
+               && reply.type() == QtRedisReply::ReplyType::Array
+               && reply.arrayValueSize() == 3
+               && reply.arrayValue()[0].strValue() == command.trimmed().toLower()
+               && reply.arrayValue()[1].strValue() == channel;
+    }
+    return isOk;
+}
+
+bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringList &channels)
+{
+    QMutexLocker lock(&_mutex);
+    if (!_transporter) {
+        this->setLastError("QtRedisTransporter is NULL!");
+        return false;
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError("Client is not connected!");
+        return false;
+    }
+    if (!_transporter->isSubscribed()) {
+        this->setLastError("Client is not subscribed!");
+        return false;
+    }
+    // make valid list
+    QStringList tmpChannels = channels;
+    tmpChannels.removeAll(QString());
+    // make args
+    QStringList argv;
+    argv << command.trimmed().toUpper();
+    if (!tmpChannels.isEmpty())
+        argv << tmpChannels;
+    const QList<QtRedisReply> replyList = _transporter->sendChannelCommand_lst(argv);
+    if (replyList.size() != tmpChannels.size())
+        return false;
+    bool isOk = true;
+    for (int i = 0; i < tmpChannels.size(); i++) {
+        const QtRedisReply reply = replyList[i];
+        const QString channel = tmpChannels[i];
+        isOk = isOk
+               && reply.type() == QtRedisReply::ReplyType::Array
+               && reply.arrayValueSize() == 3
+               && reply.arrayValue()[0].strValue() == command.trimmed().toLower()
+               && reply.arrayValue()[1].strValue() == channel;
+    }
+    return isOk;
 }

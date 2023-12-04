@@ -19,7 +19,7 @@ class QtRedisContextSsl : public QtRedisContext
     Q_DISABLE_COPY(QtRedisContextSsl)
 
 public:
-    explicit QtRedisContextSsl(const QString &host, const uint port, const bool supportSignals = false);
+    explicit QtRedisContextSsl(const QString &host, const uint port);
     virtual ~QtRedisContextSsl();
 
     bool connectToServer(const int msecs = 30000) final;

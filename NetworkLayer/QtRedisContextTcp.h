@@ -19,7 +19,7 @@ class QtRedisContextTcp : public QtRedisContext
     Q_DISABLE_COPY(QtRedisContextTcp)
 
 public:
-    explicit QtRedisContextTcp(const QString &host, const uint port, const bool supportSignals = false);
+    explicit QtRedisContextTcp(const QString &host, const uint port);
     virtual ~QtRedisContextTcp();
 
     bool connectToServer(const int msecs = 30000) final;

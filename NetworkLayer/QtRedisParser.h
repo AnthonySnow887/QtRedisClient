@@ -22,17 +22,18 @@ public:
     static QByteArray createRawData(const QVariantList &command);
 
     static QtRedisReply parseRawData(const QByteArray &data, bool *ok = 0);
+    static QList<QtRedisReply> parseRawDataList(const QByteArray &data, bool *ok = 0);
 
 protected:
     static QByteArray createRawDataArgument(const QString &arg);
     static QByteArray createRawDataArgument(const QVariant &arg);
 
-    static QtRedisReply parseRawData(const QByteArray &data, int &index, bool *ok = 0);
-    static QtRedisReply parseRawDataToState(const QByteArray &data, int &index, bool *ok = 0);
-    static QtRedisReply parseRawDataToError(const QByteArray &data, int &index, bool *ok = 0);
-    static QtRedisReply parseRawDataToInt(const QByteArray &data, int &index, bool *ok = 0);
-    static QtRedisReply parseRawDataToString(const QByteArray &data, int &index, bool *ok = 0);
-    static QtRedisReply parseRawDataToArray(const QByteArray &data, int &index, bool *ok = 0);
+    static QtRedisReply parseRawDataTypes(QByteArray &data, bool *ok = 0);
+    static QtRedisReply parseRawDataToState(QByteArray &data, bool *ok = 0);
+    static QtRedisReply parseRawDataToError(QByteArray &data, bool *ok = 0);
+    static QtRedisReply parseRawDataToInt(QByteArray &data, bool *ok = 0);
+    static QtRedisReply parseRawDataToString(QByteArray &data, bool *ok = 0);
+    static QtRedisReply parseRawDataToArray(QByteArray &data, bool *ok = 0);
 };
 
 #endif // QTREDISPARSER_H
