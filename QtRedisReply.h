@@ -100,6 +100,40 @@ public:
     }
 
     //!
+    //! \brief Содержит ли значение результата
+    //! \return
+    //!
+    bool isValue() const {
+        return (_type == ReplyType::String
+                || _type == ReplyType::Array
+                || _type == ReplyType::Integer);
+    }
+
+    //!
+    //! \brief Содержит ли значение статуса
+    //! \return
+    //!
+    bool isStatus() const {
+        return (_type == ReplyType::Status);
+    }
+
+    //!
+    //! \brief Содержит ли значение Nil
+    //! \return
+    //!
+    bool isNil() const {
+        return (_type == ReplyType::Nil);
+    }
+
+    //!
+    //! \brief Содержит ли значение Error
+    //! \return
+    //!
+    bool isError() const {
+        return (_type == ReplyType::Error);
+    }
+
+    //!
     //! \brief Тип объекта
     //! \return
     //!
@@ -136,6 +170,17 @@ public:
     }
 
     //!
+    //! \brief Размер массива значений
+    //! \return
+    //!
+    int arrayValueSize() const {
+        if (_type == ReplyType::Array)
+            return _arrayValue.size();
+
+        return -1;
+    }
+
+    //!
     //! \brief Массив значений
     //! \return
     //!
@@ -144,6 +189,20 @@ public:
             return _arrayValue;
 
         return QVector<QtRedisReply>();
+    }
+
+    //!
+    //! \brief Значиение из массива значений
+    //! \param index Индекс
+    //! \return
+    //!
+    QtRedisReply arrayValueAt(const int index) const {
+        if (index < 0
+            || _type != ReplyType::Array
+            || _arrayValue.size() <= index)
+            return QtRedisReply();
+
+        return _arrayValue[index];
     }
 
     //!

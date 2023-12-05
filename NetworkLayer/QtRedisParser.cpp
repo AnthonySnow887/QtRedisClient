@@ -43,8 +43,27 @@ QByteArray QtRedisParser::createRawData(const QVariantList &command)
 //!
 QtRedisReply QtRedisParser::parseRawData(const QByteArray &data, bool *ok)
 {
-    int index = -1;
-    return QtRedisParser::parseRawData(data, index, ok);
+    return QtRedisParser::parseRawDataList(data, ok)[0];
+}
+
+//!
+//! \brief Разобрать ответ от Redis-а (если в данных содержиться несколько сообщений)
+//! \param data
+//! \param ok
+//! \return
+//!
+QList<QtRedisReply> QtRedisParser::parseRawDataList(const QByteArray &data, bool *ok)
+{
+    QByteArray buffData = data;
+    QList<QtRedisReply> replyList;
+    while (true) {
+        replyList.append(QtRedisParser::parseRawDataTypes(buffData, ok));
+        if (ok && *ok == false)
+            break;
+        if (buffData.isEmpty())
+            break;
+    }
+    return replyList;
 }
 
 //!
@@ -132,10 +151,8 @@ QByteArray QtRedisParser::createRawDataArgument(const QVariant &arg)
 //! \param index Индекс конца разобранных данных (включает символы '\r\n')
 //! \return
 //!
-QtRedisReply QtRedisParser::parseRawData(const QByteArray &data, int &index, bool *ok)
+QtRedisReply QtRedisParser::parseRawDataTypes(QByteArray &data, bool *ok)
 {
-    index = -1; // clear index
-
     // clear ok
     if (ok)
         *ok = false;
@@ -146,23 +163,23 @@ QtRedisReply QtRedisParser::parseRawData(const QByteArray &data, int &index, boo
 
     // state string
     if (data.at(0) == '+')
-        return QtRedisParser::parseRawDataToState(data, index, ok);
+        return QtRedisParser::parseRawDataToState(data, ok);
 
     // error string
     else if (data.at(0) == '-')
-        return QtRedisParser::parseRawDataToError(data, index, ok);
+        return QtRedisParser::parseRawDataToError(data, ok);
 
     // integer
     else if (data.at(0) == ':')
-        return QtRedisParser::parseRawDataToInt(data, index, ok);
+        return QtRedisParser::parseRawDataToInt(data, ok);
 
     // string
     else if (data.at(0) == '$')
-        return QtRedisParser::parseRawDataToString(data, index, ok);
+        return QtRedisParser::parseRawDataToString(data, ok);
 
     // array
     else if (data.at(0) == '*')
-        return QtRedisParser::parseRawDataToArray(data, index, ok);
+        return QtRedisParser::parseRawDataToArray(data, ok);
 
     else
         qWarning() << qPrintable(QString("[QtRedisParser][parseRawData] Invalid type! Symbol at 0 = \"%1\"").arg(data.at(0)));
@@ -188,10 +205,8 @@ QtRedisReply QtRedisParser::parseRawData(const QByteArray &data, int &index, boo
 //! When Redis replies with a Simple String, a client library should return to the caller a string composed of the first character after the '+' up to the end of the string,
 //! excluding the final CRLF bytes.
 //!
-QtRedisReply QtRedisParser::parseRawDataToState(const QByteArray &data, int &index, bool *ok)
+QtRedisReply QtRedisParser::parseRawDataToState(QByteArray &data, bool *ok)
 {
-    index = -1; // clear index
-
     // clear ok
     if (ok)
         *ok = false;
@@ -206,19 +221,20 @@ QtRedisReply QtRedisParser::parseRawDataToState(const QByteArray &data, int &ind
         return QtRedisReply();
     }
     QByteArray buffData = data;
-    buffData.remove(0, 1);
     int buffIndex = buffData.indexOf("\r\n");
     if (buffIndex == -1)
         return QtRedisReply();
-    if (buffIndex != -1)
+    if (buffIndex != -1) {
         buffData = buffData.remove(buffIndex, 2);
+        buffData.remove(0, 1);
+    }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Status);
     reply.setRawValue(buffData);
-    index = buffIndex + 2; // index + 2 chars (\r\n)
     if (ok)
         *ok = true;
 
+    data = data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }
 
@@ -228,10 +244,8 @@ QtRedisReply QtRedisParser::parseRawDataToState(const QByteArray &data, int &ind
 //! \param index Индекс конца разобранных данных (включает символы '\r\n')
 //! \return
 //!
-QtRedisReply QtRedisParser::parseRawDataToError(const QByteArray &data, int &index, bool *ok)
+QtRedisReply QtRedisParser::parseRawDataToError(QByteArray &data, bool *ok)
 {
-    index = -1; // clear index
-
     // clear ok
     if (ok)
         *ok = false;
@@ -246,19 +260,20 @@ QtRedisReply QtRedisParser::parseRawDataToError(const QByteArray &data, int &ind
         return QtRedisReply();
     }
     QByteArray buffData = data;
-    buffData.remove(0, 1);
     int buffIndex = buffData.indexOf("\r\n");
     if (buffIndex == -1)
         return QtRedisReply();
-    if (buffIndex != -1)
+    if (buffIndex != -1) {
         buffData = buffData.remove(buffIndex, 2);
+        buffData.remove(0, 1);
+    }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Error);
     reply.setRawValue(buffData);
-    index = buffIndex + 2; // index + 2 chars (\r\n)
     if (ok)
         *ok = true;
 
+    data = data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }
 
@@ -268,10 +283,8 @@ QtRedisReply QtRedisParser::parseRawDataToError(const QByteArray &data, int &ind
 //! \param index Индекс конца разобранных данных (включает символы '\r\n')
 //! \return
 //!
-QtRedisReply QtRedisParser::parseRawDataToInt(const QByteArray &data, int &index, bool *ok)
+QtRedisReply QtRedisParser::parseRawDataToInt(QByteArray &data, bool *ok)
 {
-    index = -1; // clear index
-
     // clear ok
     if (ok)
         *ok = false;
@@ -286,19 +299,20 @@ QtRedisReply QtRedisParser::parseRawDataToInt(const QByteArray &data, int &index
         return QtRedisReply();
     }
     QByteArray buffData = data;
-    buffData.remove(0, 1);
     int buffIndex = buffData.indexOf("\r\n");
     if (buffIndex == -1)
         return QtRedisReply();
-    if (buffIndex != -1)
+    if (buffIndex != -1) {
         buffData = buffData.remove(buffIndex, 2);
+        buffData.remove(0, 1);
+    }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Integer);
     reply.setRawValue(buffData);
-    index = buffIndex + 2; // index + 2 chars (\r\n)
     if (ok)
         *ok = true;
 
+    data = data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }
 
@@ -308,10 +322,8 @@ QtRedisReply QtRedisParser::parseRawDataToInt(const QByteArray &data, int &index
 //! \param index Индекс конца разобранных данных (включает символы '\r\n')
 //! \return
 //!
-QtRedisReply QtRedisParser::parseRawDataToString(const QByteArray &data, int &index, bool *ok)
+QtRedisReply QtRedisParser::parseRawDataToString(QByteArray &data, bool *ok)
 {
-    index = -1; // clear index
-
     // clear ok
     if (ok)
         *ok = false;
@@ -355,10 +367,10 @@ QtRedisReply QtRedisParser::parseRawDataToString(const QByteArray &data, int &in
 
     QtRedisReply reply(QtRedisReply::ReplyType::String);
     reply.setRawValue(buffData);
-    index = buffIndexLen + 2 + buffIndexData + 2; // index + 2 chars (\r\n)
     if (ok)
         *ok = true;
 
+    data = data.remove(0, buffIndexLen + 2 + buffIndexData + 2); // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }
 
@@ -368,10 +380,8 @@ QtRedisReply QtRedisParser::parseRawDataToString(const QByteArray &data, int &in
 //! \param index Индекс конца разобранных данных (включает символы '\r\n')
 //! \return
 //!
-QtRedisReply QtRedisParser::parseRawDataToArray(const QByteArray &data, int &index, bool *ok)
+QtRedisReply QtRedisParser::parseRawDataToArray(QByteArray &data, bool *ok)
 {
-    index = -1; // clear index
-
     // clear ok
     if (ok)
         *ok = false;
@@ -404,7 +414,7 @@ QtRedisReply QtRedisParser::parseRawDataToArray(const QByteArray &data, int &ind
     buffData = buffData.remove(0, buffIndexLen + 2); // remove type + len
     QtRedisReply reply = QtRedisReply(QtRedisReply::ReplyType::Array);
     reply.setRawValue(buffData);
-    index += 2 + buffIndexLen;
+    data = buffData; // remove parsed data (index + 2 chars (\r\n))
     if (arrayLen == 0) {
         if (ok)
             *ok = true;
@@ -414,18 +424,15 @@ QtRedisReply QtRedisParser::parseRawDataToArray(const QByteArray &data, int &ind
 
     // parse array args
     while (true) {
-        int buffIndex = -1;
         bool buffOk = false;
-        QtRedisReply buffReply = QtRedisParser::parseRawData(buffData, buffIndex, &buffOk);
+        QtRedisReply buffReply = QtRedisParser::parseRawDataTypes(buffData, &buffOk);
         if (!buffOk)
             return QtRedisReply();
 
         reply.appendArrayValue(buffReply);
-        if (buffIndex != -1) {
-            buffData = buffData.remove(0, buffIndex); // remove parsed data
-            index += buffIndex;
-        }
         if (buffData.isEmpty())
+            break;
+        if (reply.arrayValueSize() == arrayLen)
             break;
     }
     if (arrayLen != reply.arrayValue().size())
@@ -433,5 +440,11 @@ QtRedisReply QtRedisParser::parseRawDataToArray(const QByteArray &data, int &ind
     if (ok)
         *ok = true;
 
+    if (!buffData.isEmpty()) {
+        int oldRawSize = reply.rawValue().size();
+        int newRawSize = buffData.size();
+        reply.setRawValue(data.left(oldRawSize - newRawSize));
+    }
+    data = buffData; // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }

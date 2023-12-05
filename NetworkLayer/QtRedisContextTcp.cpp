@@ -12,6 +12,9 @@ QtRedisContextTcp::QtRedisContextTcp(const QString &host, const uint port)
     : QtRedisContext(host, port)
     , _socket(new QTcpSocket(this))
 {
+    connect(_socket, &QTcpSocket::connected, this, &QtRedisContext::connected);
+    connect(_socket, &QTcpSocket::disconnected, this, &QtRedisContext::disconnected);
+    connect(_socket, &QTcpSocket::readyRead, this, &QtRedisContext::readyRead);
 }
 
 //!

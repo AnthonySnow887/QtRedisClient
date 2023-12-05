@@ -4,6 +4,11 @@
 //!
 //! \brief Деструктор класса
 //!
+QtRedisClient::QtRedisClient()
+    : QObject()
+{
+}
+
 QtRedisClient::~QtRedisClient()
 {
     _lastError.clear();
@@ -16,15 +21,10 @@ QString QtRedisClient::libraryVersion()
     return QT_REDIS_CLIENT_VERSION_STR;
 }
 
-//!
-//! \brief Последняя ошибка
-//! \return
-//!
-QString QtRedisClient::lastError() const
-{
-    QMutexLocker lock(&_mutexErr);
-    return _lastError;
-}
+
+// ------------------------------------------------------------------------
+// -- ERRORS FUNCTIONS ----------------------------------------------------
+// ------------------------------------------------------------------------
 
 //!
 //! \brief Задана ли ошибка
@@ -37,22 +37,46 @@ bool QtRedisClient::hasLastError() const
 }
 
 //!
-//! \brief Установить последнюю ошибку
-//! \param error Ошибка
+//! \brief Последняя ошибка
+//! \return
 //!
-void QtRedisClient::setLastError(const QString &error)
+QString QtRedisClient::lastError() const
 {
     QMutexLocker lock(&_mutexErr);
-    _lastError = error;
+    return _lastError;
+}
+
+
+// ------------------------------------------------------------------------
+// -- CONNECT/DISCONNECT FUNCTIONS ----------------------------------------
+// ------------------------------------------------------------------------
+
+//!
+//! \brief Тип соединения с Redis
+//! \return
+//!
+QtRedisTransporter::Type QtRedisClient::redisContextType()
+{
+    QMutexLocker lock(&_mutex);
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QtRedisTransporter::Type::NoType;
+    }
+    return _transporter->type();
 }
 
 //!
-//! \brief Очистить посленюю ошибку
+//! \brief Тип работы в режиме подписки на каналы
+//! \return
 //!
-void QtRedisClient::clearLastError()
+QtRedisTransporter::ChannelMode QtRedisClient::redisContextChannelMode()
 {
-    QMutexLocker lock(&_mutexErr);
-    _lastError.clear();
+    QMutexLocker lock(&_mutex);
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QtRedisTransporter::ChannelMode::CurrentConnection;
+    }
+    return _transporter->channelMode();
 }
 
 //!
@@ -63,7 +87,7 @@ bool QtRedisClient::redisIsConnected()
 {
     QMutexLocker lock(&_mutex);
     if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
+        this->setLastError_safe("QtRedisTransporter is NULL!");
         return false;
     }
     return _transporter->isConnected();
@@ -80,11 +104,12 @@ bool QtRedisClient::redisIsConnected()
 //!
 bool QtRedisClient::redisConnect(const QString &host,
                                  const int port,
-                                 const int timeOutMsec)
+                                 const int timeOutMsec,
+                                 const QtRedisTransporter::ChannelMode contextChannelMode)
 {
     QMutexLocker lock(&_mutex);
     if (host.isEmpty() || port == 0) {
-        this->setLastError("Invalid host or port!");
+        this->setLastError_safe("Invalid host or port!");
         return false;
     }
     if (_transporter
@@ -92,12 +117,27 @@ bool QtRedisClient::redisConnect(const QString &host,
         && _transporter->port() == port)
         return true;
 
-    if (!_transporter)
-        _transporter = new QtRedisTransporter();
-    else
+    if (!_transporter) {
+        _transporter = new QtRedisTransporter(contextChannelMode);
+        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+                         this, &QtRedisClient::contextConnected,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+                         this, &QtRedisClient::contextDisconnected,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+                         this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+                         this, &QtRedisClient::incomingChannelShardMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+                         this, &QtRedisClient::incomingChannelPatternMessage,
+                         Qt::QueuedConnection);
+    } else {
         _transporter->clearTransporter();
-
-    _transporter->initTransporter(QtRedisTransporter::TransporterType::Tcp, host, port);
+    }
+    _transporter->initTransporter(QtRedisTransporter::Type::Tcp, host, port);
     return _transporter->connectToServer(timeOutMsec);
 }
 
@@ -112,25 +152,41 @@ bool QtRedisClient::redisConnect(const QString &host,
 //!
 bool QtRedisClient::redisConnectEncrypted(const QString &host,
                                           const int port,
-                                          const int timeOutMsec)
+                                          const int timeOutMsec,
+                                          const QtRedisTransporter::ChannelMode contextChannelMode)
 {
     QMutexLocker lock(&_mutex);
     if (host.isEmpty() || port == 0) {
-        this->setLastError("Invalid host or port!");
+        this->setLastError_safe("Invalid host or port!");
         return false;
     }
     if (_transporter
         && _transporter->host() == host
         && _transporter->port() == port
-        && _transporter->type() == QtRedisTransporter::TransporterType::Ssl)
+        && _transporter->type() == QtRedisTransporter::Type::Ssl)
         return true;
 
-    if (!_transporter)
-        _transporter = new QtRedisTransporter();
-    else
+    if (!_transporter) {
+        _transporter = new QtRedisTransporter(contextChannelMode);
+        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+                         this, &QtRedisClient::contextConnected,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+                         this, &QtRedisClient::contextDisconnected,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+                         this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+                         this, &QtRedisClient::incomingChannelShardMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+                         this, &QtRedisClient::incomingChannelPatternMessage,
+                         Qt::QueuedConnection);
+    } else {
         _transporter->clearTransporter();
-
-    _transporter->initTransporter(QtRedisTransporter::TransporterType::Ssl, host, port);
+    }
+    _transporter->initTransporter(QtRedisTransporter::Type::Ssl, host, port);
     return _transporter->connectToServer(timeOutMsec);
 }
 
@@ -143,24 +199,41 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
 //!
 //! Данный метод сипользует UNIX-sockets.
 //!
-bool QtRedisClient::redisConnectUnix(const QString &sockPath, const int timeOutMsec)
+bool QtRedisClient::redisConnectUnix(const QString &sockPath,
+                                     const int timeOutMsec,
+                                     const QtRedisTransporter::ChannelMode contextChannelMode)
 {
     QMutexLocker lock(&_mutex);
     if (sockPath.isEmpty()) {
-        this->setLastError("Invalid sockPath!");
+        this->setLastError_safe("Invalid sockPath!");
         return false;
     }
     if (_transporter
         && _transporter->host() == sockPath
-        && _transporter->type() == QtRedisTransporter::TransporterType::Unix)
+        && _transporter->type() == QtRedisTransporter::Type::Unix)
         return true;
 
-    if (!_transporter)
-        _transporter = new QtRedisTransporter();
-    else
+    if (!_transporter) {
+        _transporter = new QtRedisTransporter(contextChannelMode);
+        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+                         this, &QtRedisClient::contextConnected,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+                         this, &QtRedisClient::contextDisconnected,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+                         this, &QtRedisClient::incomingChannelMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+                         this, &QtRedisClient::incomingChannelShardMessage,
+                         Qt::QueuedConnection);
+        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+                         this, &QtRedisClient::incomingChannelPatternMessage,
+                         Qt::QueuedConnection);
+    } else {
         _transporter->clearTransporter();
-
-    _transporter->initTransporter(QtRedisTransporter::TransporterType::Unix, sockPath, -1);
+    }
+    _transporter->initTransporter(QtRedisTransporter::Type::Unix, sockPath, -1);
     return _transporter->connectToServer(timeOutMsec);
 }
 #endif
@@ -174,7 +247,7 @@ bool QtRedisClient::redisReconnect(const int timeOutMsec)
 {
     QMutexLocker lock(&_mutex);
     if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
+        this->setLastError_safe("QtRedisTransporter is NULL!");
         return false;
     }
     return _transporter->reconnectToServer(timeOutMsec);
@@ -189,7 +262,7 @@ void QtRedisClient::redisDisconnect()
     if (_transporter)
         _transporter->clearTransporter();
 
-    this->clearLastError();
+    this->clearLastError_safe();
 }
 
 
@@ -206,17 +279,18 @@ QtRedisReply QtRedisClient::redisExecCommand(const QString &command)
 {
     QMutexLocker lock(&_mutex);
     if (command.isEmpty()) {
-        this->setLastError("Command is Empty!");
+        this->setLastError_safe("Command is Empty!");
         return QtRedisReply();
     }
     if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
+        this->setLastError_safe("QtRedisTransporter is NULL!");
         return QtRedisReply();
     }
     if (!_transporter->isConnected()) {
-        this->setLastError("Client is not connected!");
+        this->setLastError_safe("Client is not connected!");
         return QtRedisReply();
     }
+    this->clearLastError_safe();
     return _transporter->sendCommand(command.split(" "));
 }
 
@@ -229,15 +303,15 @@ QtRedisReply QtRedisClient::redisExecCommand(const QByteArray &command)
 {
     QMutexLocker lock(&_mutex);
     if (command.isEmpty()) {
-        this->setLastError("Command is Empty!");
+        this->setLastError_safe("Command is Empty!");
         return QtRedisReply();
     }
     if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
+        this->setLastError_safe("QtRedisTransporter is NULL!");
         return QtRedisReply();
     }
     if (!_transporter->isConnected()) {
-        this->setLastError("Client is not connected!");
+        this->setLastError_safe("Client is not connected!");
         return QtRedisReply();
     }
     QVariantList cmdList;
@@ -245,7 +319,11 @@ QtRedisReply QtRedisClient::redisExecCommand(const QByteArray &command)
     for (const QByteArray &ba : tmpCmd)
         cmdList.append(ba);
 
-    return _transporter->sendCommand(cmdList);
+    this->clearLastError_safe();
+    const QtRedisReply reply = _transporter->sendCommand(cmdList);
+    if (reply.isError())
+        this->setLastError_safe(reply.strValue());
+    return reply;
 }
 
 //!
@@ -257,18 +335,22 @@ QtRedisReply QtRedisClient::redisExecCommandArgv(const QStringList &commandArgv)
 {
     QMutexLocker lock(&_mutex);
     if (commandArgv.isEmpty()) {
-        this->setLastError("CommandList is Empty!");
+        this->setLastError_safe("CommandList is Empty!");
         return QtRedisReply();
     }
     if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
+        this->setLastError_safe("QtRedisTransporter is NULL!");
         return QtRedisReply();
     }
     if (!_transporter->isConnected()) {
-        this->setLastError("Client is not connected!");
+        this->setLastError_safe("Client is not connected!");
         return QtRedisReply();
     }
-    return _transporter->sendCommand(commandArgv);
+    this->clearLastError_safe();
+    const QtRedisReply reply = _transporter->sendCommand(commandArgv);
+    if (reply.isError())
+        this->setLastError_safe(reply.strValue());
+    return reply;
 }
 
 //!
@@ -280,21 +362,151 @@ QtRedisReply QtRedisClient::redisExecCommandArgv(const QList<QByteArray> &comman
 {
     QMutexLocker lock(&_mutex);
     if (commandArgv.isEmpty()) {
-        this->setLastError("CommandList is Empty!");
+        this->setLastError_safe("CommandList is Empty!");
         return QtRedisReply();
     }
     if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
+        this->setLastError_safe("QtRedisTransporter is NULL!");
         return QtRedisReply();
     }
     if (!_transporter->isConnected()) {
-        this->setLastError("Client is not connected!");
+        this->setLastError_safe("Client is not connected!");
         return QtRedisReply();
     }
     QVariantList cmdList;
     for (const QByteArray &ba : commandArgv)
         cmdList.append(ba);
-    return _transporter->sendCommand(cmdList);
+
+    this->clearLastError_safe();
+    const QtRedisReply reply = _transporter->sendCommand(cmdList);
+    if (reply.isError())
+        this->setLastError_safe(reply.strValue());
+    return reply;
+}
+
+//!
+//! \brief Выпонить команду
+//! \param command Команда
+//! \return
+//!
+QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QString &command)
+{
+    QMutexLocker lock(&_mutex);
+    if (command.isEmpty()) {
+        this->setLastError_safe("Command is Empty!");
+        return QList<QtRedisReply>();
+    }
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QList<QtRedisReply>();
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QList<QtRedisReply>();
+    }
+    this->clearLastError_safe();
+    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(command.split(" "));
+    for (const QtRedisReply &reply : replyList) {
+        if (reply.isError())
+            this->setLastError_safe(reply.strValue());
+    }
+    return replyList;
+}
+
+//!
+//! \brief Выпонить команду (QByteArray)
+//! \param command Команда
+//! \return
+//!
+QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QByteArray &command)
+{
+    QMutexLocker lock(&_mutex);
+    if (command.isEmpty()) {
+        this->setLastError_safe("Command is Empty!");
+        return QList<QtRedisReply>();
+    }
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QList<QtRedisReply>();
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QList<QtRedisReply>();
+    }
+    QVariantList cmdList;
+    const QList<QByteArray> tmpCmd = command.split(' ');
+    for (const QByteArray &ba : tmpCmd)
+        cmdList.append(ba);
+
+    this->clearLastError_safe();
+    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(cmdList);
+    for (const QtRedisReply &reply : replyList) {
+        if (reply.isError())
+            this->setLastError_safe(reply.strValue());
+    }
+    return replyList;
+}
+
+//!
+//! \brief Выполнить команду
+//! \param commandArgv Команда в формате списка аргументов
+//! \return
+//!
+QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QStringList &commandArgv)
+{
+    QMutexLocker lock(&_mutex);
+    if (commandArgv.isEmpty()) {
+        this->setLastError_safe("CommandList is Empty!");
+        return QList<QtRedisReply>();
+    }
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QList<QtRedisReply>();
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QList<QtRedisReply>();
+    }
+    this->clearLastError_safe();
+    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(commandArgv);
+    for (const QtRedisReply &reply : replyList) {
+        if (reply.isError())
+            this->setLastError_safe(reply.strValue());
+    }
+    return replyList;
+}
+
+//!
+//! \brief Выполнить команду (QByteArray)
+//! \param commandArgv Команда в формате списка аргументов
+//! \return
+//!
+QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv)
+{
+    QMutexLocker lock(&_mutex);
+    if (commandArgv.isEmpty()) {
+        this->setLastError_safe("CommandList is Empty!");
+        return QList<QtRedisReply>();
+    }
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QList<QtRedisReply>();
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QList<QtRedisReply>();
+    }
+    QVariantList cmdList;
+    for (const QByteArray &ba : commandArgv)
+        cmdList.append(ba);
+
+    this->clearLastError_safe();
+    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(cmdList);
+    for (const QtRedisReply &reply : replyList) {
+        if (reply.isError())
+            this->setLastError_safe(reply.strValue());
+    }
+    return replyList;
 }
 
 //!
@@ -386,20 +598,20 @@ bool QtRedisClient::redisPing(const QString &msg)
     QtRedisReply buffReply = this->redisExecCommandArgv(argv);
     if (msg.isEmpty()) {
         if (buffReply.type() != QtRedisReply::ReplyType::Status) {
-            this->setLastError("Invalid reply type!");
+            this->setLastError_safe("Invalid reply type!");
             return false;
         }
         if (buffReply.strValue() != "PONG") {
-            this->setLastError("Invalid reply result!");
+            this->setLastError_safe("Invalid reply result!");
             return false;
         }
     } else {
         if (buffReply.type() != QtRedisReply::ReplyType::String) {
-            this->setLastError("Invalid reply type!");
+            this->setLastError_safe("Invalid reply type!");
             return false;
         }
         if (buffReply.strValue() != msg) {
-            this->setLastError("Invalid reply result!");
+            this->setLastError_safe("Invalid reply result!");
             return false;
         }
     }
@@ -455,7 +667,7 @@ QMap<QString, QVariant> QtRedisClient::redisInfo(const QString &section)
         && section.toLower() != QString("keyspace")
         && section.toLower() != QString("all")
         && section.toLower() != QString("default")) {
-        this->setLastError("Invalid section!");
+        this->setLastError_safe("Invalid section!");
         return QMap<QString, QVariant>();
     }
 
@@ -465,7 +677,7 @@ QMap<QString, QVariant> QtRedisClient::redisInfo(const QString &section)
 
     QtRedisReply buffReply = this->redisExecCommand(command.trimmed());
     if (buffReply.type() != QtRedisReply::ReplyType::String) {
-        this->setLastError("Invalid reply type!");
+        this->setLastError_safe("Invalid reply type!");
         return QMap<QString, QVariant>();
     }
 
@@ -521,7 +733,7 @@ QtRedisReply QtRedisClient::redisTime()
 bool QtRedisClient::redisSelect(const int dbIndex)
 {
     if (dbIndex < 0) {
-        this->setLastError("Invalid db index!");
+        this->setLastError_safe("Invalid db index!");
         return false;
     }
     return this->replySimpleStringToBool(this->redisExecCommand(QString("SELECT %1").arg(dbIndex)));
@@ -535,11 +747,11 @@ int QtRedisClient::redisSelectedDb()
 {
     QMutexLocker lock(&_mutex);
     if (!_transporter) {
-        this->setLastError("QtRedisTransporter is NULL!");
+        this->setLastError_safe("QtRedisTransporter is NULL!");
         return -1;
     }
     if (!_transporter->isConnected()) {
-        this->setLastError("Client is not connected!");
+        this->setLastError_safe("Client is not connected!");
         return -1;
     }
     return _transporter->currentDbIndex();
@@ -553,7 +765,7 @@ qlonglong QtRedisClient::redisDbSize()
 {
     QtRedisReply buffReply = this->redisExecCommand(QString("DBSIZE"));
     if (buffReply.type() != QtRedisReply::ReplyType::Integer) {
-        this->setLastError("Invalid reply type!");
+        this->setLastError_safe("Invalid reply type!");
         return -1;
     }
     return buffReply.intValue();
@@ -638,7 +850,7 @@ uint QtRedisClient::redisLastSave()
 {
     QtRedisReply buffReply = this->redisExecCommand(QString("LASTSAVE"));
     if (buffReply.type() != QtRedisReply::ReplyType::Integer) {
-        this->setLastError("Invalid reply type!");
+        this->setLastError_safe("Invalid reply type!");
         return 0;
     }
     return buffReply.intValue();
@@ -668,7 +880,7 @@ uint QtRedisClient::redisLastSave()
 QtRedisReply QtRedisClient::redisConfigGet(const QString &param)
 {
     if (param.isEmpty() || param.indexOf(" ") != -1) {
-        this->setLastError("Invalid param!");
+        this->setLastError_safe("Invalid param!");
         return QtRedisReply();
     }
     return this->redisExecCommand(QString("CONFIG GET %1").arg(param));
@@ -709,7 +921,7 @@ QtRedisReply QtRedisClient::redisConfigGet(const QString &param)
 bool QtRedisClient::redisConfigSet(const QString &param, const QString &value)
 {
     if (param.isEmpty() || param.indexOf(" ") != -1) {
-        this->setLastError("Invalid param!");
+        this->setLastError_safe("Invalid param!");
         return false;
     }
     QStringList argv;
@@ -791,7 +1003,7 @@ QVector<QtRedisClientInfo> QtRedisClient::redisClientList()
 {
     QtRedisReply buffReply = this->redisExecCommand(QString("CLIENT LIST"));
     if (buffReply.type() != QtRedisReply::ReplyType::String) {
-        this->setLastError("Invalid reply type!");
+        this->setLastError_safe("Invalid reply type!");
         return QVector<QtRedisClientInfo>();
     }
 
@@ -834,7 +1046,7 @@ QVector<QtRedisClientInfo> QtRedisClient::redisClientList()
 bool QtRedisClient::redisClientSetName(const QString &connectionName)
 {
     if (connectionName.isEmpty() || connectionName.indexOf(" ") != -1) {
-        this->setLastError("Invalid connection name!");
+        this->setLastError_safe("Invalid connection name!");
         return false;
     }
     return this->replySimpleStringToBool(this->redisExecCommand(QString("CLIENT SETNAME %1").arg(connectionName)));
@@ -861,11 +1073,11 @@ QString QtRedisClient::redisClientGetName()
 bool QtRedisClient::redisClientKill(const QString &ip, const uint port)
 {
     if (ip.isEmpty()) {
-        this->setLastError("Invalid IP!");
+        this->setLastError_safe("Invalid IP!");
         return false;
     }
     if (port == 0) {
-        this->setLastError("Invalid port!");
+        this->setLastError_safe("Invalid port!");
         return false;
     }
     QStringList argv;
@@ -881,7 +1093,7 @@ bool QtRedisClient::redisClientKill(const QString &ip, const uint port)
 bool QtRedisClient::redisClientKill(const QString &id)
 {
     if (id.isEmpty()) {
-        this->setLastError("Invalid ID!");
+        this->setLastError_safe("Invalid ID!");
         return false;
     }
     return this->replyIntToBool(this->redisExecCommand(QString("CLIENT KILL ID %1").arg(id)));
@@ -932,12 +1144,12 @@ QString QtRedisClient::redisRandomKey()
 qlonglong QtRedisClient::redisExists(const QStringList &keyList)
 {
     if (keyList.isEmpty()) {
-        this->setLastError("Invalid key list (Empty)!");
+        this->setLastError_safe("Invalid key list (Empty)!");
         return -1;
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return -1;
         }
     }
@@ -955,7 +1167,7 @@ qlonglong QtRedisClient::redisExists(const QStringList &keyList)
 QtRedisReply QtRedisClient::redisGet(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     return this->redisExecCommand(QString("GET %1").arg(key));
@@ -988,7 +1200,7 @@ QtRedisReply QtRedisClient::redisGet(const QString &key)
 QString QtRedisClient::redisGetRange(const QString &key, const int startPos, const int endPos)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QString();
     }
     return this->replyToString(this->redisExecCommand(QString("GETRANGE %1 %2 %3").arg(key).arg(startPos).arg(endPos)));
@@ -1016,7 +1228,7 @@ QString QtRedisClient::redisGetRange(const QString &key, const int startPos, con
 QtRedisReply QtRedisClient::redisGetSet(const QString &key, const QString &value)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     QStringList argv;
@@ -1047,7 +1259,7 @@ QtRedisReply QtRedisClient::redisGetSet(const QString &key, const QString &value
 qlonglong QtRedisClient::redisAppend(const QString &key, const QString &appendValue)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     QStringList argv;
@@ -1082,13 +1294,13 @@ bool QtRedisClient::redisSet(const QString &key,
                              const QString existFlag)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     if (!existFlag.isEmpty()
         && existFlag.toUpper() != QString("NX")
         && existFlag.toUpper() != QString("XX")) {
-        this->setLastError("Invalid existFlag!");
+        this->setLastError_safe("Invalid existFlag!");
         return false;
     }
     QStringList argv;
@@ -1120,7 +1332,7 @@ bool QtRedisClient::redisSet(const QString &key,
 qlonglong QtRedisClient::redisSetRange(const QString &key, const QString &value, const int offset)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     QStringList argv;
@@ -1147,12 +1359,12 @@ qlonglong QtRedisClient::redisSetRange(const QString &key, const QString &value,
 qlonglong QtRedisClient::redisDel(const QStringList &keyList)
 {
     if (keyList.isEmpty()) {
-        this->setLastError("Invalid key list (Empty)!");
+        this->setLastError_safe("Invalid key list (Empty)!");
         return -1;
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return -1;
         }
     }
@@ -1178,7 +1390,7 @@ qlonglong QtRedisClient::redisDel(const QStringList &keyList)
 qlonglong QtRedisClient::redisStrlen(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return 0;
     }
     return this->replyToLong(this->redisExecCommand(QString("STRLEN %1").arg(key)));
@@ -1222,11 +1434,11 @@ qlonglong QtRedisClient::redisStrlen(const QString &key)
 bool QtRedisClient::redisExpire(const QString &key, const uint sec)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     if (sec == 0) {
-        this->setLastError("Invalid sec!");
+        this->setLastError_safe("Invalid sec!");
         return false;
     }
     return this->replyIntToBool(this->redisExecCommand(QString("EXPIRE %1 %2").arg(key).arg(sec)));
@@ -1254,11 +1466,11 @@ bool QtRedisClient::redisExpire(const QString &key, const uint sec)
 bool QtRedisClient::redisExpireAt(const QString &key, const uint utcSec)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     if (utcSec == 0) {
-        this->setLastError("Invalid utcSec!");
+        this->setLastError_safe("Invalid utcSec!");
         return false;
     }
     return this->replyIntToBool(this->redisExecCommand(QString("EXPIREAT %1 %2").arg(key).arg(utcSec)));
@@ -1285,7 +1497,7 @@ bool QtRedisClient::redisExpireAt(const QString &key, const uint utcSec)
 bool QtRedisClient::redisPExpire(const QString &key, const uint msec)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     return this->replyIntToBool(this->redisExecCommand(QString("PEXPIRE %1 %2").arg(key).arg(msec)));
@@ -1312,7 +1524,7 @@ bool QtRedisClient::redisPExpire(const QString &key, const uint msec)
 bool QtRedisClient::redisPExpireAt(const QString &key, const qint64 utcMsec)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     return this->replyIntToBool(this->redisExecCommand(QString("PEXPIREAT %1 %2").arg(key).arg(utcMsec)));
@@ -1340,7 +1552,7 @@ bool QtRedisClient::redisPExpireAt(const QString &key, const qint64 utcMsec)
 bool QtRedisClient::redisPersist(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     return this->replyIntToBool(this->redisExecCommand(QString("PERSIST %1").arg(key)));
@@ -1363,7 +1575,7 @@ bool QtRedisClient::redisPersist(const QString &key)
 qlonglong QtRedisClient::redisTtl(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("TTL %1").arg(key)));
@@ -1386,7 +1598,7 @@ qlonglong QtRedisClient::redisTtl(const QString &key)
 qlonglong QtRedisClient::redisPTtl(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("PTTL %1").arg(key)));
@@ -1406,7 +1618,7 @@ qlonglong QtRedisClient::redisPTtl(const QString &key)
 qlonglong QtRedisClient::redisDecr(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("DECR %1").arg(key)));
@@ -1427,7 +1639,7 @@ qlonglong QtRedisClient::redisDecr(const QString &key)
 qlonglong QtRedisClient::redisDecrBy(const QString &key, const qint64 decr)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("DECRBY %1 %2").arg(key).arg(decr)));
@@ -1453,7 +1665,7 @@ qlonglong QtRedisClient::redisDecrBy(const QString &key, const qint64 decr)
 qlonglong QtRedisClient::redisIncr(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("INCR %1").arg(key)));
@@ -1474,7 +1686,7 @@ qlonglong QtRedisClient::redisIncr(const QString &key)
 qlonglong QtRedisClient::redisIncrBy(const QString &key, const qint64 incr)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("INCRBY %1 %2").arg(key).arg(incr)));
@@ -1506,7 +1718,7 @@ qlonglong QtRedisClient::redisIncrBy(const QString &key, const qint64 incr)
 qlonglong QtRedisClient::redisIncrByFloat(const QString &key, const float incr)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("INCRBYFLOAT %1 %2").arg(key).arg(incr)));
@@ -1526,11 +1738,11 @@ qlonglong QtRedisClient::redisIncrByFloat(const QString &key, const float incr)
 bool QtRedisClient::redisRename(const QString &key, const QString &newKey)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     if (newKey.isEmpty() || newKey.indexOf(" ") != -1) {
-        this->setLastError("Invalid newKey!");
+        this->setLastError_safe("Invalid newKey!");
         return false;
     }
     return this->replySimpleStringToBool(this->redisExecCommand(QString("RENAME %1 %2").arg(key).arg(newKey)));
@@ -1549,11 +1761,11 @@ bool QtRedisClient::redisRename(const QString &key, const QString &newKey)
 bool QtRedisClient::redisRenameNx(const QString &key, const QString &newKey)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     if (newKey.isEmpty() || newKey.indexOf(" ") != -1) {
-        this->setLastError("Invalid newKey!");
+        this->setLastError_safe("Invalid newKey!");
         return false;
     }
     return this->replyIntToBool(this->redisExecCommand(QString("RENAMENX %1 %2").arg(key).arg(newKey)));
@@ -1570,7 +1782,7 @@ bool QtRedisClient::redisRenameNx(const QString &key, const QString &newKey)
 QString QtRedisClient::redisType(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QString();
     }
     return this->replyToString(this->redisExecCommand(QString("TYPE %1").arg(key)));
@@ -1588,13 +1800,13 @@ QString QtRedisClient::redisType(const QString &key)
 bool QtRedisClient::redisMSet(const QMap<QString, QString> &keyValue)
 {
     if (keyValue.isEmpty()) {
-        this->setLastError("Invalid key-value (Empty)!");
+        this->setLastError_safe("Invalid key-value (Empty)!");
         return false;
     }
     QList<QString> keyList = keyValue.keys();
     for (const QString &key : keyList) {
         if (key.isEmpty() || key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return false;
         }
     }
@@ -1622,13 +1834,13 @@ bool QtRedisClient::redisMSet(const QMap<QString, QString> &keyValue)
 bool QtRedisClient::redisMSetNx(const QMap<QString, QString> &keyValue)
 {
     if (keyValue.isEmpty()) {
-        this->setLastError("Invalid key-value (Empty)!");
+        this->setLastError_safe("Invalid key-value (Empty)!");
         return false;
     }
     QList<QString> keyList = keyValue.keys();
     for (const QString &key : keyList) {
         if (key.isEmpty() || key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return false;
         }
     }
@@ -1663,12 +1875,12 @@ bool QtRedisClient::redisMSetNx(const QMap<QString, QString> &keyValue)
 QtRedisReply QtRedisClient::redisMGet(const QStringList &keyList)
 {
     if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError("Invalid keyList (Empty or size < 2)!");
+        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
         return QtRedisReply();
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return QtRedisReply();
         }
     }
@@ -1688,11 +1900,11 @@ QtRedisReply QtRedisClient::redisMGet(const QStringList &keyList)
 bool QtRedisClient::redisMove(const QString &key, const int dbIndex)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     if (dbIndex < 0) {
-        this->setLastError("Invalid db index!");
+        this->setLastError_safe("Invalid db index!");
         return false;
     }
     return this->replyIntToBool(this->redisExecCommand(QString("MOVE %1 %2").arg(key).arg(dbIndex)));
@@ -1728,7 +1940,7 @@ bool QtRedisClient::redisMove(const QString &key, const int dbIndex)
 QtRedisReply QtRedisClient::redisDump(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     return this->redisExecCommand(QString("DUMP %1").arg(key));
@@ -1754,7 +1966,7 @@ QtRedisReply QtRedisClient::redisDump(const QString &key)
 QString QtRedisClient::redisLIndex(const QString &key, const int index)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QString();
     }
     return this->replyToString(this->redisExecCommand(QString("LINDEX %1 %2").arg(key).arg(index)));
@@ -1779,12 +1991,12 @@ qlonglong QtRedisClient::redisLInsert(const QString &key,
                                       const QString &insertFlag)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (insertFlag.toUpper() != QString("BEFORE")
         && insertFlag.toUpper() != QString("AFTER")) {
-        this->setLastError("Invalid insertFlag!");
+        this->setLastError_safe("Invalid insertFlag!");
         return -1;
     }
     QStringList argv;
@@ -1804,7 +2016,7 @@ qlonglong QtRedisClient::redisLInsert(const QString &key,
 qlonglong QtRedisClient::redisLLen(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("LLEN %1").arg(key)));
@@ -1821,7 +2033,7 @@ qlonglong QtRedisClient::redisLLen(const QString &key)
 QString QtRedisClient::redisLPop(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QString();
     }
     return this->replyToString(this->redisExecCommand(QString("LPOP %1").arg(key)));
@@ -1846,11 +2058,11 @@ QString QtRedisClient::redisLPop(const QString &key)
 qlonglong QtRedisClient::redisLPush(const QString &key, const QStringList &valueList)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (valueList.isEmpty()) {
-        this->setLastError("Invalid valueList (Empty)!");
+        this->setLastError_safe("Invalid valueList (Empty)!");
         return -1;
     }
     QStringList argv;
@@ -1873,7 +2085,7 @@ qlonglong QtRedisClient::redisLPush(const QString &key, const QStringList &value
 qlonglong QtRedisClient::redisLPushX(const QString &key, const QString &value)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     QStringList argv;
@@ -1906,7 +2118,7 @@ qlonglong QtRedisClient::redisLPushX(const QString &key, const QString &value)
 QtRedisReply QtRedisClient::redisLRange(const QString &key, const int start, const int stop)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     return this->redisExecCommand(QString("LRANGE %1 %2 %3").arg(key).arg(start).arg(stop));
@@ -1932,7 +2144,7 @@ QtRedisReply QtRedisClient::redisLRange(const QString &key, const int start, con
 qlonglong QtRedisClient::redisLRem(const QString &key, const QString &value, const int count)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     QStringList argv;
@@ -1950,7 +2162,7 @@ qlonglong QtRedisClient::redisLRem(const QString &key, const QString &value, con
 bool QtRedisClient::redisLSet(const QString &key, const QString &value, const int index)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     QStringList argv;
@@ -2000,7 +2212,7 @@ bool QtRedisClient::redisLSet(const QString &key, const QString &value, const in
 bool QtRedisClient::redisLTrim(const QString &key, const int start, const int stop)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     return this->replySimpleStringToBool(this->redisExecCommand(QString("LTRIM %1 %2 %3").arg(key).arg(start).arg(stop)));
@@ -2016,7 +2228,7 @@ bool QtRedisClient::redisLTrim(const QString &key, const int start, const int st
 QString QtRedisClient::redisRPop(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QString();
     }
     return this->replyToString(this->redisExecCommand(QString("RPOP %1").arg(key)));
@@ -2040,11 +2252,11 @@ QString QtRedisClient::redisRPop(const QString &key)
 QString QtRedisClient::redisRPopLPush(const QString &sourceKey, const QString &destKey)
 {
     if (sourceKey.isEmpty() || sourceKey.indexOf(" ") != -1) {
-        this->setLastError("Invalid sourceKey!");
+        this->setLastError_safe("Invalid sourceKey!");
         return QString();
     }
     if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError("Invalid destKey!");
+        this->setLastError_safe("Invalid destKey!");
         return QString();
     }
     return this->replyToString(this->redisExecCommand(QString("RPOPLPUSH %1 %2").arg(sourceKey).arg(destKey)));
@@ -2070,11 +2282,11 @@ QString QtRedisClient::redisRPopLPush(const QString &sourceKey, const QString &d
 qlonglong QtRedisClient::redisRPush(const QString &key, const QStringList &valueList)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (valueList.isEmpty()) {
-        this->setLastError("Invalid valueList (Empty)!");
+        this->setLastError_safe("Invalid valueList (Empty)!");
         return -1;
     }
     QStringList argv;
@@ -2098,7 +2310,7 @@ qlonglong QtRedisClient::redisRPush(const QString &key, const QStringList &value
 qlonglong QtRedisClient::redisRPushX(const QString &key, const QString &value)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     QStringList argv;
@@ -2129,11 +2341,11 @@ qlonglong QtRedisClient::redisRPushX(const QString &key, const QString &value)
 qlonglong QtRedisClient::redisSAdd(const QString &key, const QStringList &memberList)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (memberList.isEmpty()) {
-        this->setLastError("Invalid memberList (Empty)!");
+        this->setLastError_safe("Invalid memberList (Empty)!");
         return -1;
     }
     QStringList argv;
@@ -2155,7 +2367,7 @@ qlonglong QtRedisClient::redisSAdd(const QString &key, const QStringList &member
 qlonglong QtRedisClient::redisSCard(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("SCARD %1").arg(key)));
@@ -2179,12 +2391,12 @@ qlonglong QtRedisClient::redisSCard(const QString &key)
 QtRedisReply QtRedisClient::redisSDiff(const QStringList &keyList)
 {
     if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError("Invalid keyList (Empty or size < 2)!");
+        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
         return QtRedisReply();
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return QtRedisReply();
         }
     }
@@ -2205,16 +2417,16 @@ QtRedisReply QtRedisClient::redisSDiff(const QStringList &keyList)
 qlonglong QtRedisClient::redisSDiffStore(const QString &dest, const QStringList &keyList)
 {
     if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError("Invalid dest!");
+        this->setLastError_safe("Invalid dest!");
         return -1;
     }
     if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError("Invalid keyList (Empty or size < 2)!");
+        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
         return -1;
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return -1;
         }
     }
@@ -2240,12 +2452,12 @@ qlonglong QtRedisClient::redisSDiffStore(const QString &dest, const QStringList 
 QtRedisReply QtRedisClient::redisSInter(const QStringList &keyList)
 {
     if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError("Invalid keyList (Empty or size < 2)!");
+        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
         return QtRedisReply();
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return QtRedisReply();
         }
     }
@@ -2266,16 +2478,16 @@ QtRedisReply QtRedisClient::redisSInter(const QStringList &keyList)
 qlonglong QtRedisClient::redisSInterStore(const QString &dest, const QStringList &keyList)
 {
     if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError("Invalid dest!");
+        this->setLastError_safe("Invalid dest!");
         return -1;
     }
     if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError("Invalid keyList (Empty or size < 2)!");
+        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
         return -1;
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return -1;
         }
     }
@@ -2291,7 +2503,7 @@ qlonglong QtRedisClient::redisSInterStore(const QString &dest, const QStringList
 bool QtRedisClient::redisSIsMember(const QString &key, const QString &member)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return false;
     }
     QStringList argv;
@@ -2307,7 +2519,7 @@ bool QtRedisClient::redisSIsMember(const QString &key, const QString &member)
 QStringList QtRedisClient::redisSMembers(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QStringList();
     }
     return this->replyToArray(this->redisExecCommand(QString("SMEMBERS %1").arg(key)));
@@ -2332,11 +2544,11 @@ QStringList QtRedisClient::redisSMembers(const QString &key)
 bool QtRedisClient::redisSMove(const QString &sourceKey, const QString &destKey, const QString &member)
 {
     if (sourceKey.isEmpty() || sourceKey.indexOf(" ") != -1) {
-        this->setLastError("Invalid sourceKey!");
+        this->setLastError_safe("Invalid sourceKey!");
         return false;
     }
     if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError("Invalid destKey!");
+        this->setLastError_safe("Invalid destKey!");
         return false;
     }
     QStringList argv;
@@ -2383,7 +2595,7 @@ bool QtRedisClient::redisSMove(const QString &sourceKey, const QString &destKey,
 QtRedisReply QtRedisClient::redisSPop(const QString &key, const uint count)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     QStringList argv;
@@ -2431,7 +2643,7 @@ QtRedisReply QtRedisClient::redisSPop(const QString &key, const uint count)
 QtRedisReply QtRedisClient::redisSRandMember(const QString &key, const int count)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     if (count == 0 || count == 1)
@@ -2456,11 +2668,11 @@ QtRedisReply QtRedisClient::redisSRandMember(const QString &key, const int count
 qlonglong QtRedisClient::redisSRem(const QString &key, const QStringList &memberList)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (memberList.isEmpty()) {
-        this->setLastError("Invalid memberList (Empty)!");
+        this->setLastError_safe("Invalid memberList (Empty)!");
         return -1;
     }
     QStringList argv;
@@ -2489,12 +2701,12 @@ qlonglong QtRedisClient::redisSRem(const QString &key, const QStringList &member
 QtRedisReply QtRedisClient::redisSUnion(const QStringList &keyList)
 {
     if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError("Invalid keyList (Empty or size < 2)!");
+        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
         return QtRedisReply();
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return QtRedisReply();
         }
     }
@@ -2514,16 +2726,16 @@ QtRedisReply QtRedisClient::redisSUnion(const QStringList &keyList)
 qlonglong QtRedisClient::redisSUnionStore(const QString &dest, const QStringList &keyList)
 {
     if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError("Invalid dest!");
+        this->setLastError_safe("Invalid dest!");
         return -1;
     }
     if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError("Invalid keyList (Empty or size < 2)!");
+        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
         return -1;
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return -1;
         }
     }
@@ -2596,17 +2808,17 @@ QtRedisReply QtRedisClient::redisZAdd(const QString &key,
                                       const bool incrFlag)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     if (scoreMember.isEmpty()) {
-        this->setLastError("Invalid scoreMember (Empty)!");
+        this->setLastError_safe("Invalid scoreMember (Empty)!");
         return QtRedisReply();
     }
     if (!updFlag.isEmpty()
         && updFlag.toUpper() != QString("NX")
         && updFlag.toUpper() != QString("XX")) {
-        this->setLastError("Invalid updFlag!");
+        this->setLastError_safe("Invalid updFlag!");
         return QtRedisReply();
     }
     QStringList argv;
@@ -2634,7 +2846,7 @@ QtRedisReply QtRedisClient::redisZAdd(const QString &key,
 qlonglong QtRedisClient::redisZCard(const QString &key)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("ZCARD %1").arg(key)));
@@ -2667,7 +2879,7 @@ qlonglong QtRedisClient::redisZCard(const QString &key)
 qlonglong QtRedisClient::redisZCount(const QString &key, const QVariant &min, const QVariant &max)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (min.type() != QVariant::Invalid
@@ -2676,7 +2888,7 @@ qlonglong QtRedisClient::redisZCount(const QString &key, const QVariant &min, co
         && min.type() != QVariant::LongLong
         && min.type() != QVariant::ULongLong
         && min.type() != QVariant::Double) {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return -1;
     }
     if (max.type() != QVariant::Invalid
@@ -2685,7 +2897,7 @@ qlonglong QtRedisClient::redisZCount(const QString &key, const QVariant &min, co
         && max.type() != QVariant::LongLong
         && max.type() != QVariant::ULongLong
         && max.type() != QVariant::Double) {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return -1;
     }
     QString buffMin("-inf");
@@ -2716,7 +2928,7 @@ qlonglong QtRedisClient::redisZCount(const QString &key, const QVariant &min, co
 QtRedisReply QtRedisClient::redisZIncrBy(const QString &key, const QString &member, const qint64 incr)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     QStringList argv;
@@ -2769,16 +2981,16 @@ qlonglong QtRedisClient::redisZInterStore(const QString &destKey,
                                           const QString &aggregateFlag)
 {
     if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError("Invalid destKey!");
+        this->setLastError_safe("Invalid destKey!");
         return -1;
     }
     if (keyList.isEmpty()) {
-        this->setLastError("Invalid keyList (Empty)!");
+        this->setLastError_safe("Invalid keyList (Empty)!");
         return -1;
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return -1;
         }
     }
@@ -2792,7 +3004,7 @@ qlonglong QtRedisClient::redisZInterStore(const QString &destKey,
         && aggregateFlag.toUpper() != QString("SUM")
         && aggregateFlag.toUpper() != QString("MIN")
         && aggregateFlag.toUpper() != QString("MAX")) {
-        this->setLastError("Invalid aggregateFlag!");
+        this->setLastError_safe("Invalid aggregateFlag!");
         return -1;
     }
 
@@ -2830,25 +3042,25 @@ qlonglong QtRedisClient::redisZInterStore(const QString &destKey,
 qlonglong QtRedisClient::redisZLexCount(const QString &key, const QString &min, const QString &max)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return -1;
     }
     if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return -1;
     }
     if (min.at(0) != '(' && min.at(0) != '['
         && min != "+" && min != "-") {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return -1;
     }
     if (max.at(0) != '(' && max.at(0) != '['
         && max != "+" && max != "-") {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("ZLEXCOUNT %1 %2 %3").arg(key).arg(min).arg(max)));
@@ -2883,7 +3095,7 @@ qlonglong QtRedisClient::redisZLexCount(const QString &key, const QString &min, 
 QtRedisReply QtRedisClient::redisZRange(const QString &key, const int start, const int stop, const bool withScores)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     QString command = QString("ZREMRANGEBYRANK %1 %2 %3").arg(key).arg(start).arg(stop);
@@ -2962,25 +3174,25 @@ QtRedisReply QtRedisClient::redisZRangeByLex(const QString &key,
                                              const int count)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return QtRedisReply();
     }
     if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
     if (min.at(0) != '(' && min.at(0) != '['
         && min != "+" && min != "-") {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return QtRedisReply();
     }
     if (max.at(0) != '(' && max.at(0) != '['
         && max != "+" && max != "-") {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
     QString command = QString("ZRANGEBYLEX %1 %2 %3").arg(key).arg(min).arg(max);
@@ -3052,25 +3264,25 @@ QtRedisReply QtRedisClient::redisZRangeByScore(const QString &key,
                                                const int count)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return QtRedisReply();
     }
     if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
     if (min.at(0) != '(' && min.at(0) != '['
         && min != "+" && min != "-") {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return QtRedisReply();
     }
     if (max.at(0) != '(' && max.at(0) != '['
         && max != "+" && max != "-") {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
     QString command = QString("ZRANGEBYSCORE %1 %2 %3").arg(key).arg(min).arg(max);
@@ -3112,7 +3324,7 @@ QtRedisReply QtRedisClient::redisZRangeByScore(const QString &key,
 qlonglong QtRedisClient::redisZRank(const QString &key, const QString &member)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     QStringList argv;
@@ -3135,11 +3347,11 @@ qlonglong QtRedisClient::redisZRank(const QString &key, const QString &member)
 qlonglong QtRedisClient::redisZRem(const QString &key, const QStringList &members)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (members.isEmpty()) {
-        this->setLastError("Invalid members (Empty)!");
+        this->setLastError_safe("Invalid members (Empty)!");
         return -1;
     }
     QStringList argv;
@@ -3193,25 +3405,25 @@ qlonglong QtRedisClient::redisZRem(const QString &key, const QStringList &member
 qlonglong QtRedisClient::redisZRemRangeByLex(const QString &key, const QString &min, const QString &max)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return -1;
     }
     if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return -1;
     }
     if (min.at(0) != '(' && min.at(0) != '['
         && min != "+" && min != "-") {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return -1;
     }
     if (max.at(0) != '(' && max.at(0) != '['
         && max != "+" && max != "-") {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYLEX %1 %2 %3").arg(key).arg(min).arg(max)));
@@ -3248,7 +3460,7 @@ qlonglong QtRedisClient::redisZRemRangeByLex(const QString &key, const QString &
 qlonglong QtRedisClient::redisZRemRangeByRank(const QString &key, const int start, const int stop)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYRANK %1 %2 %3").arg(key).arg(start).arg(stop)));
@@ -3285,25 +3497,25 @@ qlonglong QtRedisClient::redisZRemRangeByRank(const QString &key, const int star
 qlonglong QtRedisClient::redisZRemRangeByScore(const QString &key, const QString &min, const QString &max)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return -1;
     }
     if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return -1;
     }
     if (min.at(0) != '(' && min.at(0) != '['
         && min != "+" && min != "-") {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return -1;
     }
     if (max.at(0) != '(' && max.at(0) != '['
         && max != "+" && max != "-") {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return -1;
     }
     return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYSCORE %1 %2 %3").arg(key).arg(min).arg(max)));
@@ -3344,7 +3556,7 @@ qlonglong QtRedisClient::redisZRemRangeByScore(const QString &key, const QString
 QtRedisReply QtRedisClient::redisZRevRange(const QString &key, const int start, const int stop, const bool withScores)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     QString command = QString("ZREVRANGE %1 %2 %3").arg(key).arg(start).arg(stop);
@@ -3394,25 +3606,25 @@ QtRedisReply QtRedisClient::redisZRevRangeByLex(const QString &key,
                                                 const int count)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return QtRedisReply();
     }
     if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
     if (min.at(0) != '(' && min.at(0) != '['
         && min != "+" && min != "-") {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return QtRedisReply();
     }
     if (max.at(0) != '(' && max.at(0) != '['
         && max != "+" && max != "-") {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
     QString command = QString("ZREVRANGEBYLEX %1 %2 %3").arg(key).arg(max).arg(min);
@@ -3468,25 +3680,25 @@ QtRedisReply QtRedisClient::redisZRevRangeByScore(const QString &key,
                                                   const int count)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return QtRedisReply();
     }
     if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
     if (min.at(0) != '(' && min.at(0) != '['
         && min != "+" && min != "-") {
-        this->setLastError("Invalid min!");
+        this->setLastError_safe("Invalid min!");
         return QtRedisReply();
     }
     if (max.at(0) != '(' && max.at(0) != '['
         && max != "+" && max != "-") {
-        this->setLastError("Invalid max!");
+        this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
     QString command = QString("ZREVRANGEBYSCORE %1 %2 %3").arg(key).arg(max).arg(min);
@@ -3528,7 +3740,7 @@ QtRedisReply QtRedisClient::redisZRevRangeByScore(const QString &key,
 qlonglong QtRedisClient::redisZRevRank(const QString &key, const QString &member)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return -1;
     }
     QStringList argv;
@@ -3557,7 +3769,7 @@ qlonglong QtRedisClient::redisZRevRank(const QString &key, const QString &member
 QtRedisReply QtRedisClient::redisZScore(const QString &key, const QString &member)
 {
     if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError("Invalid key!");
+        this->setLastError_safe("Invalid key!");
         return QtRedisReply();
     }
     QStringList argv;
@@ -3618,16 +3830,16 @@ qlonglong QtRedisClient::redisZUnionStore(const QString &destKey,
                                           const QString &aggregateFlag)
 {
     if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError("Invalid destKey!");
+        this->setLastError_safe("Invalid destKey!");
         return -1;
     }
     if (keyList.isEmpty()) {
-        this->setLastError("Invalid keyList (Empty)!");
+        this->setLastError_safe("Invalid keyList (Empty)!");
         return -1;
     }
     for (const QString &key : keyList) {
         if (key.indexOf(" ") != -1) {
-            this->setLastError(QString("Invalid key (%1)!").arg(key));
+            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
             return -1;
         }
     }
@@ -3641,7 +3853,7 @@ qlonglong QtRedisClient::redisZUnionStore(const QString &destKey,
         && aggregateFlag.toUpper() != QString("SUM")
         && aggregateFlag.toUpper() != QString("MIN")
         && aggregateFlag.toUpper() != QString("MAX")) {
-        this->setLastError("Invalid aggregateFlag!");
+        this->setLastError_safe("Invalid aggregateFlag!");
         return -1;
     }
 
@@ -3664,37 +3876,779 @@ qlonglong QtRedisClient::redisZUnionStore(const QString &destKey,
 // ------------------------------------------------------------------------
 
 //!
-//! \brief QtRedisClient::redisPublish
-//! \param channel
-//! \param message
-//! \return The number of clients that received the message.
+//! \brief Получить список каналов, на которые выполнена подписка
+//! \param pattern
+//! \return
 //!
-qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &message)
+//! Syntax
+//!
+//! PUBSUB CHANNELS [pattern]
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(N) where N is the number of active channels, and assuming constant time pattern matching (relatively short channels and patterns)
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Lists the currently active channels.
+//!
+//! An active channel is a Pub/Sub channel with one or more subscribers (excluding clients subscribed to patterns).
+//!
+//! If no pattern is specified, all the channels are listed, otherwise if pattern is specified only channels matching the specified glob-style pattern are listed.
+//!
+//! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
+//! The cluster will make sure that published messages are forwarded as needed.
+//! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
 {
-    if (channel.trimmed().isEmpty() || message.trimmed().isEmpty()) {
-        this->setLastError("Invalid input arguments!");
-        return -1;
-    }
     QStringList argv;
-    argv << "PUBLISH" << channel.trimmed() << message.trimmed();
+    argv << "PUBSUB" << "CHANNELS";
+    if (!pattern.trimmed().isEmpty())
+        argv << pattern.trimmed();
+    return this->replyToArray(this->redisExecCommandArgv(argv));
+}
+
+//!
+//! \brief Получить число уникальных шаблонов, на которые подписаны клиенты.
+//! \return The number of unique patterns that are subscribed to by clients
+//!
+//! Syntax
+//!
+//! PUBSUB NUMPAT
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of unique patterns that are subscribed to by clients (that are performed using the PSUBSCRIBE command).
+//!
+//! Note that this isn't the count of clients subscribed to patterns, but the total number of unique patterns all the clients are subscribed to.
+//!
+//! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
+//! The cluster will make sure that published messages are forwarded as needed.
+//! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+qlonglong QtRedisClient::redisPubSubNumPat()
+{
+    QStringList argv;
+    argv << "PUBSUB" << "NUMPAT";
     return this->replyToLong(this->redisExecCommandArgv(argv));
 }
 
 //!
-//! \brief QtRedisClient::redisPublish
+//! \brief Получить число подписчиков на каждый канал
 //! \param channel
-//! \param message
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB NUMSUB [channel [channel ...]]
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(N) for the NUMSUB subcommand, where N is the number of requested channels
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of subscribers (exclusive of clients subscribed to patterns) for the specified channels.
+//!
+//! Note that it is valid to call this command without channels. In this case it will just return an empty list.
+//!
+//! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
+//! The cluster will make sure that published messages are forwarded as needed.
+//! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QString &channel)
+{
+    return this->redisPubSubNumSub(QStringList(channel));
+}
+
+//!
+//! \brief Получить число подписчиков на каждый канал
+//! \param channels
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB NUMSUB [channel [channel ...]]
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(N) for the NUMSUB subcommand, where N is the number of requested channels
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of subscribers (exclusive of clients subscribed to patterns) for the specified channels.
+//!
+//! Note that it is valid to call this command without channels. In this case it will just return an empty list.
+//!
+//! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
+//! The cluster will make sure that published messages are forwarded as needed.
+//! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &channels)
+{
+    // make valid list
+    QStringList tmpChannels = channels;
+    tmpChannels.removeAll(QString());
+    // make args
+    QStringList argv;
+    argv << "PUBSUB" << "NUMSUB";
+    if (!tmpChannels.isEmpty())
+        argv << tmpChannels;
+    QtRedisReply reply = this->redisExecCommandArgv(argv);
+    if (reply.arrayValueSize() != tmpChannels.size() * 2)
+        return QMap<QString, qlonglong>();
+    // parse result
+    QMap<QString, qlonglong> tmpRes;
+    const QVector<QtRedisReply> replyArr = reply.arrayValue();
+    for (int i = 0; i < replyArr.size(); i += 2) {
+        const QtRedisReply chName = replyArr[i];
+        const QtRedisReply chSubNum = replyArr[i + 1];
+        tmpRes.insert(chName.strValue(), chSubNum.intValue());
+    }
+    return tmpRes;
+}
+
+//!
+//! \brief Получить список каналов сегмента
+//! \param pattern
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB SHARDCHANNELS [pattern]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of active shard channels, and assuming constant time pattern matching (relatively short shard channels).
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Lists the currently active shard channels.
+//!
+//! An active shard channel is a Pub/Sub shard channel with one or more subscribers.
+//!
+//! If no pattern is specified, all the channels are listed, otherwise if pattern is specified only channels matching the specified glob-style pattern are listed.
+//!
+//! The information returned about the active shard channels are at the shard level and not at the cluster level.
+//! Examples
+//!
+//! > PUBSUB SHARDCHANNELS
+//! 1) "orders"
+//! > PUBSUB SHARDCHANNELS o*
+//! 1) "orders"
+//!
+QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
+{
+    QStringList argv;
+    argv << "PUBSUB" << "SHARDCHANNELS";
+    if (!pattern.trimmed().isEmpty())
+        argv << pattern;
+    return this->replyToArray(this->redisExecCommandArgv(argv));
+}
+
+//!
+//! \brief Получить число подписчиков на каждый канал сегмента
+//! \param shardChannel
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB SHARDNUMSUB [shardchannel [shardchannel ...]]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) for the SHARDNUMSUB subcommand, where N is the number of requested shard channels
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of subscribers for the specified shard channels.
+//!
+//! Note that it is valid to call this command without channels, in this case it will just return an empty list.
+//!
+//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+//! Examples
+//!
+//! > PUBSUB SHARDNUMSUB orders
+//! 1) "orders"
+//! 2) (integer) 1
+//!
+QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QString &shardChannel)
+{
+    return this->redisPubSubShardNumSub(QStringList(shardChannel));
+}
+
+//!
+//! \brief Получить число подписчиков на каждый канал сегмента
+//! \param shardChannels
+//! \return
+//!
+//! Syntax
+//!
+//! PUBSUB SHARDNUMSUB [shardchannel [shardchannel ...]]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) for the SHARDNUMSUB subcommand, where N is the number of requested shard channels
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Returns the number of subscribers for the specified shard channels.
+//!
+//! Note that it is valid to call this command without channels, in this case it will just return an empty list.
+//!
+//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+//! Examples
+//!
+//! > PUBSUB SHARDNUMSUB orders
+//! 1) "orders"
+//! 2) (integer) 1
+//!
+QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList &shardChannels)
+{
+    // make valid list
+    QStringList tmpChannels = shardChannels;
+    tmpChannels.removeAll(QString());
+    // make args
+    QStringList argv;
+    argv << "PUBSUB" << "SHARDNUMSUB";
+    if (!tmpChannels.isEmpty())
+        argv << tmpChannels;
+    QtRedisReply reply = this->redisExecCommandArgv(argv);
+    if (reply.arrayValueSize() != tmpChannels.size() * 2)
+        return QMap<QString, qlonglong>();
+    // parse result
+    QMap<QString, qlonglong> tmpRes;
+    const QVector<QtRedisReply> replyArr = reply.arrayValue();
+    for (int i = 0; i < replyArr.size(); i += 2) {
+        const QtRedisReply chName = replyArr[i];
+        const QtRedisReply chSubNum = replyArr[i + 1];
+        tmpRes.insert(chName.strValue(), chSubNum.intValue());
+    }
+    return tmpRes;
+}
+
+//!
+//! \brief Отправить сообщение в канал сообщений
+//! \param channel Название канала
+//! \param message Сообщение
 //! \return The number of clients that received the message.
+//!
+//! Syntax
+//!
+//! PUBLISH channel message
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N+M) where N is the number of clients subscribed to the receiving channel and M is the total number of subscribed patterns (by any client).
+//! ACL categories:
+//!     @pubsub, @fast
+//!
+//! Posts a message to the given channel.
+//!
+//! In a Redis Cluster clients can publish to every node. The cluster makes sure that published messages are forwarded as needed,
+//! so clients can subscribe to any channel by connecting to any one of the nodes.
+//!
+qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &message)
+{
+    return this->redisPublish(channel, message.toUtf8());
+}
+
+//!
+//! \brief Отправить сообщение в канал сообщений
+//! \param channel Название канала
+//! \param message Сообщение
+//! \return The number of clients that received the message.
+//!
+//! Syntax
+//!
+//! PUBLISH channel message
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N+M) where N is the number of clients subscribed to the receiving channel and M is the total number of subscribed patterns (by any client).
+//! ACL categories:
+//!     @pubsub, @fast
+//!
+//! Posts a message to the given channel.
+//!
+//! In a Redis Cluster clients can publish to every node. The cluster makes sure that published messages are forwarded as needed,
+//! so clients can subscribe to any channel by connecting to any one of the nodes.
 //!
 qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &message)
 {
     if (channel.trimmed().isEmpty() || message.isEmpty()) {
-        this->setLastError("Invalid input arguments!");
+        this->setLastError_safe("Invalid input arguments!");
         return -1;
     }
     QList<QByteArray> argv;
     argv << "PUBLISH" << channel.trimmed().toUtf8() << message;
     return this->replyToLong(this->redisExecCommandArgv(argv));
+}
+
+//!
+//! \brief Отправить сообщение в указанный канал сегмента.
+//! \param shardChannel Название канала
+//! \param message Сообщение
+//! \return The number of clients that received the message.
+//!
+//! Syntax
+//!
+//! SPUBLISH shardchannel message
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of clients subscribed to the receiving shard channel.
+//! ACL categories:
+//!     @pubsub, @fast
+//!
+//! Posts a message to the given shard channel.
+//!
+//! In Redis Cluster, shard channels are assigned to slots by the same algorithm used to assign keys to slots.
+//! A shard message must be sent to a node that own the slot the shard channel is hashed to.
+//! The cluster makes sure that published shard messages are forwarded to all the node in the shard,
+//! so clients can subscribe to a shard channel by connecting to any one of the nodes in the shard.
+//!
+//! For more information about sharded pubsub, see Sharded Pubsub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! Examples
+//!
+//! For example the following command publish to channel orders with a subscriber already waiting for message(s).
+//!
+//! > spublish orders hello
+//! (integer) 1
+//!
+qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QString &message)
+{
+    return this->redisSPublish(shardChannel, message.toUtf8());
+}
+
+//!
+//! \brief Отправить сообщение в указанный канал сегмента.
+//! \param shardChannel Название канала
+//! \param message Сообщение
+//! \return The number of clients that received the message.
+//!
+//! Syntax
+//!
+//! SPUBLISH shardchannel message
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of clients subscribed to the receiving shard channel.
+//! ACL categories:
+//!     @pubsub, @fast
+//!
+//! Posts a message to the given shard channel.
+//!
+//! In Redis Cluster, shard channels are assigned to slots by the same algorithm used to assign keys to slots.
+//! A shard message must be sent to a node that own the slot the shard channel is hashed to.
+//! The cluster makes sure that published shard messages are forwarded to all the node in the shard,
+//! so clients can subscribe to a shard channel by connecting to any one of the nodes in the shard.
+//!
+//! For more information about sharded pubsub, see Sharded Pubsub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! Examples
+//!
+//! For example the following command publish to channel orders with a subscriber already waiting for message(s).
+//!
+//! > spublish orders hello
+//! (integer) 1
+//!
+qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteArray &message)
+{
+    if (shardChannel.trimmed().isEmpty() || message.isEmpty()) {
+        this->setLastError_safe("Invalid input arguments!");
+        return -1;
+    }
+    QList<QByteArray> argv;
+    argv << "SPUBLISH" << shardChannel.trimmed().toUtf8() << message;
+    return this->replyToLong(this->redisExecCommandArgv(argv));
+}
+
+//!
+//! \brief Подписаться на канал сообщений
+//! \param channel Название канала
+//! \return
+//!
+//! Syntax
+//!
+//! SUBSCRIBE channel [channel ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of channels to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the specified channels.
+//!
+//! Once the client enters the subscribed state it is not supposed to issue any other commands,
+//! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
+//! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+bool QtRedisClient::redisSubscribe(const QString &channel)
+{
+    return this->redisSubscribe_safe("SUBSCRIBE", QStringList(channel));
+}
+
+//!
+//! \brief Подписаться на канал сообщений
+//! \param channels Названия каналов
+//! \return
+//!
+//! Syntax
+//!
+//! SUBSCRIBE channel [channel ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of channels to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the specified channels.
+//!
+//! Once the client enters the subscribed state it is not supposed to issue any other commands,
+//! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
+//! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+bool QtRedisClient::redisSubscribe(const QStringList &channels)
+{
+    return this->redisSubscribe_safe("SUBSCRIBE", channels);
+}
+
+//!
+//! \brief Отписаться от канала сообщений
+//! \param channel Название канала
+//! \return
+//!
+//! Syntax
+//!
+//! UNSUBSCRIBE [channel [channel ...]]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of channels to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given channels, or from all of them if none is given.
+//!
+//! When no channels are specified, the client is unsubscribed from all the previously subscribed channels.
+//! In this case, a message for every unsubscribed channel will be sent to the client.
+//!
+bool QtRedisClient::redisUnsubscribe(const QString &channel)
+{
+    return this->redisUnsubscribe_safe("UNSUBSCRIBE", QStringList(channel));
+}
+
+//!
+//! \brief Отписаться от канала сообщений
+//! \param channels Названия каналов
+//! \return
+//!
+//! Syntax
+//!
+//! UNSUBSCRIBE [channel [channel ...]]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of channels to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given channels, or from all of them if none is given.
+//!
+//! When no channels are specified, the client is unsubscribed from all the previously subscribed channels.
+//! In this case, a message for every unsubscribed channel will be sent to the client.
+//!
+bool QtRedisClient::redisUnsubscribe(const QStringList &channels)
+{
+    return this->redisUnsubscribe_safe("UNSUBSCRIBE", channels);
+}
+
+//!
+//! \brief Подписаться на канал по заданному шаблону
+//! \param pattern
+//! \return
+//!
+//! Syntax
+//!
+//! PSUBSCRIBE pattern [pattern ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of patterns to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the given patterns.
+//!
+//! Supported glob-style patterns:
+//!
+//!     h?llo subscribes to hello, hallo and hxllo
+//!     h*llo subscribes to hllo and heeeello
+//!     h[ae]llo subscribes to hello and hallo, but not hillo
+//!
+//! Use \ to escape special characters if you want to match them verbatim.
+//!
+//! Once the client enters the subscribed state it is not supposed to issue any other commands,
+//! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
+//! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+bool QtRedisClient::redisPSubscribe(const QString &pattern)
+{
+    return this->redisSubscribe_safe("PSUBSCRIBE", QStringList(pattern));
+}
+
+//!
+//! \brief Подписаться на канал по заданному шаблону
+//! \param patterns
+//! \return
+//!
+//! Syntax
+//!
+//! PSUBSCRIBE pattern [pattern ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of patterns to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the given patterns.
+//!
+//! Supported glob-style patterns:
+//!
+//!     h?llo subscribes to hello, hallo and hxllo
+//!     h*llo subscribes to hllo and heeeello
+//!     h[ae]llo subscribes to hello and hallo, but not hillo
+//!
+//! Use \ to escape special characters if you want to match them verbatim.
+//!
+//! Once the client enters the subscribed state it is not supposed to issue any other commands,
+//! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
+//! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+bool QtRedisClient::redisPSubscribe(const QStringList &patterns)
+{
+    return this->redisSubscribe_safe("PSUBSCRIBE", patterns);
+}
+
+//!
+//! \brief Отписаться от канала по заданному шаблону
+//! \param pattern
+//! \return
+//!
+//! Syntax
+//!
+//! PUNSUBSCRIBE [pattern [pattern ...]]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of patterns to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given patterns, or from all of them if none is given.
+//!
+//! When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns.
+//! In this case, a message for every unsubscribed pattern will be sent to the client.
+//!
+bool QtRedisClient::redisPUnsubscribe(const QString &pattern)
+{
+    return this->redisUnsubscribe_safe("PUNSUBSCRIBE", QStringList(pattern));
+}
+
+//!
+//! \brief Отписаться от канала по заданному шаблону
+//! \param patterns
+//! \return
+//!
+//! Syntax
+//!
+//! PUNSUBSCRIBE [pattern [pattern ...]]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) where N is the number of patterns to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given patterns, or from all of them if none is given.
+//!
+//! When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns.
+//! In this case, a message for every unsubscribed pattern will be sent to the client.
+//!
+bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
+{
+    return this->redisUnsubscribe_safe("PUNSUBSCRIBE", patterns);
+}
+
+//!
+//! \brief Подписаться на сообщения указанного канала сегмента.
+//! \param shardChannel Название канала
+//! \return
+//!
+//! Syntax
+//!
+//! SSUBSCRIBE shardchannel [shardchannel ...]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of shard channels to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the specified shard channels.
+//!
+//! In a Redis cluster, shard channels are assigned to slots by the same algorithm used to assign keys to slots.
+//! Client(s) can subscribe to a node covering a slot (primary/replica) to receive the messages published.
+//! All the specified shard channels needs to belong to a single slot to subscribe in a given SSUBSCRIBE call,
+//! A client can subscribe to channels across different slots over separate SSUBSCRIBE call.
+//!
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//!
+//! Examples
+//!
+//! > ssubscribe orders
+//! Reading messages... (press Ctrl-C to quit)
+//! 1) "ssubscribe"
+//! 2) "orders"
+//! 3) (integer) 1
+//! 1) "smessage"
+//! 2) "orders"
+//! 3) "hello"
+//!
+bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
+{
+    return this->redisSubscribe_safe("SSUBSCRIBE", QStringList(shardChannel));
+}
+
+//!
+//! \brief Подписаться на сообщения указанного канала сегмента.
+//! \param shardChannels Название канала
+//! \return
+//!
+//! Syntax
+//!
+//! SSUBSCRIBE shardchannel [shardchannel ...]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of shard channels to subscribe to.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Subscribes the client to the specified shard channels.
+//!
+//! In a Redis cluster, shard channels are assigned to slots by the same algorithm used to assign keys to slots.
+//! Client(s) can subscribe to a node covering a slot (primary/replica) to receive the messages published.
+//! All the specified shard channels needs to belong to a single slot to subscribe in a given SSUBSCRIBE call,
+//! A client can subscribe to channels across different slots over separate SSUBSCRIBE call.
+//!
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//!
+//! Examples
+//!
+//! > ssubscribe orders
+//! Reading messages... (press Ctrl-C to quit)
+//! 1) "ssubscribe"
+//! 2) "orders"
+//! 3) (integer) 1
+//! 1) "smessage"
+//! 2) "orders"
+//! 3) "hello"
+//!
+bool QtRedisClient::redisSSubscribe(const QStringList &shardChannels)
+{
+    return this->redisSubscribe_safe("SSUBSCRIBE", shardChannels);
+}
+
+//!
+//! \brief Отписаться от сообщений указанного канала сегмента.
+//! \param shardChannel
+//! \return
+//!
+//! Syntax
+//!
+//! SUNSUBSCRIBE [shardchannel [shardchannel ...]]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of shard channels to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given shard channels, or from all of them if none is given.
+//!
+//! When no shard channels are specified, the client is unsubscribed from all the previously subscribed shard channels.
+//! In this case a message for every unsubscribed shard channel will be sent to the client.
+//!
+//! Note: The global channels and shard channels needs to be unsubscribed from separately.
+//!
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//!
+bool QtRedisClient::redisSUnsubscribe(const QString &shardChannel)
+{
+    return this->redisUnsubscribe_safe("SUNSUBSCRIBE", QStringList(shardChannel));
+}
+
+//!
+//! \brief Отписаться от сообщений указанного канала сегмента.
+//! \param shardChannels
+//! \return
+//!
+//! Syntax
+//!
+//! SUNSUBSCRIBE [shardchannel [shardchannel ...]]
+//!
+//! Available since:
+//!     7.0.0
+//! Time complexity:
+//!     O(N) where N is the number of shard channels to unsubscribe.
+//! ACL categories:
+//!     @pubsub, @slow
+//!
+//! Unsubscribes the client from the given shard channels, or from all of them if none is given.
+//!
+//! When no shard channels are specified, the client is unsubscribed from all the previously subscribed shard channels.
+//! In this case a message for every unsubscribed shard channel will be sent to the client.
+//!
+//! Note: The global channels and shard channels needs to be unsubscribed from separately.
+//!
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//!
+bool QtRedisClient::redisSUnsubscribe(const QStringList &shardChannels)
+{
+    return this->redisUnsubscribe_safe("SUNSUBSCRIBE", shardChannels);
 }
 
 
@@ -3709,10 +4663,13 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
 //!
 qlonglong QtRedisClient::replyToLong(const QtRedisReply &reply)
 {
-    if (reply.type() == QtRedisReply::ReplyType::Integer)
+    if (reply.type() == QtRedisReply::ReplyType::Error) {
+        this->setLastError_safe(reply.strValue());
+        return -1;
+    } else if (reply.type() == QtRedisReply::ReplyType::Integer) {
         return reply.intValue();
-
-    this->setLastError("Invalid reply type!");
+    }
+    this->setLastError_safe("Invalid reply type!");
     return -1;
 }
 
@@ -3723,15 +4680,14 @@ qlonglong QtRedisClient::replyToLong(const QtRedisReply &reply)
 //!
 QString QtRedisClient::replyToString(const QtRedisReply &reply)
 {
-    if (reply.type() == QtRedisReply::ReplyType::String
-        || reply.type() == QtRedisReply::ReplyType::Status)
-        return reply.strValue();
     if (reply.type() == QtRedisReply::ReplyType::Error) {
-        this->setLastError(reply.strValue());
+        this->setLastError_safe(reply.strValue());
+        return QString();
+    } else if (reply.type() == QtRedisReply::ReplyType::String
+               || reply.type() == QtRedisReply::ReplyType::Status) {
         return reply.strValue();
     }
-
-    this->setLastError("Invalid reply type!");
+    this->setLastError_safe("Invalid reply type!");
     return QString();
 }
 
@@ -3742,16 +4698,19 @@ QString QtRedisClient::replyToString(const QtRedisReply &reply)
 //!
 QStringList QtRedisClient::replyToArray(const QtRedisReply &reply)
 {
-    if (reply.type() != QtRedisReply::ReplyType::Array) {
-        this->setLastError("Invalid reply type!");
+    if (reply.type() == QtRedisReply::ReplyType::Error) {
+        this->setLastError_safe(reply.strValue());
         return QStringList();
+    } else if (reply.type() == QtRedisReply::ReplyType::Array) {
+        QStringList array;
+        for (const QtRedisReply &replyObj : reply.arrayValue()) {
+            if (replyObj.type() == QtRedisReply::ReplyType::String)
+                array.append(replyObj.strValue());
+        }
+        return array;
     }
-    QStringList array;
-    for (const QtRedisReply &replyObj : reply.arrayValue()) {
-        if (replyObj.type() == QtRedisReply::ReplyType::String)
-            array.append(replyObj.strValue());
-    }
-    return array;
+    this->setLastError_safe("Invalid reply type!");
+    return QStringList();
 }
 
 //!
@@ -3761,14 +4720,14 @@ QStringList QtRedisClient::replyToArray(const QtRedisReply &reply)
 //!
 bool QtRedisClient::replyIntToBool(const QtRedisReply &reply)
 {
-    if (reply.type() != QtRedisReply::ReplyType::Integer) {
-        this->setLastError("Invalid reply type!");
+    if (reply.type() == QtRedisReply::ReplyType::Error) {
+        this->setLastError_safe(reply.strValue());
         return false;
+    } else if (reply.type() == QtRedisReply::ReplyType::Integer) {
+        return (reply.intValue() == 0) ? false : true;
     }
-    if (reply.intValue() == 0)
-        return false;
-
-    return true;
+    this->setLastError_safe("Invalid reply type!");
+    return false;
 }
 
 //!
@@ -3778,13 +4737,124 @@ bool QtRedisClient::replyIntToBool(const QtRedisReply &reply)
 //!
 bool QtRedisClient::replySimpleStringToBool(const QtRedisReply &reply)
 {
-    if (reply.type() != QtRedisReply::ReplyType::Status
-        && reply.type() != QtRedisReply::ReplyType::String) {
-        this->setLastError("Invalid reply type!");
+    if (reply.type() == QtRedisReply::ReplyType::Error) {
+        this->setLastError_safe(reply.strValue());
+        return false;
+    } else if (reply.type() == QtRedisReply::ReplyType::Status
+               || reply.type() == QtRedisReply::ReplyType::String) {
+        return (reply.strValue() == "OK");
+    }
+    this->setLastError_safe("Invalid reply type!");
+    return false;
+}
+
+//!
+//! \brief Установить последнюю ошибку
+//! \param error Ошибка
+//!
+void QtRedisClient::setLastError_safe(const QString &error)
+{
+    QMutexLocker lock(&_mutexErr);
+    _lastError = error;
+}
+
+//!
+//! \brief Очистить посленюю ошибку
+//!
+void QtRedisClient::clearLastError_safe()
+{
+    QMutexLocker lock(&_mutexErr);
+    _lastError.clear();
+}
+
+bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringList &channels)
+{
+    QMutexLocker lock(&_mutex);
+    // make valid list
+    QStringList tmpChannels = channels;
+    tmpChannels.removeAll(QString());
+    // check
+    if (tmpChannels.isEmpty()) {
+        this->setLastError_safe("Invalid input arguments!");
         return false;
     }
-    if (reply.strValue() == "OK")
-        return true;
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return false;
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return false;
+    }
+    if (!_transporter->isSubscribed()
+        && !_transporter->subscribeToServer()) {
+        this->setLastError_safe("Subscribe to the server failed!");
+        return false;
+    }
+    // make args
+    QStringList argv;
+    argv << command.trimmed().toUpper() << tmpChannels;
+    const QList<QtRedisReply> replyList = _transporter->sendChannelCommand_lst(argv);
+    if (replyList.size() != tmpChannels.size()) {
+        this->setLastError_safe("Invalid reply list size!");
+        return false;
+    }
+    bool isOk = true;
+    for (int i = 0; i < tmpChannels.size(); i++) {
+        const QtRedisReply reply = replyList[i];
+        const QString channel = tmpChannels[i];
+        if (reply.isError())
+            this->setLastError_safe(reply.strValue());
 
-    return false;
+        isOk = isOk
+               && reply.type() == QtRedisReply::ReplyType::Array
+               && reply.arrayValueSize() == 3
+               && reply.arrayValue()[0].strValue() == command.trimmed().toLower()
+               && reply.arrayValue()[1].strValue() == channel;
+    }
+    return isOk;
+}
+
+bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringList &channels)
+{
+    QMutexLocker lock(&_mutex);
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return false;
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return false;
+    }
+    if (!_transporter->isSubscribed()) {
+        this->setLastError_safe("Client is not subscribed!");
+        return false;
+    }
+    // make valid list
+    QStringList tmpChannels = channels;
+    tmpChannels.removeAll(QString());
+    // make args
+    QStringList argv;
+    argv << command.trimmed().toUpper();
+    if (!tmpChannels.isEmpty())
+        argv << tmpChannels;
+    const QList<QtRedisReply> replyList = _transporter->sendChannelCommand_lst(argv);
+    if (replyList.size() != tmpChannels.size()) {
+        this->setLastError_safe("Invalid reply list size!");
+        return false;
+    }
+    bool isOk = true;
+    for (int i = 0; i < tmpChannels.size(); i++) {
+        const QtRedisReply reply = replyList[i];
+        const QString channel = tmpChannels[i];
+        if (reply.isError())
+            this->setLastError_safe(reply.strValue());
+
+        isOk = isOk
+               && reply.type() == QtRedisReply::ReplyType::Array
+               && reply.arrayValueSize() == 3
+               && reply.arrayValue()[0].strValue() == command.trimmed().toLower()
+               && reply.arrayValue()[1].strValue() == channel;
+    }
+    return isOk;
 }

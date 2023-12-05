@@ -20,33 +20,46 @@
 //!
 //! Документация по командам: https://redis.io/commands
 //!
-class QtRedisClient
+class QtRedisClient : public QObject
 {
+    Q_OBJECT
+
 public:
-    QtRedisClient() = default;
-    ~QtRedisClient();
+    QtRedisClient();
+    virtual ~QtRedisClient();
 
     static QString libraryVersion();
 
-    QString lastError() const;
+    // ------------------------------------------------------------------------
+    // -- ERRORS FUNCTIONS ----------------------------------------------------
+    // ------------------------------------------------------------------------
     bool hasLastError() const;
-    void setLastError(const QString &error);
-    void clearLastError();
+    QString lastError() const;
+
+
+    // ------------------------------------------------------------------------
+    // -- CONNECT/DISCONNECT FUNCTIONS ----------------------------------------
+    // ------------------------------------------------------------------------
+    QtRedisTransporter::Type redisContextType();
+    QtRedisTransporter::ChannelMode redisContextChannelMode();
 
     bool redisIsConnected();
 
     bool redisConnect(const QString &host,
                       const int port = 6379,
-                      const int timeOutMsec = -1);
+                      const int timeOutMsec = -1,
+                      const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
 
     // NOTE: not tested!
     bool redisConnectEncrypted(const QString &host,
                                const int port,
-                               const int timeOutMsec = -1);
+                               const int timeOutMsec = -1,
+                               const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
 
 #if defined(Q_OS_LINUX)
     bool redisConnectUnix(const QString &sockPath = QString("/tmp/redis.sock"),
-                          const int timeOutMsec = -1);
+                          const int timeOutMsec = -1,
+                          const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
 #endif
 
     bool redisReconnect(const int timeOutMsec = -1);
@@ -60,6 +73,11 @@ public:
     QtRedisReply redisExecCommand(const QByteArray &command);
     QtRedisReply redisExecCommandArgv(const QStringList &commandArgv);
     QtRedisReply redisExecCommandArgv(const QList<QByteArray> &commandArgv);
+
+    QList<QtRedisReply> redisExecCommand_lst(const QString &command);
+    QList<QtRedisReply> redisExecCommand_lst(const QByteArray &command);
+    QList<QtRedisReply> redisExecCommandArgv_lst(const QStringList &commandArgv);
+    QList<QtRedisReply> redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv);
 
     bool redisCheckCommand(const QString &command);
     bool redisCheckCommandArgv(const QStringList &commandArgv);
@@ -252,8 +270,33 @@ public:
     // ------------------------------------------------------------------------
     // -- PUB/SUB COMMANDS ----------------------------------------------------
     // ------------------------------------------------------------------------
+    QStringList redisPubSubChannels(const QString &pattern = QString());
+    qlonglong redisPubSubNumPat();
+    QMap<QString, qlonglong> redisPubSubNumSub(const QString &channel = QString());
+    QMap<QString, qlonglong> redisPubSubNumSub(const QStringList &channels);
+    QStringList redisPubSubShardChannels(const QString &pattern = QString());
+    QMap<QString, qlonglong> redisPubSubShardNumSub(const QString &shardChannel = QString());
+    QMap<QString, qlonglong> redisPubSubShardNumSub(const QStringList &shardChannels);
+
     qlonglong redisPublish(const QString &channel, const QString &message);
     qlonglong redisPublish(const QString &channel, const QByteArray &message);
+    qlonglong redisSPublish(const QString &shardChannel, const QString &message);
+    qlonglong redisSPublish(const QString &shardChannel, const QByteArray &message);
+
+    bool redisSubscribe(const QString &channel);
+    bool redisSubscribe(const QStringList &channels);
+    bool redisUnsubscribe(const QString &channel = QString());
+    bool redisUnsubscribe(const QStringList &channels);
+
+    bool redisPSubscribe(const QString &pattern);
+    bool redisPSubscribe(const QStringList &patterns);
+    bool redisPUnsubscribe(const QString &pattern = QString());
+    bool redisPUnsubscribe(const QStringList &patterns);
+
+    bool redisSSubscribe(const QString &shardChannel);
+    bool redisSSubscribe(const QStringList &shardChannels);
+    bool redisSUnsubscribe(const QString &shardChannel = QString());
+    bool redisSUnsubscribe(const QStringList &shardChannels);
 
     // ------------------------------------------------------------------------
     // -- TOOLS COMMANDS ------------------------------------------------------
@@ -269,6 +312,21 @@ protected:
     mutable QMutex      _mutexErr;              //!< мьютекс
     QString             _lastError;             //!< ошибка
     QtRedisTransporter *_transporter {nullptr}; //!< слой взаимодействия с redis
+
+private:
+    void setLastError_safe(const QString &error);
+    void clearLastError_safe();
+
+    bool redisSubscribe_safe(const QString &command, const QStringList &channels);
+    bool redisUnsubscribe_safe(const QString &command, const QStringList &channels);
+
+signals:
+    void contextConnected(QString contextUid, QString host, int port, int dbIndex);
+    void contextDisconnected(QString contextUid, QString host, int port, int dbIndex);
+
+    void incomingChannelMessage(QString channel, QtRedisReply data);
+    void incomingChannelShardMessage(QString shardChannel, QtRedisReply data);
+    void incomingChannelPatternMessage(QString pattern, QString channel, QtRedisReply data);
 };
 
 #endif // QTREDISCLIENT_H

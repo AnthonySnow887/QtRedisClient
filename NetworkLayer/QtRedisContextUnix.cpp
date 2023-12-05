@@ -10,6 +10,9 @@ QtRedisContextUnix::QtRedisContextUnix(const QString &sockPath)
     : QtRedisContext(sockPath, -1)
     , _socket(new QLocalSocket(this))
 {
+    connect(_socket, &QLocalSocket::connected, this, &QtRedisContext::connected);
+    connect(_socket, &QLocalSocket::disconnected, this, &QtRedisContext::disconnected);
+    connect(_socket, &QLocalSocket::readyRead, this, &QtRedisContext::readyRead);
 }
 
 //!
