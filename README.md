@@ -314,12 +314,12 @@ void incomingChannelPatternMessage(QString pattern, QString channel, QtRedisRepl
 // Create client & connect
 QtRedisClient _redisClient;
 
-// Connect Qt signal for check context connect states
+// Connect Qt signal for check context connected
 connect(&_redisClient, &QtRedisClient::contextConnected, this, [](QString contextUid, QString host, int port, int dbIndex) {
     qDebug() << "Redis client CONNECTED:" << contextUid << host << port << dbIndex;
 });
 
-// Connect Qt signal for check context disconnect states
+// Connect Qt signal for check context disconnected
 connect(&_redisClient, &QtRedisClient::contextDisconnected, this, [](QString contextUid, QString host, int port, int dbIndex) {
     qDebug() << "Redis client DISCONNECTED:" << contextUid << host << port << dbIndex;
 });
