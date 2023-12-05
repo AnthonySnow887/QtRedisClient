@@ -15,12 +15,65 @@ include(QtRedisClient/QtRedisClient.pri)
 
 ## Supported Redis commands
 
+### Error functions
+```cpp
+bool hasLastError() const;
+QString lastError() const;
+```
+
+### Connection functions
+
+>
+> NOTE: 
+> 
+> Function ```redisConnectUnix(...)``` is only supported on Linux!
+>
+
+```cpp
+QtRedisTransporter::Type redisContextType();
+QtRedisTransporter::ChannelMode redisContextChannelMode();
+
+bool redisIsConnected();
+
+bool redisConnect(const QString &host,
+                  const int port = 6379,
+                  const int timeOutMsec = -1,
+                  const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
+
+// NOTE: not tested!
+bool redisConnectEncrypted(const QString &host,
+                           const int port,
+                           const int timeOutMsec = -1,
+                           const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
+
+#if defined(Q_OS_LINUX)
+bool redisConnectUnix(const QString &sockPath = QString("/tmp/redis.sock"),
+                      const int timeOutMsec = -1,
+                      const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
+#endif
+
+bool redisReconnect(const int timeOutMsec = -1);
+
+void redisDisconnect();
+
+//
+// Qt Signals:
+//
+void contextConnected(QString contextUid, QString host, int port, int dbIndex);
+void contextDisconnected(QString contextUid, QString host, int port, int dbIndex);
+```
+
 ### Base commands
 ```cpp
 QtRedisReply redisExecCommand(const QString &command);
 QtRedisReply redisExecCommand(const QByteArray &command);
 QtRedisReply redisExecCommandArgv(const QStringList &commandArgv);
 QtRedisReply redisExecCommandArgv(const QList<QByteArray> &commandArgv);
+
+QList<QtRedisReply> redisExecCommand_lst(const QString &command);
+QList<QtRedisReply> redisExecCommand_lst(const QByteArray &command);
+QList<QtRedisReply> redisExecCommandArgv_lst(const QStringList &commandArgv);
+QList<QtRedisReply> redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv);
 ```
 
 ### Server commands
@@ -237,6 +290,13 @@ bool redisSSubscribe(const QString &shardChannel);
 bool redisSSubscribe(const QStringList &shardChannels);
 bool redisSUnsubscribe(const QString &shardChannel = QString());
 bool redisSUnsubscribe(const QStringList &shardChannels);
+
+//
+// Qt Signals:
+//
+void incomingChannelMessage(QString channel, QtRedisReply data);
+void incomingChannelShardMessage(QString shardChannel, QtRedisReply data);
+void incomingChannelPatternMessage(QString pattern, QString channel, QtRedisReply data);
 ```
 
 ## Code examples
@@ -253,29 +313,39 @@ bool redisSUnsubscribe(const QStringList &shardChannels);
 
 // Create client & connect
 QtRedisClient _redisClient;
+
+// Connect Qt signal for check context connect states
+connect(&_redisClient, &QtRedisClient::contextConnected, this, [](QString contextUid, QString host, int port, int dbIndex) {
+    qDebug() << "Redis client CONNECTED:" << contextUid << host << port << dbIndex;
+});
+
+// Connect Qt signal for check context disconnect states
+connect(&_redisClient, &QtRedisClient::contextDisconnected, this, [](QString contextUid, QString host, int port, int dbIndex) {
+    qDebug() << "Redis client DISCONNECTED:" << contextUid << host << port << dbIndex;
+});
+
+// Connect to Redis...
 if (!_redisClient.redisConnect("127.0.0.1", 6379)) {
-    qCritical() << "Connect to redis failed!";
+    qCritical() << "Connect to Redis failed!";
     return;
 }
-qDebug() << "Connect to redis success";
+qDebug() << "Connect to Redis success";
 
 // Send Redis ping command
-_redisClient.clearLastError();
 if (!_redisClient.redisPing()) {
     qCritical() << qPrintable(QString("Redis PING failed! Error: %1")
                               .arg(_redisClient.lastError()));
     return;
 }
 
+// Select Redis version
+qDebug() << "Redis version:" << _redisClient.redisInfo("server").value("redis_version", "?.?.?");
+
 // Select Redis keys
 QStringList redisKeysList = _redisClient.redisKeys();
 qDebug() << "Redis keys:" << redisKeysList;
 
-// Select Redis version
-qDebug() << "Redis version:" << _redisClient.redisInfo("server").value("redis_version", "?.?.?");
-
 // Remove all Redis keys (ver. 1)
-_redisClient.clearLastError();
 if (!_redisClient.redisDel(redisKeysList)) {
     qWarning() << qPrintable(QString("Del redis keys failed! Error: %1")
                              .arg(_redisClient.lastError()));
@@ -285,7 +355,6 @@ if (!_redisClient.redisDel(redisKeysList)) {
 
 // Remove all Redis keys (ver. 2)
 for (const QString &key : qAsConst(redisKeysList)) {
-    _redisClient.clearLastError();
     if (!_redisClient.redisDel(QStringList(key))) {
         qWarning() << qPrintable(QString("Del redis key (%1) failed! Error: %2")
                                  .arg(key)
@@ -299,7 +368,6 @@ for (const QString &key : qAsConst(redisKeysList)) {
 // Set Redis value
 QString rKey("my_redis_key");
 QString rValue("my_redis_value");
-_redisClient.clearLastError();
 if (!_redisClient.redisSet(rKey, rValue)) {
     qWarning() << qPrintable(QString("Add redis key-value failed (key: %1)! Error: %2")
                              .arg(rKey)
@@ -314,6 +382,7 @@ _redisClient.redisDisconnect();
 
 >
 > NOTE: 
+>
 > If you receive an error like: 
 > 
 > ```ERR Can't execute 'publish': only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT / RESET are allowed in this context-ERR unknown command `023`, with args beginning with: \r\n```
@@ -325,12 +394,13 @@ _redisClient.redisDisconnect();
 
 >
 > NOTE:
+>
 > To use a separate connection for channels use the following code:
 >
 > ```cpp
 > // Create client with separate connection & connect
 > QtRedisClient _redisPub;
-> if (!_redisPub.redisConnect("127.0.0.1", 6379, -1, QtRedisTransporter::TransporterChannelMode::SeparateConnection)) {
+> if (!_redisPub.redisConnect("127.0.0.1", 6379, -1, QtRedisTransporter::ChannelMode::SeparateConnection)) {
 >     qCritical() << "Connect to redis failed!";
 >     return;
 > }
@@ -344,25 +414,24 @@ _redisClient.redisDisconnect();
 // Create client & connect
 QtRedisClient _redisPub;
 if (!_redisPub.redisConnect("127.0.0.1", 6379)) {
-    qCritical() << "Connect to redis failed!";
+    qCritical() << "Connect to Redis failed (redis-pub)!";
     return;
 }
 QtRedisClient _redisSub;
 if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
-    qCritical() << "Connect to redis failed!";
+    qCritical() << "Connect to Redis failed (redis-sub)!";
     return;
 }
-qDebug() << "Connect to redis success";
+qDebug() << "Connect to Redis success";
 
 // Subscribe to the channel
-_redisClient.clearLastError();
 if (!_redisClient.redisSubscribe("my_channel"))
     qCritical() << qPrintable(QString("Subscribe to the channel failed! Error: %1")
                               .arg(_redisClient.lastError()));
     return;
 }
 
-// Connect Qt signals for incoming channel messages
+// Connect Qt signal for incoming channel messages
 connect(&_redisSub, &QtRedisClient::incomingChannelMessage, this, [](QString channel, QtRedisReply data) {
     qDebug() << "Incoming SUB:" << channel << data;
 });
@@ -389,25 +458,24 @@ _redisClient.redisDisconnect();
 // Create client & connect
 QtRedisClient _redisPub;
 if (!_redisPub.redisConnect("127.0.0.1", 6379)) {
-    qCritical() << "Connect to redis failed!";
+    qCritical() << "Connect to Redis failed (redis-pub)!";
     return;
 }
 QtRedisClient _redisSub;
 if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
-    qCritical() << "Connect to redis failed!";
+    qCritical() << "Connect to Redis failed (redis-sub)!";
     return;
 }
-qDebug() << "Connect to redis success";
+qDebug() << "Connect to Redis success";
 
 // Subscribe to the channel
-_redisClient.clearLastError();
 if (!_redisClient.redisPSubscribe("my_channe*"))
     qCritical() << qPrintable(QString("Subscribe to the channel failed! Error: %1")
                               .arg(_redisClient.lastError()));
     return;
 }
 
-// Connect Qt signals for incoming pattern channel messages
+// Connect Qt signal for incoming pattern channel messages
 connect(&_redisSub, &QtRedisClient::incomingChannelPatternMessage, this, [](QString pattern, QString channel, QtRedisReply data) {
     qDebug() << "Incoming PSUB:" << pattern << channel << data;
 });
@@ -430,7 +498,9 @@ _redisClient.redisDisconnect();
 #### Redis client with shard pub/sub channel
 
 >
-> NOTE: This functionality has appeared in Redis since version 7.0.0!
+> NOTE: 
+> 
+> This functionality has appeared in Redis since version 7.0.0!
 >
 
 ```cpp
@@ -439,25 +509,24 @@ _redisClient.redisDisconnect();
 // Create client & connect
 QtRedisClient _redisPub;
 if (!_redisPub.redisConnect("127.0.0.1", 6379)) {
-    qCritical() << "Connect to redis failed!";
+    qCritical() << "Connect to Redis failed (redis-pub)!";
     return;
 }
 QtRedisClient _redisSub;
 if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
-    qCritical() << "Connect to redis failed!";
+    qCritical() << "Connect to Redis failed (redis-sub)!";
     return;
 }
-qDebug() << "Connect to redis success";
+qDebug() << "Connect to Redis success";
 
 // Subscribe to the channel
-_redisClient.clearLastError();
 if (!_redisClient.redisSSubscribe("my_shard_channel"))
     qCritical() << qPrintable(QString("Subscribe to the shard channel failed! Error: %1")
                               .arg(_redisClient.lastError()));
     return;
 }
 
-// Connect Qt signals for incoming shard channel messages
+// Connect Qt signal for incoming shard channel messages
 connect(&_redisSub, &QtRedisClient::incomingChannelShardMessage, this, [](QString shardChannel, QtRedisReply data) {
     qDebug() << "Incoming SSUB:" << shardChannel << data;
 });

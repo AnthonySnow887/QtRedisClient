@@ -11,6 +11,8 @@ QtRedisContextSsl::QtRedisContextSsl(const QString &host, const uint port)
     , _socket(new QSslSocket(this))
 {
     _socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
+    connect(_socket, &QSslSocket::connected, this, &QtRedisContext::connected);
+    connect(_socket, &QSslSocket::disconnected, this, &QtRedisContext::disconnected);
     connect(_socket, &QSslSocket::readyRead, this, &QtRedisContext::readyRead);
 }
 

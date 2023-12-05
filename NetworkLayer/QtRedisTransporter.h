@@ -23,7 +23,7 @@ public:
     //!
     //! \brief Типы странспорта
     //!
-    enum class TransporterType {
+    enum class Type {
         NoType = 0, //!< не задан
         Tcp,        //!< tcp
         Ssl,        //!< tcp-ssl
@@ -33,22 +33,22 @@ public:
     //!
     //! \brief Типы режимов подключения для pub/sub
     //!
-    enum class TransporterChannelMode {
+    enum class ChannelMode {
         CurrentConnection = 0,  //!< использовать текущее соединение для pub/sub
         SeparateConnection      //!< использовать отдельное соединение для pub/sub
     };
 
-    explicit QtRedisTransporter(const QtRedisTransporter::TransporterChannelMode contextChannelMode);
+    explicit QtRedisTransporter(const QtRedisTransporter::ChannelMode contextChannelMode);
     virtual ~QtRedisTransporter();
 
-    TransporterType type() const;
-    TransporterChannelMode channelMode() const;
+    Type type() const;
+    ChannelMode channelMode() const;
     bool isInit() const;
     QString host() const;
     int port() const;
     int currentDbIndex() const;
 
-    bool initTransporter(const TransporterType &type,
+    bool initTransporter(const Type &type,
                          const QString &host,
                          const int port);
 
@@ -72,16 +72,16 @@ public:
     QList<QtRedisReply> sendChannelCommand_lst(const QStringList &command);
 
 protected:
-    TransporterType         _type {TransporterType::NoType};                            //!< тип
-    TransporterChannelMode  _channelMode {TransporterChannelMode::CurrentConnection};   //!< тип соединения для pub/sub
-    int                     _timeoutMSec {0};                                           //!< время ожидания мсек
+    Type            _type {Type::NoType};                            //!< тип
+    ChannelMode     _channelMode {ChannelMode::CurrentConnection};   //!< тип соединения для pub/sub
+    int             _timeoutMSec {0};                                           //!< время ожидания мсек
 
-    QtRedisContext          *_context {nullptr};                                        //!< контекс redis-a
-    QtRedisContext          *_contextSub {nullptr};                                     //!< контекс redis-a для subscribe
+    QtRedisContext  *_context {nullptr};                                        //!< контекс redis-a
+    QtRedisContext  *_contextSub {nullptr};                                     //!< контекс redis-a для subscribe
 
-    mutable QMutex          _mutex;                                                     //!< мьютекс
+    mutable QMutex  _mutex;                                                     //!< мьютекс
 
-    QtRedisContext *makeContext_unsafe(const TransporterType &type,
+    QtRedisContext *makeContext_unsafe(const Type &type,
                                        const QString &host,
                                        const int port);
 
@@ -97,9 +97,14 @@ protected:
     void checkCommandResult(QtRedisContext *context, const QVariantList &command, const QtRedisReply &reply);
 
 protected slots:
+    void onConnected();
+    void onDisconnected();
     void onReadyReadSub();
 
 signals:
+    void contextConnected(QString contextUid, QString host, int port, int dbIndex);
+    void contextDisconnected(QString contextUid, QString host, int port, int dbIndex);
+
     void incomingChannelMessage(QString channel, QtRedisReply data);
     void incomingChannelShardMessage(QString shardChannel, QtRedisReply data);
     void incomingChannelPatternMessage(QString pattern, QString channel, QtRedisReply data);

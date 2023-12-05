@@ -10,7 +10,7 @@
 //!
 //! \brief Конструктор класса
 //!
-QtRedisTransporter::QtRedisTransporter(const TransporterChannelMode contextChannelMode)
+QtRedisTransporter::QtRedisTransporter(const ChannelMode contextChannelMode)
     : QObject()
     , _channelMode(contextChannelMode)
 {
@@ -29,7 +29,7 @@ QtRedisTransporter::~QtRedisTransporter()
 //! \brief Тип
 //! \return
 //!
-QtRedisTransporter::TransporterType QtRedisTransporter::type() const
+QtRedisTransporter::Type QtRedisTransporter::type() const
 {
     QMutexLocker lock(&_mutex);
     return _type;
@@ -39,7 +39,7 @@ QtRedisTransporter::TransporterType QtRedisTransporter::type() const
 //! \brief Тип соединения для pub/sub
 //! \return
 //!
-QtRedisTransporter::TransporterChannelMode QtRedisTransporter::channelMode() const
+QtRedisTransporter::ChannelMode QtRedisTransporter::channelMode() const
 {
     QMutexLocker lock(&_mutex);
     return _channelMode;
@@ -104,7 +104,7 @@ int QtRedisTransporter::currentDbIndex() const
 //! \param port Порт
 //! \return
 //!
-bool QtRedisTransporter::initTransporter(const TransporterType &type,
+bool QtRedisTransporter::initTransporter(const Type &type,
                                          const QString &host,
                                          const int port)
 {
@@ -114,7 +114,13 @@ bool QtRedisTransporter::initTransporter(const TransporterType &type,
         return false;
     }
     _context = this->makeContext_unsafe(type, host, port);
-    if (_channelMode == TransporterChannelMode::CurrentConnection)
+    connect(_context, &QtRedisContext::connected,
+            this, &QtRedisTransporter::onConnected,
+            Qt::QueuedConnection);
+    connect(_context, &QtRedisContext::disconnected,
+            this, &QtRedisTransporter::onDisconnected,
+            Qt::QueuedConnection);
+    if (_channelMode == ChannelMode::CurrentConnection)
         connect(_context, &QtRedisContext::readyRead,
                 this, &QtRedisTransporter::onReadyReadSub,
                 Qt::QueuedConnection);
@@ -127,8 +133,8 @@ bool QtRedisTransporter::initTransporter(const TransporterType &type,
 void QtRedisTransporter::clearTransporter()
 {
     QMutexLocker lock(&_mutex);
-    _type = TransporterType::NoType;
-    _channelMode = TransporterChannelMode::CurrentConnection;
+    _type = Type::NoType;
+    _channelMode = ChannelMode::CurrentConnection;
     _timeoutMSec = 0;
     if (_context) {
         delete _context;
@@ -200,13 +206,19 @@ bool QtRedisTransporter::subscribeToServer(const int timeoutMSec)
     }
     QtRedisContext *context = nullptr;
     switch (_channelMode) {
-        case TransporterChannelMode::CurrentConnection: {
+        case ChannelMode::CurrentConnection: {
             context = _context;
             break;
         }
-        case TransporterChannelMode::SeparateConnection: {
+        case ChannelMode::SeparateConnection: {
             if (!_contextSub) {
                 _contextSub = this->makeContext_unsafe(_type, _context->host(), _context->port());
+                connect(_contextSub, &QtRedisContext::connected,
+                        this, &QtRedisTransporter::onConnected,
+                        Qt::QueuedConnection);
+                connect(_contextSub, &QtRedisContext::disconnected,
+                        this, &QtRedisTransporter::onDisconnected,
+                        Qt::QueuedConnection);
                 connect(_contextSub, &QtRedisContext::readyRead,
                         this, &QtRedisTransporter::onReadyReadSub,
                         Qt::QueuedConnection);
@@ -390,22 +402,22 @@ QList<QtRedisReply> QtRedisTransporter::sendChannelCommand_lst(const QStringList
 //! \param supportSignals
 //! \return
 //!
-QtRedisContext *QtRedisTransporter::makeContext_unsafe(const TransporterType &type,
+QtRedisContext *QtRedisTransporter::makeContext_unsafe(const Type &type,
                                                        const QString &host,
                                                        const int port)
 {
     _type = type;
     switch (_type) {
-        case TransporterType::Tcp:
+        case Type::Tcp:
             return new QtRedisContextTcp(host, port);
-        case TransporterType::Ssl:
+        case Type::Ssl:
             return new QtRedisContextSsl(host, port);
-        case TransporterType::Unix:
+        case Type::Unix:
             return new QtRedisContextUnix(host);
         default:
             break;
     }
-    _type = TransporterType::Tcp;
+    _type = Type::Tcp;
     return new QtRedisContextTcp(host, port);
 }
 
@@ -416,9 +428,9 @@ QtRedisContext *QtRedisTransporter::makeContext_unsafe(const TransporterType &ty
 QtRedisContext *QtRedisTransporter::channelContext_unsafe() const
 {
     switch (_channelMode) {
-        case TransporterChannelMode::CurrentConnection:
+        case ChannelMode::CurrentConnection:
             return _context;
-        case TransporterChannelMode::SeparateConnection:
+        case ChannelMode::SeparateConnection:
             return _contextSub;
         default:
             break;
@@ -428,12 +440,18 @@ QtRedisContext *QtRedisTransporter::channelContext_unsafe() const
 
 QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QStringList &command)
 {
-    return this->sendContextCommand_lst(context, command)[0];
+    const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
+    if (reply.isEmpty())
+        return QtRedisReply();
+    return reply[0];
 }
 
 QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QVariantList &command)
 {
-    return this->sendContextCommand_lst(context, command)[0];
+    const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
+    if (reply.isEmpty())
+        return QtRedisReply();
+    return reply[0];
 }
 
 QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *context, const QStringList &command)
@@ -542,6 +560,28 @@ void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QVari
         && reply.strValue() == QString("OK")) {
         context->setCurrentDbIndex(command[1].toInt());
     }
+}
+
+//!
+//! \brief Слот обработки подключения к Redis
+//!
+void QtRedisTransporter::onConnected()
+{
+    QtRedisContext *context = qobject_cast<QtRedisContext*>(sender());
+    if (!context)
+        return;
+    emit this->contextConnected(context->uid(), context->host(), context->port(), context->currentDbIndex());
+}
+
+//!
+//! \brief Слот обработки отключения от Redis
+//!
+void QtRedisTransporter::onDisconnected()
+{
+    QtRedisContext *context = qobject_cast<QtRedisContext*>(sender());
+    if (!context)
+        return;
+    emit this->contextDisconnected(context->uid(), context->host(), context->port(), context->currentDbIndex());
 }
 
 //!

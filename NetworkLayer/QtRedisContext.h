@@ -2,6 +2,7 @@
 #define QTREDISCONTEXT_H
 
 #include <QObject>
+#include <QUuid>
 
 //!
 //! \file QtRedisContext.h
@@ -26,7 +27,8 @@ public:
     //! \param port Порт
     //!
     explicit QtRedisContext(const QString &host, const uint port)
-        : _host (host)
+        : _uid(QUuid::createUuid().toString().mid(1,36))
+        , _host (host)
         , _port (port)
     {}
 
@@ -36,6 +38,12 @@ public:
     virtual ~QtRedisContext() {
         _host.clear();
     }
+
+    //!
+    //! \brief Уникальный ID объекта
+    //! \return
+    //!
+    QString uid() const { return _uid; }
 
     //!
     //! \brief Получить хост
@@ -119,11 +127,14 @@ public:
     virtual bool waitForReadyRead(const int msecs = 30000) = 0;
 
 protected:
+    QString _uid;
     QString _host;                  //!< хост
     uint    _port {0};              //!< порт
     int     _currentDbIndex {0};    //!< текущий индекс БД
 
 signals:
+    void connected();
+    void disconnected();
     void readyRead();
 };
 

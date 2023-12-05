@@ -192,6 +192,20 @@ public:
     }
 
     //!
+    //! \brief Значиение из массива значений
+    //! \param index Индекс
+    //! \return
+    //!
+    QtRedisReply arrayValueAt(const int index) const {
+        if (index < 0
+            || _type != ReplyType::Array
+            || _arrayValue.size() <= index)
+            return QtRedisReply();
+
+        return _arrayValue[index];
+    }
+
+    //!
     //! \brief Задать тип объекта
     //! \param type Тип объекта
     //!
