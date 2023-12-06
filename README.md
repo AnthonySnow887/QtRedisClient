@@ -458,7 +458,7 @@ _redisClient.redisDisconnect();
 >
 > NOTE:
 >
-> This approach uses the same connection inside a Redis object to send data and receive incoming messages from channels, so it requires creating two class objects:
+> This approach uses the same connection inside a QtRedisClient object to send data and receive incoming messages from channels, so it requires creating two class objects:
 > - to send data
 > - to subscribe to the channel and receive incoming data.
 >
@@ -512,7 +512,7 @@ _redisSub.redisDisconnect();
 >
 > NOTE:
 >
-> This approach uses the same connection inside a Redis object to send data and receive incoming messages from channels, so it requires creating two class objects:
+> This approach uses the same connection inside a QtRedisClient object to send data and receive incoming messages from channels, so it requires creating two class objects:
 > - to send data
 > - to subscribe to the channel and receive incoming data.
 >
@@ -572,7 +572,7 @@ _redisSub.redisDisconnect();
 >
 > NOTE:
 >
-> This approach uses the same connection inside a Redis object to send data and receive incoming messages from channels, so it requires creating two class objects:
+> This approach uses the same connection inside a QtRedisClient object to send data and receive incoming messages from channels, so it requires creating two class objects:
 > - to send data
 > - to subscribe to the channel and receive incoming data.
 >
