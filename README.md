@@ -15,7 +15,7 @@ include(QtRedisClient/QtRedisClient.pri)
 
 ## Supported Redis commands
 
-### Error functions
+### Library error functions
 ```cpp
 bool hasLastError() const;
 QString lastError() const;
@@ -399,15 +399,70 @@ _redisClient.redisDisconnect();
 >
 > ```cpp
 > // Create client with separate connection & connect
-> QtRedisClient _redisPub;
-> if (!_redisPub.redisConnect("127.0.0.1", 6379, -1, QtRedisTransporter::ChannelMode::SeparateConnection)) {
+> QtRedisClient _redisClient;
+> if (!_redisClient.redisConnect("127.0.0.1", 6379, -1, QtRedisTransporter::ChannelMode::SeparateConnection)) {
 >     qCritical() << "Connect to redis failed!";
 >     return;
 > }
 > ``` 
 >
 
+#### Redis client with base pub/sub channels (uses separate connections)
+
+>
+> NOTE:
+>
+> This approach uses separate connections within the QtRedisClient object to send data and receive incoming messages from channels, so it is enough to create a one class object.
+>
+
+```cpp
+#include "QtRedisClient/QtRedisClient.h"
+
+// Create client & connect
+QtRedisClient _redisClient;
+if (!_redisClient.redisConnect("127.0.0.1", 6379, -1, QtRedisTransporter::ChannelMode::SeparateConnection)) {
+    qCritical() << "Connect to Redis failed!";
+    return;
+}
+qDebug() << "Connect to Redis success";
+
+// Subscribe to the channel
+if (!_redisClient.redisSubscribe("my_channel"))
+    qCritical() << qPrintable(QString("Subscribe to the channel failed! Error: %1")
+                              .arg(_redisClient.lastError()));
+    return;
+}
+
+// Connect Qt signal for incoming channel messages
+connect(&_redisClient, &QtRedisClient::incomingChannelMessage, this, [](QString channel, QtRedisReply data) {
+    qDebug() << "Incoming SUB:" << channel << data;
+});
+
+//
+// ...
+//
+
+// Publishing a message to a channel
+qDebug() << "pub:" << _redisClient.redisPublish("my_channel", QDateTime::currentDateTime().toString("hh:mm:ss.zzz"));
+
+//
+// ...
+//
+
+// Disconnect
+_redisClient.redisDisconnect();
+```
+
 #### Redis client with base pub/sub channels
+
+>
+> NOTE:
+>
+> This approach uses the same connection inside a Redis object to send data and receive incoming messages from channels, so it requires creating two class objects:
+> - to send data
+> - to subscribe to the channel and receive incoming data.
+>
+
 ```cpp
 #include "QtRedisClient/QtRedisClient.h"
 
@@ -425,9 +480,9 @@ if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
 qDebug() << "Connect to Redis success";
 
 // Subscribe to the channel
-if (!_redisClient.redisSubscribe("my_channel"))
+if (!_redisSub.redisSubscribe("my_channel"))
     qCritical() << qPrintable(QString("Subscribe to the channel failed! Error: %1")
-                              .arg(_redisClient.lastError()));
+                              .arg(_redisSub.lastError()));
     return;
 }
 
@@ -448,10 +503,20 @@ qDebug() << "pub:" << _redisPub.redisPublish("my_channel", QDateTime::currentDat
 //
 
 // Disconnect
-_redisClient.redisDisconnect();
+_redisPub.redisDisconnect();
+_redisSub.redisDisconnect();
 ```
 
 #### Redis client with pattern pub/sub channel
+
+>
+> NOTE:
+>
+> This approach uses the same connection inside a Redis object to send data and receive incoming messages from channels, so it requires creating two class objects:
+> - to send data
+> - to subscribe to the channel and receive incoming data.
+>
+
 ```cpp
 #include "QtRedisClient/QtRedisClient.h"
 
@@ -469,9 +534,9 @@ if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
 qDebug() << "Connect to Redis success";
 
 // Subscribe to the channel
-if (!_redisClient.redisPSubscribe("my_channe*"))
+if (!_redisSub.redisPSubscribe("my_channe*"))
     qCritical() << qPrintable(QString("Subscribe to the channel failed! Error: %1")
-                              .arg(_redisClient.lastError()));
+                              .arg(_redisSub.lastError()));
     return;
 }
 
@@ -492,7 +557,8 @@ qDebug() << "pub:" << _redisPub.redisPublish("my_channel", QDateTime::currentDat
 //
 
 // Disconnect
-_redisClient.redisDisconnect();
+_redisPub.redisDisconnect();
+_redisSub.redisDisconnect();
 ```
 
 #### Redis client with shard pub/sub channel
@@ -501,6 +567,14 @@ _redisClient.redisDisconnect();
 > NOTE: 
 > 
 > This functionality has appeared in Redis since version 7.0.0!
+>
+
+>
+> NOTE:
+>
+> This approach uses the same connection inside a Redis object to send data and receive incoming messages from channels, so it requires creating two class objects:
+> - to send data
+> - to subscribe to the channel and receive incoming data.
 >
 
 ```cpp
@@ -520,9 +594,9 @@ if (!_redisSub.redisConnect("127.0.0.1", 6379)) {
 qDebug() << "Connect to Redis success";
 
 // Subscribe to the channel
-if (!_redisClient.redisSSubscribe("my_shard_channel"))
+if (!_redisSub.redisSSubscribe("my_shard_channel"))
     qCritical() << qPrintable(QString("Subscribe to the shard channel failed! Error: %1")
-                              .arg(_redisClient.lastError()));
+                              .arg(_redisSub.lastError()));
     return;
 }
 
@@ -543,6 +617,6 @@ qDebug() << "spub:" << _redisPub.redisSPublish("my_shard_channel", QDateTime::cu
 //
 
 // Disconnect
-_redisClient.redisDisconnect();
+_redisPub.redisDisconnect();
+_redisSub.redisDisconnect();
 ```
-
