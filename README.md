@@ -7,11 +7,93 @@
 NoSQL Redis client library based on Qt 5.
 
 ## Usage
-To use the library, simply include the "QtRedisClient.pri" file in your project:
+
+### If you use qmake
+
+To use the library, just copy it to the root of your project and include the "QtRedisClient/QtRedisClient.pri" file:
 
 ```cpp
 include(QtRedisClient/QtRedisClient.pri)
 ```
+
+> 
+> Example for qmake:
+> ```cpp
+> include(QtRedisClient/QtRedisClient.pri)
+> 
+> QT += core
+> QT -= gui
+> 
+> CONFIG += c++14
+> QMAKE_CXXFLAGS += -std=c++14
+> 
+> TARGET = testRedis
+> CONFIG += console
+> CONFIG += warn_on
+> CONFIG -= app_bundle
+> 
+> TEMPLATE = app
+> 
+> SOURCES += main.cpp \
+>       Tester.cpp
+> 
+> # The following define makes your compiler emit warnings if you use
+> # any feature of Qt which as been marked deprecated (the exact warnings
+> # depend on your compiler). Please consult the documentation of the
+> # deprecated API in order to know how to port your code away from it.
+> DEFINES += QT_DEPRECATED_WARNINGS
+> 
+> HEADERS += \
+>       Tester.h
+> 
+> ```
+> 
+
+### If you use CMake
+
+To use the library, just copy it to the root of your project and include the "QtRedisClient/CMakeLists.txt" file:
+
+```cmake
+add_subdirectory(QtRedisClient)
+
+...
+
+target_link_libraries(<target>
+    QtRedisClient
+    ...
+    <item>
+    ...)
+```
+
+> 
+> Example for CMake:
+> ```cmake
+> cmake_minimum_required(VERSION 3.14)
+> 
+> project(testRedis LANGUAGES CXX)
+> 
+> set(CMAKE_INCLUDE_CURRENT_DIR ON)
+> set(CMAKE_AUTOUIC ON)
+> set(CMAKE_AUTOMOC ON)
+> set(CMAKE_AUTORCC ON)
+> set(CMAKE_CXX_STANDARD 14)
+> set(CMAKE_CXX_STANDARD_REQUIRED ON)
+> 
+> find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
+> find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core)
+> 
+> add_subdirectory(QtRedisClient)
+> 
+> add_executable(testRedis
+>   Tester.h
+>   Tester.cpp
+>   main.cpp)
+> 
+> target_link_libraries(testRedis
+>     QtRedisClient
+>     Qt${QT_VERSION_MAJOR}::Core)
+> ```
+> 
 
 ## Supported Redis commands
 
