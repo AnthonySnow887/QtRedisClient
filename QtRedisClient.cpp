@@ -1015,7 +1015,7 @@ QVector<QtRedisClientInfo> QtRedisClient::redisClientList()
             continue;
 
         QMap <QString, QVariant> buffInfo;
-        QStringList buffSplitValue = buffReplyList[i].split(" ");
+        const QStringList buffSplitValue = buffReplyList[i].split(" ");
         for (const QString &str : buffSplitValue) {
             QStringList strSplit = str.split("=");
             if (strSplit.size() != 2)
@@ -1745,7 +1745,7 @@ bool QtRedisClient::redisRename(const QString &key, const QString &newKey)
         this->setLastError_safe("Invalid newKey!");
         return false;
     }
-    return this->replySimpleStringToBool(this->redisExecCommand(QString("RENAME %1 %2").arg(key).arg(newKey)));
+    return this->replySimpleStringToBool(this->redisExecCommand(QString("RENAME %1 %2").arg(key, newKey)));
 }
 
 //!
@@ -1768,7 +1768,7 @@ bool QtRedisClient::redisRenameNx(const QString &key, const QString &newKey)
         this->setLastError_safe("Invalid newKey!");
         return false;
     }
-    return this->replyIntToBool(this->redisExecCommand(QString("RENAMENX %1 %2").arg(key).arg(newKey)));
+    return this->replyIntToBool(this->redisExecCommand(QString("RENAMENX %1 %2").arg(key, newKey)));
 }
 
 //!
@@ -1803,7 +1803,7 @@ bool QtRedisClient::redisMSet(const QMap<QString, QString> &keyValue)
         this->setLastError_safe("Invalid key-value (Empty)!");
         return false;
     }
-    QList<QString> keyList = keyValue.keys();
+    const QList<QString> keyList = keyValue.keys();
     for (const QString &key : keyList) {
         if (key.isEmpty() || key.indexOf(" ") != -1) {
             this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
@@ -1837,7 +1837,7 @@ bool QtRedisClient::redisMSetNx(const QMap<QString, QString> &keyValue)
         this->setLastError_safe("Invalid key-value (Empty)!");
         return false;
     }
-    QList<QString> keyList = keyValue.keys();
+    const QList<QString> keyList = keyValue.keys();
     for (const QString &key : keyList) {
         if (key.isEmpty() || key.indexOf(" ") != -1) {
             this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
@@ -2259,7 +2259,7 @@ QString QtRedisClient::redisRPopLPush(const QString &sourceKey, const QString &d
         this->setLastError_safe("Invalid destKey!");
         return QString();
     }
-    return this->replyToString(this->redisExecCommand(QString("RPOPLPUSH %1 %2").arg(sourceKey).arg(destKey)));
+    return this->replyToString(this->redisExecCommand(QString("RPOPLPUSH %1 %2").arg(sourceKey, destKey)));
 }
 
 //!
@@ -2430,7 +2430,7 @@ qlonglong QtRedisClient::redisSDiffStore(const QString &dest, const QStringList 
             return -1;
         }
     }
-    return this->replyToLong(this->redisExecCommand(QString("SDIFFSTORE %1 %2").arg(dest).arg(keyList.join(" "))));
+    return this->replyToLong(this->redisExecCommand(QString("SDIFFSTORE %1 %2").arg(dest, keyList.join(" "))));
 }
 
 //!
@@ -2491,7 +2491,7 @@ qlonglong QtRedisClient::redisSInterStore(const QString &dest, const QStringList
             return -1;
         }
     }
-    return this->replyToLong(this->redisExecCommand(QString("SINTERSTORE %1 %2").arg(dest).arg(keyList.join(" "))));
+    return this->replyToLong(this->redisExecCommand(QString("SINTERSTORE %1 %2").arg(dest, keyList.join(" "))));
 }
 
 //!
@@ -2739,7 +2739,7 @@ qlonglong QtRedisClient::redisSUnionStore(const QString &dest, const QStringList
             return -1;
         }
     }
-    return this->replyToLong(this->redisExecCommand(QString("SUNIONSTORE %1 %2").arg(dest).arg(keyList.join(" "))));
+    return this->replyToLong(this->redisExecCommand(QString("SUNIONSTORE %1 %2").arg(dest, keyList.join(" "))));
 }
 
 
@@ -2908,7 +2908,7 @@ qlonglong QtRedisClient::redisZCount(const QString &key, const QVariant &min, co
     if (max.type() != QVariant::Invalid)
         buffMax = max.toString();
 
-    return this->replyToLong(this->redisExecCommand(QString("ZCOUNT %1 %2 %3").arg(key).arg(buffMin).arg(buffMax)));
+    return this->replyToLong(this->redisExecCommand(QString("ZCOUNT %1 %2 %3").arg(key, buffMin, buffMax)));
 }
 
 //!
@@ -3063,7 +3063,7 @@ qlonglong QtRedisClient::redisZLexCount(const QString &key, const QString &min, 
         this->setLastError_safe("Invalid max!");
         return -1;
     }
-    return this->replyToLong(this->redisExecCommand(QString("ZLEXCOUNT %1 %2 %3").arg(key).arg(min).arg(max)));
+    return this->replyToLong(this->redisExecCommand(QString("ZLEXCOUNT %1 %2 %3").arg(key, min, max)));
 }
 
 //!
@@ -3195,7 +3195,7 @@ QtRedisReply QtRedisClient::redisZRangeByLex(const QString &key,
         this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
-    QString command = QString("ZRANGEBYLEX %1 %2 %3").arg(key).arg(min).arg(max);
+    QString command = QString("ZRANGEBYLEX %1 %2 %3").arg(key, min, max);
     if (offset > 0 && count > 0)
         command += QString(" LIMIT %1 %2").arg(offset).arg(count);
 
@@ -3285,7 +3285,7 @@ QtRedisReply QtRedisClient::redisZRangeByScore(const QString &key,
         this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
-    QString command = QString("ZRANGEBYSCORE %1 %2 %3").arg(key).arg(min).arg(max);
+    QString command = QString("ZRANGEBYSCORE %1 %2 %3").arg(key, min, max);
     if (withScores)
         command += QString(" WITHSCORES");
     if (offset > 0 && count > 0)
@@ -3426,7 +3426,7 @@ qlonglong QtRedisClient::redisZRemRangeByLex(const QString &key, const QString &
         this->setLastError_safe("Invalid max!");
         return -1;
     }
-    return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYLEX %1 %2 %3").arg(key).arg(min).arg(max)));
+    return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYLEX %1 %2 %3").arg(key, min, max)));
 }
 
 //!
@@ -3518,7 +3518,7 @@ qlonglong QtRedisClient::redisZRemRangeByScore(const QString &key, const QString
         this->setLastError_safe("Invalid max!");
         return -1;
     }
-    return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYSCORE %1 %2 %3").arg(key).arg(min).arg(max)));
+    return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYSCORE %1 %2 %3").arg(key, min, max)));
 }
 
 //!
@@ -3627,7 +3627,7 @@ QtRedisReply QtRedisClient::redisZRevRangeByLex(const QString &key,
         this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
-    QString command = QString("ZREVRANGEBYLEX %1 %2 %3").arg(key).arg(max).arg(min);
+    QString command = QString("ZREVRANGEBYLEX %1 %2 %3").arg(key, max, min);
     if (offset > 0 && count > 0)
         command += QString(" LIMIT %1 %2").arg(offset).arg(count);
 
@@ -3701,7 +3701,7 @@ QtRedisReply QtRedisClient::redisZRevRangeByScore(const QString &key,
         this->setLastError_safe("Invalid max!");
         return QtRedisReply();
     }
-    QString command = QString("ZREVRANGEBYSCORE %1 %2 %3").arg(key).arg(max).arg(min);
+    QString command = QString("ZREVRANGEBYSCORE %1 %2 %3").arg(key, max, min);
     if (withScores)
         command += QString(" WITHSCORES");
     if (offset > 0 && count > 0)
@@ -4703,7 +4703,8 @@ QStringList QtRedisClient::replyToArray(const QtRedisReply &reply)
         return QStringList();
     } else if (reply.type() == QtRedisReply::ReplyType::Array) {
         QStringList array;
-        for (const QtRedisReply &replyObj : reply.arrayValue()) {
+        const QVector<QtRedisReply> replyArrayValue = reply.arrayValue();
+        for (const QtRedisReply &replyObj : replyArrayValue) {
             if (replyObj.type() == QtRedisReply::ReplyType::String)
                 array.append(replyObj.strValue());
         }
@@ -4809,8 +4810,8 @@ bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringLis
         isOk = isOk
                && reply.type() == QtRedisReply::ReplyType::Array
                && reply.arrayValueSize() == 3
-               && reply.arrayValue()[0].strValue() == command.trimmed().toLower()
-               && reply.arrayValue()[1].strValue() == channel;
+               && reply.arrayValue().at(0).strValue() == command.trimmed().toLower()
+               && reply.arrayValue().at(1).strValue() == channel;
     }
     return isOk;
 }
@@ -4853,8 +4854,8 @@ bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringL
         isOk = isOk
                && reply.type() == QtRedisReply::ReplyType::Array
                && reply.arrayValueSize() == 3
-               && reply.arrayValue()[0].strValue() == command.trimmed().toLower()
-               && reply.arrayValue()[1].strValue() == channel;
+               && reply.arrayValue().at(0).strValue() == command.trimmed().toLower()
+               && reply.arrayValue().at(1).strValue() == channel;
     }
     return isOk;
 }

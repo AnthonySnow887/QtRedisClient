@@ -43,7 +43,7 @@ QByteArray QtRedisParser::createRawData(const QVariantList &command)
 //!
 QtRedisReply QtRedisParser::parseRawData(const QByteArray &data, bool *ok)
 {
-    return QtRedisParser::parseRawDataList(data, ok)[0];
+    return QtRedisParser::parseRawDataList(data, ok).constFirst();
 }
 
 //!

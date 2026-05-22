@@ -443,7 +443,7 @@ QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, con
     const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
     if (reply.isEmpty())
         return QtRedisReply();
-    return reply[0];
+    return reply.constFirst();
 }
 
 QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QVariantList &command)
@@ -451,7 +451,7 @@ QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, con
     const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
     if (reply.isEmpty())
         return QtRedisReply();
-    return reply[0];
+    return reply.constFirst();
 }
 
 QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *context, const QStringList &command)
@@ -611,17 +611,17 @@ void QtRedisTransporter::onReadyReadSub()
     for (const QtRedisReply &reply : replyList) {
         if (reply.type() == QtRedisReply::ReplyType::Array
             && reply.arrayValueSize() == 3
-            && reply.arrayValue()[0].strValue() == "message")
-            emit this->incomingChannelMessage(reply.arrayValue()[1].strValue(), reply.arrayValue()[2]);
+            && reply.arrayValue().at(0).strValue() == "message")
+            emit this->incomingChannelMessage(reply.arrayValue().at(1).strValue(), reply.arrayValue().at(2));
 
         else if (reply.type() == QtRedisReply::ReplyType::Array
                  && reply.arrayValueSize() == 3
-                 && reply.arrayValue()[0].strValue() == "smessage")
-            emit this->incomingChannelShardMessage(reply.arrayValue()[1].strValue(), reply.arrayValue()[2]);
+                 && reply.arrayValue().at(0).strValue() == "smessage")
+            emit this->incomingChannelShardMessage(reply.arrayValue().at(1).strValue(), reply.arrayValue().at(2));
 
         else if (reply.type() == QtRedisReply::ReplyType::Array
                  && reply.arrayValueSize() == 4
-                 && reply.arrayValue()[0].strValue() == "pmessage")
-            emit this->incomingChannelPatternMessage(reply.arrayValue()[1].strValue(), reply.arrayValue()[2].strValue(), reply.arrayValue()[3]);
+                 && reply.arrayValue().at(0).strValue() == "pmessage")
+            emit this->incomingChannelPatternMessage(reply.arrayValue().at(1).strValue(), reply.arrayValue().at(2).strValue(), reply.arrayValue().at(3));
     }
 }
