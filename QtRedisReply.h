@@ -244,6 +244,84 @@ public:
         return dbg.space();
     }
 
+
+    // ------------------------------------------------------------------------
+    // -- TOOLS COMMANDS ------------------------------------------------------
+    // ------------------------------------------------------------------------
+
+    //!
+    //! \brief Преобразовать ответ от сервера в qlonglong
+    //! \param reply Ответ от сервера
+    //! \return
+    //!
+    static qlonglong replyToLong(const QtRedisReply &reply)
+    {
+        if (reply.type() == QtRedisReply::ReplyType::Integer)
+            return reply.intValue();
+
+        return -1;
+    }
+
+    //!
+    //! \brief Преобразовать ответ от сервера в строку
+    //! \param reply Ответ от сервера
+    //! \return
+    //!
+    static QString replyToString(const QtRedisReply &reply)
+    {
+        if (reply.type() == QtRedisReply::ReplyType::String
+            || reply.type() == QtRedisReply::ReplyType::Status)
+            return reply.strValue();
+
+        return QString();
+    }
+
+    //!
+    //! \brief Преобразовать ответ от сервера в список
+    //! \param reply Ответ от сервера
+    //! \return
+    //!
+    static QStringList replyToArray(const QtRedisReply &reply)
+    {
+        if (reply.type() == QtRedisReply::ReplyType::Array) {
+            QStringList array;
+            const QVector<QtRedisReply> replyArrayValue = reply.arrayValue();
+            for (const QtRedisReply &replyObj : replyArrayValue) {
+                if (replyObj.type() == QtRedisReply::ReplyType::String)
+                    array.append(replyObj.strValue());
+            }
+            return array;
+        }
+        return QStringList();
+    }
+
+    //!
+    //! \brief Преобразовать ответ от сервера (replyType_Integer) в bool
+    //! \param reply Ответ от сервера
+    //! \return
+    //!
+    static bool replyIntToBool(const QtRedisReply &reply)
+    {
+        if (reply.type() == QtRedisReply::ReplyType::Integer)
+            return (reply.intValue() == 0) ? false : true;
+
+        return false;
+    }
+
+    //!
+    //! \brief Преобразовать ответ от сервера (replyType_Status|replyType_String) в bool
+    //! \param reply Ответ от сервера
+    //! \return
+    //!
+    static bool replySimpleStringToBool(const QtRedisReply &reply)
+    {
+        if (reply.type() == QtRedisReply::ReplyType::Status
+            || reply.type() == QtRedisReply::ReplyType::String)
+            return (reply.strValue() == "OK");
+
+        return false;
+    }
+
 protected:
     ReplyType               _type {ReplyType::Nil}; //!< тип объекта
     QByteArray              _rawValue;              //!< "сырое" значение

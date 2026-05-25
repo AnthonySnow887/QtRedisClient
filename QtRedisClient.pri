@@ -4,7 +4,10 @@ DEPENDPATH += $$PWD/..
 QT += core network
 
 HEADERS +=  $$PWD/QtRedisClient.h \
+            $$PWD/QtRedisBase.h \
             $$PWD/QtRedisClientVersion.h \
+            $$PWD/QtRedisCommand.h \
+            $$PWD/QtRedisPipeline.h \
             $$PWD/QtRedisReply.h \
             $$PWD/QtRedisClientInfo.h \
             $$PWD/NetworkLayer/QtRedisParser.h \
@@ -20,5 +23,6 @@ SOURCES +=  $$PWD/QtRedisClient.cpp \
             $$PWD/NetworkLayer/QtRedisContextTcp.cpp \
             $$PWD/NetworkLayer/QtRedisTransporter.cpp \
             $$PWD/NetworkLayer/QtRedisContextSsl.cpp \
-            $$PWD/NetworkLayer/QtRedisContextUnix.cpp
+            $$PWD/NetworkLayer/QtRedisContextUnix.cpp \
+            $$PWD/QtRedisPipeline.cpp
     

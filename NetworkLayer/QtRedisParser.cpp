@@ -5,32 +5,15 @@
 //! \param command Команда и ее аргументы
 //! \return
 //!
-QByteArray QtRedisParser::createRawData(const QStringList &command)
+QByteArray QtRedisParser::createRawData(const QtRedisCommand &command)
 {
-    if (command.isEmpty())
+    if (!command.isValid())
         return QByteArray();
 
     QByteArray ba;
     ba += QString("*%1\r\n").arg(command.size()).toUtf8();
-    for (const QString &arg : command)
-        ba += QtRedisParser::createRawDataArgument(arg);
-
-    return ba;
-}
-
-//!
-//! \brief Создать byte-данные для Redis-а
-//! \param command Команда и ее аргументы
-//! \return
-//!
-QByteArray QtRedisParser::createRawData(const QVariantList &command)
-{
-    if (command.isEmpty())
-        return QByteArray();
-
-    QByteArray ba;
-    ba += QString("*%1\r\n").arg(command.size()).toUtf8();
-    for (const QVariant &arg : command)
+    ba += QtRedisParser::createRawDataArgument(command.command());
+    for (const QByteArray &arg : command.commandArgv())
         ba += QtRedisParser::createRawDataArgument(arg);
 
     return ba;
@@ -71,78 +54,16 @@ QList<QtRedisReply> QtRedisParser::parseRawDataList(const QByteArray &data, bool
 //! \param arg Аргумент
 //! \return
 //!
-QByteArray QtRedisParser::createRawDataArgument(const QString &arg)
+QByteArray QtRedisParser::createRawDataArgument(const QByteArray &arg)
 {
-    if (arg.isEmpty())
+    if (arg.isEmpty()) {
+        qWarning() << qPrintable(QString("[QtRedisParser][createRawDataArgument] arg is Empty!"));
         return QByteArray();
-
-    // Not used! Send only string!
-    //    bool isOk = true;
-    //    arg.toFloat(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toFloat()).toUtf8();
-    //    arg.toDouble(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toDouble()).toUtf8();
-    //    arg.toShort(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toShort()).toUtf8();
-    //    arg.toInt(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toLongLong()).toUtf8();
-    //    arg.toUInt(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toLongLong()).toUtf8();
-    //    arg.toLong(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toLongLong()).toUtf8();
-    //    arg.toULong(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toLongLong()).toUtf8();
-    //    arg.toLongLong(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toLongLong()).toUtf8();
-    //    arg.toULongLong(&isOk);
-    //    if (isOk)
-    //        return QString(":%1\r\n").arg(arg.toLongLong()).toUtf8();
-
-    return QString("$%1\r\n%2\r\n").arg(arg.length()).arg(arg).toUtf8();
-}
-
-//!
-//! \brief Создать строку-команду для Redis-а
-//! \param arg Аргумент
-//! \return
-//!
-QByteArray QtRedisParser::createRawDataArgument(const QVariant &arg)
-{
-    if (!arg.isValid() || arg.isNull())
-        return QByteArray();
-
-    // Not used! Send only string!
-    //    if (arg.type() == QVariant::Int
-    //        || arg.type() == QVariant::UInt
-    //        || arg.type() == QVariant::LongLong
-    //        || arg.type() == QVariant::ULongLong
-    //        || arg.type() == QVariant::Double)
-    //        return QString(":%1")
-    //                .arg(arg.toLongLong())
-    //                .toUtf8();
-
-    if (arg.type() == QVariant::String)
-        return QString("$%1\r\n%2\r\n")
-                .arg(arg.toString().length())
-                .arg(arg.toString())
-                .toUtf8();
-
-    if (arg.type() == QVariant::ByteArray)
-        return QString("$%1\r\n%2\r\n")
-                .arg(arg.toByteArray().length())
-                .arg(arg.toByteArray().constData())
-                .toUtf8();
-
-    qWarning() << qPrintable(QString("[QtRedisParser][createRawDataArgument] Invalid QVariant type! (Type: %1)").arg(arg.type()));
-    return QByteArray();
+    }
+    return QString("$%1\r\n%2\r\n")
+            .arg(arg.length())
+            .arg(arg.constData())
+            .toUtf8();
 }
 
 //!

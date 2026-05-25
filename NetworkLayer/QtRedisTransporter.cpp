@@ -307,7 +307,7 @@ bool QtRedisTransporter::isSubscribed() const
 //! \param command Команда и ее аргументы
 //! \return
 //!
-QtRedisReply QtRedisTransporter::sendCommand(const QStringList &command)
+QtRedisReply QtRedisTransporter::sendCommand(const QtRedisCommand &command)
 {
     QMutexLocker lock(&_mutex);
     if (!_context) {
@@ -317,27 +317,27 @@ QtRedisReply QtRedisTransporter::sendCommand(const QStringList &command)
     return this->sendContextCommand(_context, command);
 }
 
-//!
-//! \brief Отправить команду и получить ответ от сервера (с разбором первого сообщения)
-//! \param command Команда и ее аргументы
-//! \return
-//!
-QtRedisReply QtRedisTransporter::sendCommand(const QVariantList &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (!_context) {
-        qCritical() << "[QtRedisTransporter][sendCommand] Is not initialyzed!";
-        return QtRedisReply();
-    }
-    return this->sendContextCommand(_context, command);
-}
+////!
+////! \brief Отправить команду и получить ответ от сервера (с разбором первого сообщения)
+////! \param command Команда и ее аргументы
+////! \return
+////!
+//QtRedisReply QtRedisTransporter::sendCommand(const QVariantList &command)
+//{
+//    QMutexLocker lock(&_mutex);
+//    if (!_context) {
+//        qCritical() << "[QtRedisTransporter][sendCommand] Is not initialyzed!";
+//        return QtRedisReply();
+//    }
+//    return this->sendContextCommand(_context, command);
+//}
 
 //!
 //! \brief Отправить команду и получить ответ от сервера (с разбором всех сообщений)
 //! \param command Команда и ее аргументы
 //! \return
 //!
-QList<QtRedisReply> QtRedisTransporter::sendCommand_lst(const QStringList &command)
+QList<QtRedisReply> QtRedisTransporter::sendCommand_lst(const QtRedisCommand &command)
 {
     QMutexLocker lock(&_mutex);
     if (!_context) {
@@ -347,27 +347,27 @@ QList<QtRedisReply> QtRedisTransporter::sendCommand_lst(const QStringList &comma
     return this->sendContextCommand_lst(_context, command);
 }
 
-//!
-//! \brief Отправить команду и получить ответ от сервера (с разбором всех сообщений)
-//! \param command Команда и ее аргументы
-//! \return
-//!
-QList<QtRedisReply> QtRedisTransporter::sendCommand_lst(const QVariantList &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (!_context) {
-        qCritical() << "[QtRedisTransporter][sendCommand_lst] Is not initialyzed!";
-        return QList<QtRedisReply>();
-    }
-    return this->sendContextCommand_lst(_context, command);
-}
+////!
+////! \brief Отправить команду и получить ответ от сервера (с разбором всех сообщений)
+////! \param command Команда и ее аргументы
+////! \return
+////!
+//QList<QtRedisReply> QtRedisTransporter::sendCommand_lst(const QVariantList &command)
+//{
+//    QMutexLocker lock(&_mutex);
+//    if (!_context) {
+//        qCritical() << "[QtRedisTransporter][sendCommand_lst] Is not initialyzed!";
+//        return QList<QtRedisReply>();
+//    }
+//    return this->sendContextCommand_lst(_context, command);
+//}
 
 //!
 //! \brief Отправить команду по работе с каналами и получить ответ от сервера (с разбором первого сообщения)
 //! \param command Команда и ее аргументы
 //! \return
 //!
-QtRedisReply QtRedisTransporter::sendChannelCommand(const QStringList &command)
+QtRedisReply QtRedisTransporter::sendChannelCommand(const QtRedisCommand &command)
 {
     QMutexLocker lock(&_mutex);
     QtRedisContext *context = this->channelContext_unsafe();
@@ -383,7 +383,7 @@ QtRedisReply QtRedisTransporter::sendChannelCommand(const QStringList &command)
 //! \param command Команда и ее аргументы
 //! \return
 //!
-QList<QtRedisReply> QtRedisTransporter::sendChannelCommand_lst(const QStringList &command)
+QList<QtRedisReply> QtRedisTransporter::sendChannelCommand_lst(const QtRedisCommand &command)
 {
     QMutexLocker lock(&_mutex);
     QtRedisContext *context = this->channelContext_unsafe();
@@ -438,7 +438,7 @@ QtRedisContext *QtRedisTransporter::channelContext_unsafe() const
     return nullptr;
 }
 
-QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QStringList &command)
+QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QtRedisCommand &command)
 {
     const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
     if (reply.isEmpty())
@@ -446,22 +446,22 @@ QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, con
     return reply.constFirst();
 }
 
-QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QVariantList &command)
-{
-    const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
-    if (reply.isEmpty())
-        return QtRedisReply();
-    return reply.constFirst();
-}
+//QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QVariantList &command)
+//{
+//    const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
+//    if (reply.isEmpty())
+//        return QtRedisReply();
+//    return reply.constFirst();
+//}
 
-QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *context, const QStringList &command)
+QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *context, const QtRedisCommand &command)
 {
     if (!context) {
         qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Is not initialyzed!";
         return QList<QtRedisReply>();
     }
-    if (command.isEmpty()) {
-        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Command is Empty!";
+    if (!command.isValid()) {
+        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Command is Invalid!";
         return QList<QtRedisReply>();
     }
     context->writeRawData(QtRedisParser::createRawData(command));
@@ -486,59 +486,37 @@ QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *c
     return reply;
 }
 
-QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *context, const QVariantList &command)
-{
-    if (!context) {
-        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Is not initialyzed!";
-        return QList<QtRedisReply>();
-    }
-    if (command.isEmpty()) {
-        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Command is Empty!";
-        return QList<QtRedisReply>();
-    }
-    context->writeRawData(QtRedisParser::createRawData(command));
-    if (!context->waitForReadyRead())
-        return QList<QtRedisReply>();
+//QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *context, const QVariantList &command)
+//{
+//    if (!context) {
+//        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Is not initialyzed!";
+//        return QList<QtRedisReply>();
+//    }
+//    if (command.isEmpty()) {
+//        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Command is Empty!";
+//        return QList<QtRedisReply>();
+//    }
+//    context->writeRawData(QtRedisParser::createRawData(command));
+//    if (!context->waitForReadyRead())
+//        return QList<QtRedisReply>();
 
-    QList<QtRedisReply> reply;
-    QByteArray replyData;
-    while (true) {
-        replyData += context->readRawData();
-        if (!replyData.isEmpty()) {
-            bool isOk = false;
-            reply = QtRedisParser::parseRawDataList(replyData, &isOk);
-            if (isOk)
-                break;
-        }
-        if (!context->waitForReadyRead())
-            return QList<QtRedisReply>();
-    }
-    for (const QtRedisReply &r : qAsConst(reply))
-        this->checkCommandResult(context, command, r);
-    return reply;
-}
-
-//!
-//! \brief Проверка команды и ее результата
-//! \param command Команда
-//! \param reply Результат
-//!
-//! Данный метод нужен для проверки системных команд (смена текущей БД и пр.)
-//! и отслеживания их результата.
-//!
-void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QStringList &command, const QtRedisReply &reply)
-{
-    if (command.isEmpty())
-        return;
-
-    // check select db
-    if (command.size() == 2
-        && command[0].toUpper() == QString("SELECT")
-        && reply.type() == QtRedisReply::ReplyType::Status
-        && reply.strValue() == QString("OK")) {
-        context->setCurrentDbIndex(command[1].toInt());
-    }
-}
+//    QList<QtRedisReply> reply;
+//    QByteArray replyData;
+//    while (true) {
+//        replyData += context->readRawData();
+//        if (!replyData.isEmpty()) {
+//            bool isOk = false;
+//            reply = QtRedisParser::parseRawDataList(replyData, &isOk);
+//            if (isOk)
+//                break;
+//        }
+//        if (!context->waitForReadyRead())
+//            return QList<QtRedisReply>();
+//    }
+//    for (const QtRedisReply &r : qAsConst(reply))
+//        this->checkCommandResult(context, command, r);
+//    return reply;
+//}
 
 //!
 //! \brief Проверка команды и ее результата
@@ -548,19 +526,41 @@ void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QStri
 //! Данный метод нужен для проверки системных команд (смена текущей БД и пр.)
 //! и отслеживания их результата.
 //!
-void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QVariantList &command, const QtRedisReply &reply)
+void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QtRedisCommand &command, const QtRedisReply &reply)
 {
-    if (command.isEmpty())
+    if (!command.isValid())
         return;
 
     // check select db
     if (command.size() == 2
-        && command[0].toString().toUpper() == QString("SELECT")
+        && command.command().toUpper() == QString("SELECT")
         && reply.type() == QtRedisReply::ReplyType::Status
         && reply.strValue() == QString("OK")) {
-        context->setCurrentDbIndex(command[1].toInt());
+        context->setCurrentDbIndex(command.commandArgv().constFirst().toInt());
     }
 }
+
+////!
+////! \brief Проверка команды и ее результата
+////! \param command Команда
+////! \param reply Результат
+////!
+////! Данный метод нужен для проверки системных команд (смена текущей БД и пр.)
+////! и отслеживания их результата.
+////!
+//void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QVariantList &command, const QtRedisReply &reply)
+//{
+//    if (command.isEmpty())
+//        return;
+
+//    // check select db
+//    if (command.size() == 2
+//        && command[0].toString().toUpper() == QString("SELECT")
+//        && reply.type() == QtRedisReply::ReplyType::Status
+//        && reply.strValue() == QString("OK")) {
+//        context->setCurrentDbIndex(command[1].toInt());
+//    }
+//}
 
 //!
 //! \brief Слот обработки подключения к Redis

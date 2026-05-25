@@ -8,6 +8,7 @@
 #include <QVariantList>
 
 #include "QtRedisContext.h"
+#include "../QtRedisCommand.h"
 #include "../QtRedisReply.h"
 
 //!
@@ -62,14 +63,14 @@ public:
     bool isConnected() const;
     bool isSubscribed() const;
 
-    QtRedisReply sendCommand(const QStringList &command);
-    QtRedisReply sendCommand(const QVariantList &command);
+    QtRedisReply sendCommand(const QtRedisCommand &command);
+//    QtRedisReply sendCommand(const QVariantList &command);
 
-    QList<QtRedisReply> sendCommand_lst(const QStringList &command);
-    QList<QtRedisReply> sendCommand_lst(const QVariantList &command);
+    QList<QtRedisReply> sendCommand_lst(const QtRedisCommand &command);
+//    QList<QtRedisReply> sendCommand_lst(const QVariantList &command);
 
-    QtRedisReply sendChannelCommand(const QStringList &command);
-    QList<QtRedisReply> sendChannelCommand_lst(const QStringList &command);
+    QtRedisReply sendChannelCommand(const QtRedisCommand &command);
+    QList<QtRedisReply> sendChannelCommand_lst(const QtRedisCommand &command);
 
 protected:
     Type            _type {Type::NoType};                            //!< тип
@@ -87,14 +88,14 @@ protected:
 
     QtRedisContext *channelContext_unsafe() const;
 
-    QtRedisReply sendContextCommand(QtRedisContext *context, const QStringList &command);
-    QtRedisReply sendContextCommand(QtRedisContext *context, const QVariantList &command);
+    QtRedisReply sendContextCommand(QtRedisContext *context, const QtRedisCommand &command);
+//    QtRedisReply sendContextCommand(QtRedisContext *context, const QVariantList &command);
 
-    QList<QtRedisReply> sendContextCommand_lst(QtRedisContext *context, const QStringList &command);
-    QList<QtRedisReply> sendContextCommand_lst(QtRedisContext *context, const QVariantList &command);
+    QList<QtRedisReply> sendContextCommand_lst(QtRedisContext *context, const QtRedisCommand &command);
+//    QList<QtRedisReply> sendContextCommand_lst(QtRedisContext *context, const QVariantList &command);
 
-    void checkCommandResult(QtRedisContext *context, const QStringList &command, const QtRedisReply &reply);
-    void checkCommandResult(QtRedisContext *context, const QVariantList &command, const QtRedisReply &reply);
+    void checkCommandResult(QtRedisContext *context, const QtRedisCommand &command, const QtRedisReply &reply);
+//    void checkCommandResult(QtRedisContext *context, const QVariantList &command, const QtRedisReply &reply);
 
 protected slots:
     void onConnected();

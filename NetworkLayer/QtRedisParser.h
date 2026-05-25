@@ -6,6 +6,7 @@
 #include <QVariantList>
 
 #include "../QtRedisReply.h"
+#include "../QtRedisCommand.h"
 
 //!
 //! \file QtRedisParser.h
@@ -18,15 +19,13 @@ public:
     QtRedisParser() = default;
     ~QtRedisParser() = default;
 
-    static QByteArray createRawData(const QStringList &command);
-    static QByteArray createRawData(const QVariantList &command);
+    static QByteArray createRawData(const QtRedisCommand &command);
 
     static QtRedisReply parseRawData(const QByteArray &data, bool *ok = 0);
     static QList<QtRedisReply> parseRawDataList(const QByteArray &data, bool *ok = 0);
 
 protected:
-    static QByteArray createRawDataArgument(const QString &arg);
-    static QByteArray createRawDataArgument(const QVariant &arg);
+    static QByteArray createRawDataArgument(const QByteArray &arg);
 
     static QtRedisReply parseRawDataTypes(QByteArray &data, bool *ok = 0);
     static QtRedisReply parseRawDataToState(QByteArray &data, bool *ok = 0);
