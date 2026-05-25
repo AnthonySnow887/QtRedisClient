@@ -1,6 +1,8 @@
 #ifndef QTREDISBASE_H
 #define QTREDISBASE_H
 
+#include <type_traits>
+
 #include <QString>
 #include <QByteArray>
 #include <QVariant>
@@ -189,6 +191,20 @@ protected:
     mutable QMutex      _mutex;                 //!< мьютекс
 
 private:
+    template <typename T = __RESULT_IMPL>
+    typename std::enable_if<std::is_same<T, bool>::value, bool>::type
+    make_error(const QString &error) {
+        this->setLastError_safe(error);
+        return false;
+    }
+
+    template <typename T = __RESULT_IMPL>
+    typename std::enable_if<!std::is_same<T, bool>::value, __RESULT_IMPL>::type
+    make_error(const QString &error) {
+        this->setLastError_safe(error);
+        return __RESULT_IMPL();
+    }
+
     __CLIENT_IMPL *as_CLIENT_IMPL_ptr();
 
     mutable QMutex      _mutexErr;              //!< мьютекс
@@ -236,10 +252,9 @@ template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const QString &command)
 {
     QMutexLocker lock(&_mutex);
-    if (command.isEmpty()) {
-        this->setLastError_safe("Command is Empty!");
-        return __RESULT_IMPL();
-    }
+    if (command.isEmpty())
+        return make_error("Command is Empty!");
+
     return as_CLIENT_IMPL_ptr()->processCommand(QtRedisCommand::fromString(command));
 }
 
@@ -252,10 +267,9 @@ template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const QByteArray &command)
 {
     QMutexLocker lock(&_mutex);
-    if (command.isEmpty()) {
-        this->setLastError_safe("Command is Empty!");
-        return __RESULT_IMPL();
-    }
+    if (command.isEmpty())
+        return make_error("Command is Empty!");
+
     return as_CLIENT_IMPL_ptr()->processCommand(QtRedisCommand::fromByteArray(command));
 }
 
@@ -268,10 +282,9 @@ template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommandArgv(const QStringList &commandArgv)
 {
     QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty()) {
-        this->setLastError_safe("CommandList is Empty!");
-        return __RESULT_IMPL();
-    }
+    if (commandArgv.isEmpty())
+        return make_error("CommandList is Empty!");
+
     const QByteArray cmd = commandArgv.first().toUtf8();
     QList<QByteArray> cmdArgv;
     for (int i = 1; i < commandArgv.size(); i++)
@@ -288,10 +301,9 @@ template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommandArgv(const QList<QByteArray> &commandArgv)
 {
     QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty()) {
-        this->setLastError_safe("CommandList is Empty!");
-        return __RESULT_IMPL();
-    }
+    if (commandArgv.isEmpty())
+        return make_error("CommandList is Empty!");
+
     const QByteArray cmd = commandArgv.first();
     QList<QByteArray> cmdArgv;
     for (int i = 1; i < commandArgv.size(); i++)
@@ -346,15 +358,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRandomKey()
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExists(const QStringList &keyList)
 {
-    if (keyList.isEmpty()) {
-        this->setLastError_safe("Invalid key list (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (keyList.isEmpty())
+        return make_error("Invalid key list (Empty)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("EXISTS %1").arg(keyList.join(" ")).trimmed());
 }
@@ -370,10 +379,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExists(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGet(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("GET %1").arg(key));
 }
 
@@ -404,10 +412,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGet(const QString 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetRange(const QString &key, const int startPos, const int endPos)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("GETRANGE %1 %2 %3").arg(key).arg(startPos).arg(endPos));
 }
 
@@ -433,10 +440,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetRange(const QSt
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetSet(const QString &key, const QString &value)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "GETSET" << key << value;
     return this->redisExecCommandArgv(argv);
@@ -465,10 +471,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetSet(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisAppend(const QString &key, const QString &appendValue)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "APPEND" << key << appendValue;
     return this->redisExecCommandArgv(argv);
@@ -497,16 +502,14 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisAppend(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSet(const QString &key, const QString &value, const uint exSec, const uint pxMSec, const QString existFlag)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     if (!existFlag.isEmpty()
         && existFlag.toUpper() != QString("NX")
-        && existFlag.toUpper() != QString("XX")) {
-        this->setLastError_safe("Invalid existFlag!");
-        return __RESULT_IMPL();
-    }
+        && existFlag.toUpper() != QString("XX"))
+        return make_error("Invalid existFlag!");
+
     QStringList argv;
     argv << "SET" << key << value;
     if (exSec > 0)
@@ -536,10 +539,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSet(const QString 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSetRange(const QString &key, const QString &value, const int offset)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "SETRANGE" << key << QString::number(offset) << value;
     return this->redisExecCommandArgv(argv);
@@ -564,15 +566,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSetRange(const QSt
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDel(const QStringList &keyList)
 {
-    if (keyList.isEmpty()) {
-        this->setLastError_safe("Invalid key list (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (keyList.isEmpty())
+        return make_error("Invalid key list (Empty)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("DEL %1").arg(keyList.join(" ")).trimmed());
 }
@@ -596,10 +595,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDel(const QStringL
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisStrlen(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("STRLEN %1").arg(key));
 }
 
@@ -641,14 +639,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisStrlen(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExpire(const QString &key, const uint sec)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (sec == 0) {
-        this->setLastError_safe("Invalid sec!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (sec == 0)
+        return make_error("Invalid sec!");
+
     return this->redisExecCommand(QString("EXPIRE %1 %2").arg(key).arg(sec));
 }
 
@@ -674,14 +670,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExpire(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExpireAt(const QString &key, const uint utcSec)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (utcSec == 0) {
-        this->setLastError_safe("Invalid utcSec!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (utcSec == 0)
+        return make_error("Invalid utcSec!");
+
     return this->redisExecCommand(QString("EXPIREAT %1 %2").arg(key).arg(utcSec));
 }
 
@@ -706,10 +700,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExpireAt(const QSt
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPExpire(const QString &key, const uint msec)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("PEXPIRE %1 %2").arg(key).arg(msec));
 }
 
@@ -734,10 +727,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPExpire(const QStr
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPExpireAt(const QString &key, const qint64 utcMsec)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("PEXPIREAT %1 %2").arg(key).arg(utcMsec));
 }
 
@@ -763,10 +755,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPExpireAt(const QS
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPersist(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("PERSIST %1").arg(key));
 }
 
@@ -787,10 +778,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPersist(const QStr
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisTtl(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("TTL %1").arg(key));
 }
 
@@ -811,10 +801,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisTtl(const QString 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPTtl(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("PTTL %1").arg(key));
 }
 
@@ -832,10 +821,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPTtl(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDecr(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("DECR %1").arg(key));
 }
 
@@ -854,10 +842,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDecr(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDecrBy(const QString &key, const qint64 decr)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("DECRBY %1 %2").arg(key).arg(decr));
 }
 
@@ -881,10 +868,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDecrBy(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncr(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("INCR %1").arg(key));
 }
 
@@ -903,10 +889,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncr(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrBy(const QString &key, const qint64 incr)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("INCRBY %1 %2").arg(key).arg(incr));
 }
 
@@ -936,10 +921,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrBy(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrByFloat(const QString &key, const float incr)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("INCRBYFLOAT %1 %2").arg(key).arg(incr));
 }
 
@@ -957,14 +941,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrByFloat(const 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRename(const QString &key, const QString &newKey)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (newKey.isEmpty() || newKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid newKey!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (newKey.isEmpty() || newKey.indexOf(" ") != -1)
+        return make_error("Invalid newKey!");
+
     return this->redisExecCommand(QString("RENAME %1 %2").arg(key, newKey));
 }
 
@@ -981,14 +963,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRename(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRenameNx(const QString &key, const QString &newKey)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (newKey.isEmpty() || newKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid newKey!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (newKey.isEmpty() || newKey.indexOf(" ") != -1)
+        return make_error("Invalid newKey!");
+
     return this->redisExecCommand(QString("RENAMENX %1 %2").arg(key, newKey));
 }
 
@@ -1003,10 +983,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRenameNx(const QSt
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisType(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("TYPE %1").arg(key));
 }
 
@@ -1022,16 +1001,13 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisType(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSet(const QMap<QString, QString> &keyValue)
 {
-    if (keyValue.isEmpty()) {
-        this->setLastError_safe("Invalid key-value (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (keyValue.isEmpty())
+        return make_error("Invalid key-value (Empty)!");
+
     const QList<QString> keyList = keyValue.keys();
     for (const QString &key : keyList) {
-        if (key.isEmpty() || key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.isEmpty() || key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     QStringList argv;
     argv << "MSET";
@@ -1057,16 +1033,13 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSet(const QMap<QS
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSetNx(const QMap<QString, QString> &keyValue)
 {
-    if (keyValue.isEmpty()) {
-        this->setLastError_safe("Invalid key-value (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (keyValue.isEmpty())
+        return make_error("Invalid key-value (Empty)!");
+
     const QList<QString> keyList = keyValue.keys();
     for (const QString &key : keyList) {
-        if (key.isEmpty() || key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.isEmpty() || key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     QStringList argv;
     argv << "MSETNX";
@@ -1099,15 +1072,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSetNx(const QMap<
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMGet(const QStringList &keyList)
 {
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return __RESULT_IMPL();
-    }
+    if (keyList.isEmpty() || keyList.size() < 2)
+        return make_error("Invalid keyList (Empty or size < 2)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("MGET %1").arg(keyList.join(" ")));
 }
@@ -1125,14 +1095,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMGet(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMove(const QString &key, const int dbIndex)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (dbIndex < 0) {
-        this->setLastError_safe("Invalid db index!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (dbIndex < 0)
+        return make_error("Invalid db index!");
+
     return this->redisExecCommand(QString("MOVE %1 %2").arg(key).arg(dbIndex));
 }
 
@@ -1166,10 +1134,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMove(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDump(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("DUMP %1").arg(key));
 }
 
@@ -1193,10 +1160,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDump(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLIndex(const QString &key, const int index)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("LINDEX %1 %2").arg(key).arg(index));
 }
 
@@ -1216,15 +1182,13 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLIndex(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLInsert(const QString &key, const QString &pilot, const QString &value, const QString &insertFlag)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     if (insertFlag.toUpper() != QString("BEFORE")
-        && insertFlag.toUpper() != QString("AFTER")) {
-        this->setLastError_safe("Invalid insertFlag!");
-        return __RESULT_IMPL();
-    }
+        && insertFlag.toUpper() != QString("AFTER"))
+        return make_error("Invalid insertFlag!");
+
     QStringList argv;
     argv << "LINSERT" << key << insertFlag.toUpper() << pilot << value;
     return this->redisExecCommandArgv(argv);
@@ -1242,10 +1206,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLInsert(const QStr
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLLen(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("LLEN %1").arg(key));
 }
 
@@ -1260,10 +1223,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLLen(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPop(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("LPOP %1").arg(key));
 }
 
@@ -1286,14 +1248,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPop(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPush(const QString &key, const QStringList &valueList)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (valueList.isEmpty()) {
-        this->setLastError_safe("Invalid valueList (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (valueList.isEmpty())
+        return make_error("Invalid valueList (Empty)!");
+
     QStringList argv;
     argv << "LPUSH" << key;
     for (const QString &str : valueList)
@@ -1314,10 +1274,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPush(const QStrin
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPushX(const QString &key, const QString &value)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "LPUSHX" << key << value;
     return this->redisExecCommandArgv(argv);
@@ -1348,10 +1307,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPushX(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRange(const QString &key, const int start, const int stop)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("LRANGE %1 %2 %3").arg(key).arg(start).arg(stop));
 }
 
@@ -1375,10 +1333,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRange(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRem(const QString &key, const QString &value, const int count)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "LREM" << key << QString::number(count) << value;
     return this->redisExecCommandArgv(argv);
@@ -1394,10 +1351,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRem(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLSet(const QString &key, const QString &value, const int index)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "LSET" << key << QString::number(index) << value;
     return this->redisExecCommandArgv(argv);
@@ -1445,10 +1401,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLSet(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLTrim(const QString &key, const int start, const int stop)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("LTRIM %1 %2 %3").arg(key).arg(start).arg(stop));
 }
 
@@ -1462,10 +1417,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLTrim(const QStrin
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPop(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("RPOP %1").arg(key));
 }
 
@@ -1487,14 +1441,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPop(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPopLPush(const QString &sourceKey, const QString &destKey)
 {
-    if (sourceKey.isEmpty() || sourceKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid sourceKey!");
-        return __RESULT_IMPL();
-    }
-    if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid destKey!");
-        return __RESULT_IMPL();
-    }
+    if (sourceKey.isEmpty() || sourceKey.indexOf(" ") != -1)
+        return make_error("Invalid sourceKey!");
+
+    if (destKey.isEmpty() || destKey.indexOf(" ") != -1)
+        return make_error("Invalid destKey!");
+
     return this->redisExecCommand(QString("RPOPLPUSH %1 %2").arg(sourceKey, destKey));
 }
 
@@ -1517,14 +1469,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPopLPush(const QS
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPush(const QString &key, const QStringList &valueList)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (valueList.isEmpty()) {
-        this->setLastError_safe("Invalid valueList (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (valueList.isEmpty())
+        return make_error("Invalid valueList (Empty)!");
+
     QStringList argv;
     argv << "RPUSH" << key;
     for (const QString &str : valueList)
@@ -1546,10 +1496,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPush(const QStrin
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPushX(const QString &key, const QString &value)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "RPUSHX" << key << value;
     return this->redisExecCommandArgv(argv);
@@ -1578,14 +1527,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPushX(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSAdd(const QString &key, const QStringList &memberList)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (memberList.isEmpty()) {
-        this->setLastError_safe("Invalid memberList (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (memberList.isEmpty())
+        return make_error("Invalid memberList (Empty)!");
+
     QStringList argv;
     argv << "SADD" << key;
     for (const QString &str : memberList)
@@ -1605,10 +1552,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSAdd(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSCard(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("SCARD %1").arg(key));
 }
 
@@ -1630,15 +1576,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSCard(const QStrin
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSDiff(const QStringList &keyList)
 {
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return __RESULT_IMPL();
-    }
+    if (keyList.isEmpty() || keyList.size() < 2)
+        return make_error("Invalid keyList (Empty or size < 2)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("SDIFF %1").arg(keyList.join(" ")));
 }
@@ -1657,19 +1600,15 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSDiff(const QStrin
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSDiffStore(const QString &dest, const QStringList &keyList)
 {
-    if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid dest!");
-        return __RESULT_IMPL();
-    }
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return __RESULT_IMPL();
-    }
+    if (dest.isEmpty() || dest.indexOf(" ") != -1)
+        return make_error("Invalid dest!");
+
+    if (keyList.isEmpty() || keyList.size() < 2)
+        return make_error("Invalid keyList (Empty or size < 2)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("SDIFFSTORE %1 %2").arg(dest, keyList.join(" ")));
 }
@@ -1693,15 +1632,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSDiffStore(const Q
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSInter(const QStringList &keyList)
 {
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return __RESULT_IMPL();
-    }
+    if (keyList.isEmpty() || keyList.size() < 2)
+        return make_error("Invalid keyList (Empty or size < 2)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("SINTER %1").arg(keyList.join(" ")));
 }
@@ -1720,19 +1656,15 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSInter(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSInterStore(const QString &dest, const QStringList &keyList)
 {
-    if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid dest!");
-        return __RESULT_IMPL();
-    }
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return __RESULT_IMPL();
-    }
+    if (dest.isEmpty() || dest.indexOf(" ") != -1)
+        return make_error("Invalid dest!");
+
+    if (keyList.isEmpty() || keyList.size() < 2)
+        return make_error("Invalid keyList (Empty or size < 2)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("SINTERSTORE %1 %2").arg(dest, keyList.join(" ")));
 }
@@ -1746,10 +1678,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSInterStore(const 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSIsMember(const QString &key, const QString &member)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "SISMEMBER" << key << member;
     return this->redisExecCommandArgv(argv);
@@ -1763,10 +1694,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSIsMember(const QS
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMembers(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("SMEMBERS %1").arg(key));
 }
 
@@ -1789,14 +1719,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMembers(const QSt
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMove(const QString &sourceKey, const QString &destKey, const QString &member)
 {
-    if (sourceKey.isEmpty() || sourceKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid sourceKey!");
-        return __RESULT_IMPL();
-    }
-    if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid destKey!");
-        return __RESULT_IMPL();
-    }
+    if (sourceKey.isEmpty() || sourceKey.indexOf(" ") != -1)
+        return make_error("Invalid sourceKey!");
+
+    if (destKey.isEmpty() || destKey.indexOf(" ") != -1)
+        return make_error("Invalid destKey!");
+
     QStringList argv;
     argv << "SMOVE" << sourceKey << destKey << member;
     return this->redisExecCommandArgv(argv);
@@ -1841,10 +1769,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMove(const QStrin
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSPop(const QString &key, const uint count)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "SPOP" << key;
     if (count > 1)
@@ -1890,10 +1817,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSPop(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRandMember(const QString &key, const int count)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     if (count == 0 || count == 1)
         return this->redisExecCommand(QString("SRANDMEMBER %1").arg(key));
 
@@ -1916,14 +1842,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRandMember(const 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRem(const QString &key, const QStringList &memberList)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (memberList.isEmpty()) {
-        this->setLastError_safe("Invalid memberList (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (memberList.isEmpty())
+        return make_error("Invalid memberList (Empty)!");
+
     QStringList argv;
     argv << "SREM" << key;
     for (const QString &str : memberList)
@@ -1950,15 +1874,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRem(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSUnion(const QStringList &keyList)
 {
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return __RESULT_IMPL();
-    }
+    if (keyList.isEmpty() || keyList.size() < 2)
+        return make_error("Invalid keyList (Empty or size < 2)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("SUNION %1").arg(keyList.join(" ")));
 }
@@ -1976,19 +1897,15 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSUnion(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSUnionStore(const QString &dest, const QStringList &keyList)
 {
-    if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid dest!");
-        return __RESULT_IMPL();
-    }
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return __RESULT_IMPL();
-    }
+    if (dest.isEmpty() || dest.indexOf(" ") != -1)
+        return make_error("Invalid dest!");
+
+    if (keyList.isEmpty() || keyList.size() < 2)
+        return make_error("Invalid keyList (Empty or size < 2)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     return this->redisExecCommand(QString("SUNIONSTORE %1 %2").arg(dest, keyList.join(" ")));
 }
@@ -2054,20 +1971,17 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSUnionStore(const 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZAdd(const QString &key, const QMultiMap<QString, QString> scoreMember, const QString &updFlag, const bool chFlag, const bool incrFlag)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (scoreMember.isEmpty()) {
-        this->setLastError_safe("Invalid scoreMember (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (scoreMember.isEmpty())
+        return make_error("Invalid scoreMember (Empty)!");
+
     if (!updFlag.isEmpty()
         && updFlag.toUpper() != QString("NX")
-        && updFlag.toUpper() != QString("XX")) {
-        this->setLastError_safe("Invalid updFlag!");
-        return __RESULT_IMPL();
-    }
+        && updFlag.toUpper() != QString("XX"))
+        return make_error("Invalid updFlag!");
+
     QStringList argv;
     argv << "ZADD" << key;
     if (!updFlag.isEmpty())
@@ -2093,10 +2007,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZAdd(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZCard(const QString &key)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("ZCARD %1").arg(key));
 }
 
@@ -2127,28 +2040,25 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZCard(const QStrin
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZCount(const QString &key, const QVariant &min, const QVariant &max)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     if (min.type() != QVariant::Invalid
         && min.type() != QVariant::Int
         && min.type() != QVariant::UInt
         && min.type() != QVariant::LongLong
         && min.type() != QVariant::ULongLong
-        && min.type() != QVariant::Double) {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
+        && min.type() != QVariant::Double)
+        return make_error("Invalid min!");
+
     if (max.type() != QVariant::Invalid
         && max.type() != QVariant::Int
         && max.type() != QVariant::UInt
         && max.type() != QVariant::LongLong
         && max.type() != QVariant::ULongLong
-        && max.type() != QVariant::Double) {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+        && max.type() != QVariant::Double)
+        return make_error("Invalid max!");
+
     QString buffMin("-inf");
     if (min.type() != QVariant::Invalid)
         buffMin = min.toString();
@@ -2177,10 +2087,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZCount(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZIncrBy(const QString &key, const QString &member, const qint64 incr)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "ZINCRBY" << key << QString::number(incr) << member;
     return this->redisExecCommandArgv(argv);
@@ -2228,19 +2137,15 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZIncrBy(const QStr
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZInterStore(const QString &destKey, const QStringList &keyList, const QList<int> &weightList, const QString &aggregateFlag)
 {
-    if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid destKey!");
-        return __RESULT_IMPL();
-    }
-    if (keyList.isEmpty()) {
-        this->setLastError_safe("Invalid keyList (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (destKey.isEmpty() || destKey.indexOf(" ") != -1)
+        return make_error("Invalid destKey!");
+
+    if (keyList.isEmpty())
+        return make_error("Invalid keyList (Empty)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     QString weightListStr;
     for (const int weight : weightList) {
@@ -2290,28 +2195,23 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZInterStore(const 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZLexCount(const QString &key, const QString &min, const QString &max)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (min.isEmpty() || min.indexOf(" ") != -1)
+        return make_error("Invalid min!");
+
+    if (max.isEmpty() || max.indexOf(" ") != -1)
+        return make_error("Invalid max!");
+
     if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
+        && min != "+" && min != "-")
+        return make_error("Invalid min!");
+
     if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+        && max != "+" && max != "-")
+        return make_error("Invalid max!");
+
     return this->redisExecCommand(QString("ZLEXCOUNT %1 %2 %3").arg(key, min, max));
 }
 
@@ -2344,10 +2244,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZLexCount(const QS
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRange(const QString &key, const int start, const int stop, const bool withScores)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QString command = QString("ZREMRANGEBYRANK %1 %2 %3").arg(key).arg(start).arg(stop);
     if (withScores)
         command += QString(" WITHSCORES");
@@ -2420,28 +2319,23 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRange(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRangeByLex(const QString &key, const QString &min, const QString &max, const int offset, const int count)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (min.isEmpty() || min.indexOf(" ") != -1)
+        return make_error("Invalid min!");
+
+    if (max.isEmpty() || max.indexOf(" ") != -1)
+        return make_error("Invalid max!");
+
     if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
+        && min != "+" && min != "-")
+        return make_error("Invalid min!");
+
     if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+        && max != "+" && max != "-")
+        return make_error("Invalid max!");
+
     QString command = QString("ZRANGEBYLEX %1 %2 %3").arg(key, min, max);
     if (offset > 0 && count > 0)
         command += QString(" LIMIT %1 %2").arg(offset).arg(count);
@@ -2506,28 +2400,23 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRangeByLex(const 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRangeByScore(const QString &key, const QString &min, const QString &max, const bool withScores, const int offset, const int count)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (min.isEmpty() || min.indexOf(" ") != -1)
+        return make_error("Invalid min!");
+
+    if (max.isEmpty() || max.indexOf(" ") != -1)
+        return make_error("Invalid max!");
+
     if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
+        && min != "+" && min != "-")
+        return make_error("Invalid min!");
+
     if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+        && max != "+" && max != "-")
+        return make_error("Invalid max!");
+
     QString command = QString("ZRANGEBYSCORE %1 %2 %3").arg(key, min, max);
     if (withScores)
         command += QString(" WITHSCORES");
@@ -2567,10 +2456,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRangeByScore(cons
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRank(const QString &key, const QString &member)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "ZRANK" << key << member;
     return this->redisExecCommandArgv(argv);
@@ -2591,14 +2479,12 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRank(const QStrin
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRem(const QString &key, const QStringList &members)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (members.isEmpty()) {
-        this->setLastError_safe("Invalid members (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (members.isEmpty())
+        return make_error("Invalid members (Empty)!");
+
     QStringList argv;
     argv << "ZREM" << key;
     for (const QString &member : members)
@@ -2650,28 +2536,23 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRem(const QString
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByLex(const QString &key, const QString &min, const QString &max)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (min.isEmpty() || min.indexOf(" ") != -1)
+        return make_error("Invalid min!");
+
+    if (max.isEmpty() || max.indexOf(" ") != -1)
+        return make_error("Invalid max!");
+
     if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
+        && min != "+" && min != "-")
+        return make_error("Invalid min!");
+
     if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+        && max != "+" && max != "-")
+        return make_error("Invalid max!");
+
     return this->redisExecCommand(QString("ZREMRANGEBYLEX %1 %2 %3").arg(key, min, max));
 }
 
@@ -2706,10 +2587,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByLex(con
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByRank(const QString &key, const int start, const int stop)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     return this->redisExecCommand(QString("ZREMRANGEBYRANK %1 %2 %3").arg(key).arg(start).arg(stop));
 }
 
@@ -2744,28 +2624,23 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByRank(co
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByScore(const QString &key, const QString &min, const QString &max)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (min.isEmpty() || min.indexOf(" ") != -1)
+        return make_error("Invalid min!");
+
+    if (max.isEmpty() || max.indexOf(" ") != -1)
+        return make_error("Invalid max!");
+
     if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
+        && min != "+" && min != "-")
+        return make_error("Invalid min!");
+
     if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+        && max != "+" && max != "-")
+        return make_error("Invalid max!");
+
     return this->redisExecCommand(QString("ZREMRANGEBYSCORE %1 %2 %3").arg(key, min, max));
 }
 
@@ -2804,10 +2679,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByScore(c
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRange(const QString &key, const int start, const int stop, const bool withScores)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QString command = QString("ZREVRANGE %1 %2 %3").arg(key).arg(start).arg(stop);
     if (withScores)
         command += QString(" WITHSCORES");
@@ -2851,28 +2725,23 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRange(const QS
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByLex(const QString &key, const QString &max, const QString &min, const int offset, const int count)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (min.isEmpty() || min.indexOf(" ") != -1)
+        return make_error("Invalid min!");
+
+    if (max.isEmpty() || max.indexOf(" ") != -1)
+        return make_error("Invalid max!");
+
     if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
+        && min != "+" && min != "-")
+        return make_error("Invalid min!");
+
     if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+        && max != "+" && max != "-")
+        return make_error("Invalid max!");
+
     QString command = QString("ZREVRANGEBYLEX %1 %2 %3").arg(key, max, min);
     if (offset > 0 && count > 0)
         command += QString(" LIMIT %1 %2").arg(offset).arg(count);
@@ -2921,28 +2790,23 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByLex(con
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByScore(const QString &key, const QString &max, const QString &min, const bool withScores, const int offset, const int count)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
+    if (min.isEmpty() || min.indexOf(" ") != -1)
+        return make_error("Invalid min!");
+
+    if (max.isEmpty() || max.indexOf(" ") != -1)
+        return make_error("Invalid max!");
+
     if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return __RESULT_IMPL();
-    }
+        && min != "+" && min != "-")
+        return make_error("Invalid min!");
+
     if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return __RESULT_IMPL();
-    }
+        && max != "+" && max != "-")
+        return make_error("Invalid max!");
+
     QString command = QString("ZREVRANGEBYSCORE %1 %2 %3").arg(key, max, min);
     if (withScores)
         command += QString(" WITHSCORES");
@@ -2982,10 +2846,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByScore(c
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRank(const QString &key, const QString &member)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "ZREVRANK" << key << member;
     return this->redisExecCommandArgv(argv);
@@ -3012,10 +2875,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRank(const QSt
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZScore(const QString &key, const QString &member)
 {
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return __RESULT_IMPL();
-    }
+    if (key.isEmpty() || key.indexOf(" ") != -1)
+        return make_error("Invalid key!");
+
     QStringList argv;
     argv << "ZSCORE" << key << member;
     return this->redisExecCommandArgv(argv);
@@ -3071,19 +2933,15 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZScore(const QStri
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZUnionStore(const QString &destKey, const QStringList &keyList, const QList<int> &weightList, const QString &aggregateFlag)
 {
-    if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid destKey!");
-        return __RESULT_IMPL();
-    }
-    if (keyList.isEmpty()) {
-        this->setLastError_safe("Invalid keyList (Empty)!");
-        return __RESULT_IMPL();
-    }
+    if (destKey.isEmpty() || destKey.indexOf(" ") != -1)
+        return make_error("Invalid destKey!");
+
+    if (keyList.isEmpty())
+        return make_error("Invalid keyList (Empty)!");
+
     for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return __RESULT_IMPL();
-        }
+        if (key.indexOf(" ") != -1)
+            return make_error(QString("Invalid key (%1)!").arg(key));
     }
     QString weightListStr;
     for (const int weight : weightList) {
@@ -3094,10 +2952,8 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZUnionStore(const 
     if (!aggregateFlag.isEmpty()
         && aggregateFlag.toUpper() != QString("SUM")
         && aggregateFlag.toUpper() != QString("MIN")
-        && aggregateFlag.toUpper() != QString("MAX")) {
-        this->setLastError_safe("Invalid aggregateFlag!");
-        return __RESULT_IMPL();
-    }
+        && aggregateFlag.toUpper() != QString("MAX"))
+        return make_error("Invalid aggregateFlag!");
 
     QString command = QString("ZUNIONSTORE %1 %2 %3")
                       .arg(destKey)
