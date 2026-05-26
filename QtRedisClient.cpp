@@ -245,173 +245,173 @@ void QtRedisClient::redisDisconnect()
 // -- BASE COMMANDS -------------------------------------------------------
 // ------------------------------------------------------------------------
 
-//!
-//! \brief Выпонить команду
-//! \param command Команда
-//! \return
-//!
-QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QString &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (command.isEmpty()) {
-        this->setLastError_safe("Command is Empty!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QList<QtRedisReply>();
-    }
-    this->clearLastError_safe();
-    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(QtRedisCommand::fromString(command));
-    for (const QtRedisReply &reply : replyList) {
-        if (reply.isError())
-            this->setLastError_safe(reply.strValue());
-    }
-    return replyList;
-}
-
-//!
-//! \brief Выпонить команду (QByteArray)
-//! \param command Команда
-//! \return
-//!
-QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QByteArray &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (command.isEmpty()) {
-        this->setLastError_safe("Command is Empty!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QList<QtRedisReply>();
-    }
-    this->clearLastError_safe();
-    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(QtRedisCommand::fromByteArray(command));
-    for (const QtRedisReply &reply : replyList) {
-        if (reply.isError())
-            this->setLastError_safe(reply.strValue());
-    }
-    return replyList;
-}
-
-//!
-//! \brief Выполнить команду
-//! \param commandArgv Команда в формате списка аргументов
-//! \return
-//!
-QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QStringList &commandArgv)
-{
-    QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty()) {
-        this->setLastError_safe("CommandList is Empty!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QList<QtRedisReply>();
-    }
-    this->clearLastError_safe();
-//    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(commandArgv);
-//    for (const QtRedisReply &reply : replyList) {
-//        if (reply.isError())
-//            this->setLastError_safe(reply.strValue());
+////!
+////! \brief Выпонить команду
+////! \param command Команда
+////! \return
+////!
+//QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QString &command)
+//{
+//    QMutexLocker lock(&_mutex);
+//    if (command.isEmpty()) {
+//        this->setLastError_safe("Command is Empty!");
+//        return QList<QtRedisReply>();
 //    }
-//    return replyList;
-    return QList<QtRedisReply>();
-}
-
-//!
-//! \brief Выполнить команду (QByteArray)
-//! \param commandArgv Команда в формате списка аргументов
-//! \return
-//!
-QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv)
-{
-    QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty()) {
-        this->setLastError_safe("CommandList is Empty!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QList<QtRedisReply>();
-    }
-//    QVariantList cmdList;
-//    for (const QByteArray &ba : commandArgv)
-//        cmdList.append(ba);
-
+//    if (!_transporter) {
+//        this->setLastError_safe("QtRedisTransporter is NULL!");
+//        return QList<QtRedisReply>();
+//    }
+//    if (!_transporter->isConnected()) {
+//        this->setLastError_safe("Client is not connected!");
+//        return QList<QtRedisReply>();
+//    }
 //    this->clearLastError_safe();
-//    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(cmdList);
+//    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(QtRedisCommand::fromString(command));
 //    for (const QtRedisReply &reply : replyList) {
 //        if (reply.isError())
 //            this->setLastError_safe(reply.strValue());
 //    }
 //    return replyList;
-    return QList<QtRedisReply>();
-}
+//}
 
-//!
-//! \brief Проверить команду
-//! \param command Команда
-//! \return
-//!
-//! Данный метод проверяет тип результирующего объекта, и если он:
-//! - replyType_Error   - return false
-//! - replyType_Nil     - return false
-//! - replyType_Status  - если ответ != "OK", то return false
-//!
-bool QtRedisClient::redisCheckCommand(const QString &command)
-{
-    QtRedisReply buffReply = this->redisExecCommand(command);
-    if (buffReply.type() == QtRedisReply::ReplyType::Error
-        || buffReply.type() == QtRedisReply::ReplyType::Nil)
-        return false;
-    if (buffReply.type() == QtRedisReply::ReplyType::Status
-        && buffReply.strValue() != "OK")
-        return false;
+////!
+////! \brief Выпонить команду (QByteArray)
+////! \param command Команда
+////! \return
+////!
+//QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QByteArray &command)
+//{
+//    QMutexLocker lock(&_mutex);
+//    if (command.isEmpty()) {
+//        this->setLastError_safe("Command is Empty!");
+//        return QList<QtRedisReply>();
+//    }
+//    if (!_transporter) {
+//        this->setLastError_safe("QtRedisTransporter is NULL!");
+//        return QList<QtRedisReply>();
+//    }
+//    if (!_transporter->isConnected()) {
+//        this->setLastError_safe("Client is not connected!");
+//        return QList<QtRedisReply>();
+//    }
+//    this->clearLastError_safe();
+//    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(QtRedisCommand::fromByteArray(command));
+//    for (const QtRedisReply &reply : replyList) {
+//        if (reply.isError())
+//            this->setLastError_safe(reply.strValue());
+//    }
+//    return replyList;
+//}
 
-    return true;
-}
+////!
+////! \brief Выполнить команду
+////! \param commandArgv Команда в формате списка аргументов
+////! \return
+////!
+//QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QStringList &commandArgv)
+//{
+//    QMutexLocker lock(&_mutex);
+//    if (commandArgv.isEmpty()) {
+//        this->setLastError_safe("CommandList is Empty!");
+//        return QList<QtRedisReply>();
+//    }
+//    if (!_transporter) {
+//        this->setLastError_safe("QtRedisTransporter is NULL!");
+//        return QList<QtRedisReply>();
+//    }
+//    if (!_transporter->isConnected()) {
+//        this->setLastError_safe("Client is not connected!");
+//        return QList<QtRedisReply>();
+//    }
+//    this->clearLastError_safe();
+////    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(commandArgv);
+////    for (const QtRedisReply &reply : replyList) {
+////        if (reply.isError())
+////            this->setLastError_safe(reply.strValue());
+////    }
+////    return replyList;
+//    return QList<QtRedisReply>();
+//}
 
-//!
-//! \brief Проверить команду
-//! \param commandArgv Команда в формате списка аргументов
-//! \return
-//!
-//! Данный метод проверяет тип результирующего объекта, и если он:
-//! - replyType_Error   - return false
-//! - replyType_Nil     - return false
-//! - replyType_Status  - если ответ != "OK", то return false
-//!
-bool QtRedisClient::redisCheckCommandArgv(const QStringList &commandArgv)
-{
-    QtRedisReply buffReply = this->redisExecCommandArgv(commandArgv);
-    if (buffReply.type() == QtRedisReply::ReplyType::Error
-        || buffReply.type() == QtRedisReply::ReplyType::Nil)
-        return false;
-    if (buffReply.type() == QtRedisReply::ReplyType::Status
-        && buffReply.strValue() != "OK")
-        return false;
+////!
+////! \brief Выполнить команду (QByteArray)
+////! \param commandArgv Команда в формате списка аргументов
+////! \return
+////!
+//QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv)
+//{
+//    QMutexLocker lock(&_mutex);
+//    if (commandArgv.isEmpty()) {
+//        this->setLastError_safe("CommandList is Empty!");
+//        return QList<QtRedisReply>();
+//    }
+//    if (!_transporter) {
+//        this->setLastError_safe("QtRedisTransporter is NULL!");
+//        return QList<QtRedisReply>();
+//    }
+//    if (!_transporter->isConnected()) {
+//        this->setLastError_safe("Client is not connected!");
+//        return QList<QtRedisReply>();
+//    }
+////    QVariantList cmdList;
+////    for (const QByteArray &ba : commandArgv)
+////        cmdList.append(ba);
 
-    return true;
-}
+////    this->clearLastError_safe();
+////    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(cmdList);
+////    for (const QtRedisReply &reply : replyList) {
+////        if (reply.isError())
+////            this->setLastError_safe(reply.strValue());
+////    }
+////    return replyList;
+//    return QList<QtRedisReply>();
+//}
+
+////!
+////! \brief Проверить команду
+////! \param command Команда
+////! \return
+////!
+////! Данный метод проверяет тип результирующего объекта, и если он:
+////! - replyType_Error   - return false
+////! - replyType_Nil     - return false
+////! - replyType_Status  - если ответ != "OK", то return false
+////!
+//bool QtRedisClient::redisCheckCommand(const QString &command)
+//{
+//    QtRedisReply buffReply = this->redisExecCommand(command);
+//    if (buffReply.type() == QtRedisReply::ReplyType::Error
+//        || buffReply.type() == QtRedisReply::ReplyType::Nil)
+//        return false;
+//    if (buffReply.type() == QtRedisReply::ReplyType::Status
+//        && buffReply.strValue() != "OK")
+//        return false;
+
+//    return true;
+//}
+
+////!
+////! \brief Проверить команду
+////! \param commandArgv Команда в формате списка аргументов
+////! \return
+////!
+////! Данный метод проверяет тип результирующего объекта, и если он:
+////! - replyType_Error   - return false
+////! - replyType_Nil     - return false
+////! - replyType_Status  - если ответ != "OK", то return false
+////!
+//bool QtRedisClient::redisCheckCommandArgv(const QStringList &commandArgv)
+//{
+//    QtRedisReply buffReply = this->redisExecCommandArgv(commandArgv);
+//    if (buffReply.type() == QtRedisReply::ReplyType::Error
+//        || buffReply.type() == QtRedisReply::ReplyType::Nil)
+//        return false;
+//    if (buffReply.type() == QtRedisReply::ReplyType::Status
+//        && buffReply.strValue() != "OK")
+//        return false;
+
+//    return true;
+//}
 
 
 // ------------------------------------------------------------------------
@@ -453,7 +453,7 @@ bool QtRedisClient::redisPing(const QString &msg)
     if (!msg.isEmpty())
         argv << msg;
 
-    QtRedisReply buffReply = this->redisExecCommandArgv(argv);
+    const QtRedisReply buffReply = this->redisExecCommandArgv(argv);
     if (msg.isEmpty()) {
         if (buffReply.type() != QtRedisReply::ReplyType::Status) {
             this->setLastError_safe("Invalid reply type!");
@@ -533,7 +533,7 @@ QMap<QString, QVariant> QtRedisClient::redisInfo(const QString &section)
     if (!section.isEmpty())
         command += QString(" %1").arg(section.toLower());
 
-    QtRedisReply buffReply = this->redisExecCommand(command.trimmed());
+    const QtRedisReply buffReply = this->redisExecCommand(command.trimmed());
     if (buffReply.type() != QtRedisReply::ReplyType::String) {
         this->setLastError_safe("Invalid reply type!");
         return QMap<QString, QVariant>();
@@ -621,7 +621,7 @@ int QtRedisClient::redisSelectedDb()
 //!
 qlonglong QtRedisClient::redisDbSize()
 {
-    QtRedisReply buffReply = this->redisExecCommand(QString("DBSIZE"));
+    const QtRedisReply buffReply = this->redisExecCommand(QString("DBSIZE"));
     if (buffReply.type() != QtRedisReply::ReplyType::Integer) {
         this->setLastError_safe("Invalid reply type!");
         return -1;
@@ -706,7 +706,7 @@ QtRedisReply QtRedisClient::redisBgSave()
 //!
 uint QtRedisClient::redisLastSave()
 {
-    QtRedisReply buffReply = this->redisExecCommand(QString("LASTSAVE"));
+    const QtRedisReply buffReply = this->redisExecCommand(QString("LASTSAVE"));
     if (buffReply.type() != QtRedisReply::ReplyType::Integer) {
         this->setLastError_safe("Invalid reply type!");
         return 0;
@@ -859,7 +859,7 @@ bool QtRedisClient::redisConfigResetStat()
 //!
 QVector<QtRedisClientInfo> QtRedisClient::redisClientList()
 {
-    QtRedisReply buffReply = this->redisExecCommand(QString("CLIENT LIST"));
+    const QtRedisReply buffReply = this->redisExecCommand(QString("CLIENT LIST"));
     if (buffReply.type() != QtRedisReply::ReplyType::String) {
         this->setLastError_safe("Invalid reply type!");
         return QVector<QtRedisClientInfo>();
@@ -994,7 +994,7 @@ QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
     argv << "PUBSUB" << "CHANNELS";
     if (!pattern.trimmed().isEmpty())
         argv << pattern.trimmed();
-    return QtRedisReply::replyToArray(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToStringList(this->redisExecCommandArgv(argv));
 }
 
 //!
@@ -1090,7 +1090,7 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &cha
     argv << "PUBSUB" << "NUMSUB";
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    QtRedisReply reply = this->redisExecCommandArgv(argv);
+    const QtRedisReply reply = this->redisExecCommandArgv(argv);
     if (reply.arrayValueSize() != tmpChannels.size() * 2)
         return QMap<QString, qlonglong>();
     // parse result
@@ -1140,7 +1140,7 @@ QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
     argv << "PUBSUB" << "SHARDCHANNELS";
     if (!pattern.trimmed().isEmpty())
         argv << pattern;
-    return QtRedisReply::replyToArray(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToStringList(this->redisExecCommandArgv(argv));
 }
 
 //!
@@ -1214,7 +1214,7 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList
     argv << "PUBSUB" << "SHARDNUMSUB";
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    QtRedisReply reply = this->redisExecCommandArgv(argv);
+    const QtRedisReply reply = this->redisExecCommandArgv(argv);
     if (reply.arrayValueSize() != tmpChannels.size() * 2)
         return QMap<QString, qlonglong>();
     // parse result
@@ -1752,14 +1752,16 @@ QtRedisReply QtRedisClient::processCommand(const QtRedisCommand &command)
         return QtRedisReply();
     }
     this->clearLastError_safe();
-    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(command);
-    if (replyList.isEmpty())
-        return QtRedisReply();
-    for (const QtRedisReply &reply : replyList) {
-        if (reply.isError())
-            this->setLastError_safe(reply.strValue());
+    const QtRedisReply reply = _transporter->sendCommand(command);
+    if (reply.isError()) {
+        this->setLastError_safe(reply.strValue());
+    } else if (reply.isArray()) {
+        for (const QtRedisReply &replyObj : reply.arrayValue_ref()) {
+            if (replyObj.isError())
+                this->setLastError_safe(replyObj.strValue());
+        }
     }
-    return replyList.constFirst();
+    return reply;
 }
 
 bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringList &channels)
@@ -1789,14 +1791,14 @@ bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringLis
     // make args
     QStringList argv;
     argv << command.trimmed().toUpper() << tmpChannels;
-    const QList<QtRedisReply> replyList = _transporter->sendChannelCommand_lst(QtRedisCommand::fromString(argv.join(" ")));
-    if (replyList.size() != tmpChannels.size()) {
+    const QtRedisReply replyList = _transporter->sendChannelCommand(QtRedisCommand::fromString(argv.join(" ")));
+    if (replyList.arrayValueSize() != tmpChannels.size()) {
         this->setLastError_safe("Invalid reply list size!");
         return false;
     }
     bool isOk = true;
     for (int i = 0; i < tmpChannels.size(); i++) {
-        const QtRedisReply reply = replyList[i];
+        const QtRedisReply reply = replyList.arrayValueAt(i);
         const QString channel = tmpChannels[i];
         if (reply.isError())
             this->setLastError_safe(reply.strValue());
@@ -1833,14 +1835,14 @@ bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringL
     argv << command.trimmed().toUpper();
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    const QList<QtRedisReply> replyList = _transporter->sendChannelCommand_lst(QtRedisCommand::fromString(argv.join(" ")));
-    if (replyList.size() != tmpChannels.size()) {
+    const QtRedisReply replyList = _transporter->sendChannelCommand(QtRedisCommand::fromString(argv.join(" ")));
+    if (replyList.arrayValueSize() != tmpChannels.size()) {
         this->setLastError_safe("Invalid reply list size!");
         return false;
     }
     bool isOk = true;
     for (int i = 0; i < tmpChannels.size(); i++) {
-        const QtRedisReply reply = replyList[i];
+        const QtRedisReply reply = replyList.arrayValueAt(i);
         const QString channel = tmpChannels[i];
         if (reply.isError())
             this->setLastError_safe(reply.strValue());

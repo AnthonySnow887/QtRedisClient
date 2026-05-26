@@ -26,28 +26,40 @@ QByteArray QtRedisParser::createRawData(const QtRedisCommand &command)
 //!
 QtRedisReply QtRedisParser::parseRawData(const QByteArray &data, bool *ok)
 {
-    return QtRedisParser::parseRawDataList(data, ok).constFirst();
-}
-
-//!
-//! \brief Разобрать ответ от Redis-а (если в данных содержиться несколько сообщений)
-//! \param data
-//! \param ok
-//! \return
-//!
-QList<QtRedisReply> QtRedisParser::parseRawDataList(const QByteArray &data, bool *ok)
-{
     QByteArray buffData = data;
-    QList<QtRedisReply> replyList;
+    QtRedisReply replyArray;
     while (true) {
-        replyList.append(QtRedisParser::parseRawDataTypes(buffData, ok));
+        const QtRedisReply reply = QtRedisParser::parseRawDataTypes(buffData, ok);
         if (ok && *ok == false)
-            break;
+            return QtRedisReply();
+        replyArray.appendArrayValue(reply);
         if (buffData.isEmpty())
             break;
     }
-    return replyList;
+    replyArray.setType(QtRedisReply::ReplyType::Array);
+    replyArray.setRawValue(data);
+    return replyArray;
 }
+
+////!
+////! \brief Разобрать ответ от Redis-а (если в данных содержиться несколько сообщений)
+////! \param data
+////! \param ok
+////! \return
+////!
+//QList<QtRedisReply> QtRedisParser::parseRawDataList(const QByteArray &data, bool *ok)
+//{
+//    QByteArray buffData = data;
+//    QList<QtRedisReply> replyList;
+//    while (true) {
+//        replyList.append(QtRedisParser::parseRawDataTypes(buffData, ok));
+//        if (ok && *ok == false)
+//            break;
+//        if (buffData.isEmpty())
+//            break;
+//    }
+//    return replyList;
+//}
 
 //!
 //! \brief Создать строку-команду для Redis-а

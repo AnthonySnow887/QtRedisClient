@@ -66,11 +66,11 @@ public:
     QtRedisReply sendCommand(const QtRedisCommand &command);
 //    QtRedisReply sendCommand(const QVariantList &command);
 
-    QList<QtRedisReply> sendCommand_lst(const QtRedisCommand &command);
+//    QList<QtRedisReply> sendCommand_lst(const QtRedisCommand &command);
 //    QList<QtRedisReply> sendCommand_lst(const QVariantList &command);
 
     QtRedisReply sendChannelCommand(const QtRedisCommand &command);
-    QList<QtRedisReply> sendChannelCommand_lst(const QtRedisCommand &command);
+//    QList<QtRedisReply> sendChannelCommand_lst(const QtRedisCommand &command);
 
 protected:
     Type            _type {Type::NoType};                            //!< тип
@@ -91,7 +91,7 @@ protected:
     QtRedisReply sendContextCommand(QtRedisContext *context, const QtRedisCommand &command);
 //    QtRedisReply sendContextCommand(QtRedisContext *context, const QVariantList &command);
 
-    QList<QtRedisReply> sendContextCommand_lst(QtRedisContext *context, const QtRedisCommand &command);
+//    QList<QtRedisReply> sendContextCommand_lst(QtRedisContext *context, const QtRedisCommand &command);
 //    QList<QtRedisReply> sendContextCommand_lst(QtRedisContext *context, const QVariantList &command);
 
     void checkCommandResult(QtRedisContext *context, const QtRedisCommand &command, const QtRedisReply &reply);

@@ -64,13 +64,13 @@ public:
     // ------------------------------------------------------------------------
     // -- BASE COMMANDS -------------------------------------------------------
     // ------------------------------------------------------------------------
-    QList<QtRedisReply> redisExecCommand_lst(const QString &command);
-    QList<QtRedisReply> redisExecCommand_lst(const QByteArray &command);
-    QList<QtRedisReply> redisExecCommandArgv_lst(const QStringList &commandArgv);
-    QList<QtRedisReply> redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv);
+//    QList<QtRedisReply> redisExecCommand_lst(const QString &command);
+//    QList<QtRedisReply> redisExecCommand_lst(const QByteArray &command);
+//    QList<QtRedisReply> redisExecCommandArgv_lst(const QStringList &commandArgv);
+//    QList<QtRedisReply> redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv);
 
-    bool redisCheckCommand(const QString &command);
-    bool redisCheckCommandArgv(const QStringList &commandArgv);
+//    bool redisCheckCommand(const QString &command);
+//    bool redisCheckCommandArgv(const QStringList &commandArgv);
 
     // ------------------------------------------------------------------------
     // -- SERVER COMMANDS -----------------------------------------------------

@@ -133,6 +133,23 @@ public:
         return (_type == ReplyType::Error);
     }
 
+    bool isString() const {
+        return (_type == ReplyType::String);
+    }
+
+    bool isArray() const {
+        return (_type == ReplyType::Array);
+    }
+
+    bool isInteger() const {
+        return (_type == ReplyType::Integer);
+    }
+
+    bool isEmpty() const {
+        return (_type != ReplyType::Nil
+                && _rawValue.isEmpty());
+    }
+
     //!
     //! \brief Тип объекта
     //! \return
@@ -191,6 +208,10 @@ public:
         return QVector<QtRedisReply>();
     }
 
+    const QVector<QtRedisReply> &arrayValue_ref() const {
+        return _arrayValue;
+    }
+
     //!
     //! \brief Значиение из массива значений
     //! \param index Индекс
@@ -203,6 +224,14 @@ public:
             return QtRedisReply();
 
         return _arrayValue[index];
+    }
+
+    QtRedisReply arrayValueFirst() const {
+        if (_type != ReplyType::Array
+            || _arrayValue.isEmpty())
+            return QtRedisReply();
+
+        return _arrayValue.constFirst();
     }
 
     //!
@@ -232,13 +261,13 @@ public:
     friend QDebug operator<<(QDebug dbg, const QtRedisReply &object) {
         dbg.nospace() << "QtRedisReply[ type: "
                       << QtRedisReply::typeToStr(object.type())
-                      << "; raw: "
+                      << "; raw: \""
                       << object.rawValue().constData()
-                      << "; str: "
-                      << object.strValue()
-                      << "; int: "
+                      << "\"; to-str: \""
+                      << object.strValue().toStdString().c_str()
+                      << "\"; to-int: "
                       << object.intValue()
-                      << "; array: "
+                      << "; to-array: "
                       << object.arrayValue()
                       << "]";
         return dbg.space();
@@ -250,6 +279,28 @@ public:
     // ------------------------------------------------------------------------
 
     //!
+    //! \brief Проверить результат на корректность
+    //! \param reply
+    //! \return
+    //!
+    //! Данный метод проверяет тип результирующего объекта, и если он:
+    //! - replyType_Error   - return false
+    //! - replyType_Nil     - return false
+    //! - replyType_Status  - если ответ != "OK", то return false
+    //!
+    static bool isReplySuccess(const QtRedisReply &reply)
+    {
+        if (reply.type() == QtRedisReply::ReplyType::Error
+            || reply.type() == QtRedisReply::ReplyType::Nil)
+            return false;
+        if (reply.type() == QtRedisReply::ReplyType::Status
+            && reply.strValue() != "OK")
+            return false;
+
+        return true;
+    }
+
+    //!
     //! \brief Преобразовать ответ от сервера в qlonglong
     //! \param reply Ответ от сервера
     //! \return
@@ -258,6 +309,8 @@ public:
     {
         if (reply.type() == QtRedisReply::ReplyType::Integer)
             return reply.intValue();
+        else if (reply.type() == QtRedisReply::ReplyType::Array)
+            return QtRedisReply::replyToLong(reply.arrayValueFirst());
 
         return -1;
     }
@@ -272,8 +325,26 @@ public:
         if (reply.type() == QtRedisReply::ReplyType::String
             || reply.type() == QtRedisReply::ReplyType::Status)
             return reply.strValue();
+        else if (reply.type() == QtRedisReply::ReplyType::Array)
+            return QtRedisReply::replyToString(reply.arrayValueFirst());
 
         return QString();
+    }
+
+    //!
+    //! \brief Преобразовать ответ от сервера в строку
+    //! \param reply Ответ от сервера
+    //! \return
+    //!
+    static QByteArray replyToByteArray(const QtRedisReply &reply)
+    {
+        if (reply.type() == QtRedisReply::ReplyType::String
+            || reply.type() == QtRedisReply::ReplyType::Status)
+            return reply.rawValue();
+        else if (reply.type() == QtRedisReply::ReplyType::Array)
+            return QtRedisReply::replyToByteArray(reply.arrayValueFirst());
+
+        return QByteArray();
     }
 
     //!
@@ -281,14 +352,18 @@ public:
     //! \param reply Ответ от сервера
     //! \return
     //!
-    static QStringList replyToArray(const QtRedisReply &reply)
+    static QStringList replyToStringList(const QtRedisReply &reply)
     {
         if (reply.type() == QtRedisReply::ReplyType::Array) {
             QStringList array;
-            const QVector<QtRedisReply> replyArrayValue = reply.arrayValue();
-            for (const QtRedisReply &replyObj : replyArrayValue) {
-                if (replyObj.type() == QtRedisReply::ReplyType::String)
+            for (const QtRedisReply &replyObj : reply.arrayValue_ref()) {
+                if (replyObj.type() == QtRedisReply::ReplyType::String) {
                     array.append(replyObj.strValue());
+                } else if (reply.type() == QtRedisReply::ReplyType::Array) {
+                    const QStringList tmpLst = QtRedisReply::replyToStringList(reply);
+                    if (!tmpLst.isEmpty())
+                        array.append(tmpLst);
+                }
             }
             return array;
         }
@@ -304,6 +379,8 @@ public:
     {
         if (reply.type() == QtRedisReply::ReplyType::Integer)
             return (reply.intValue() == 0) ? false : true;
+        else if (reply.type() == QtRedisReply::ReplyType::Array)
+            return QtRedisReply::replyIntToBool(reply.arrayValueFirst());
 
         return false;
     }
@@ -318,6 +395,8 @@ public:
         if (reply.type() == QtRedisReply::ReplyType::Status
             || reply.type() == QtRedisReply::ReplyType::String)
             return (reply.strValue() == "OK");
+        else if (reply.type() == QtRedisReply::ReplyType::Array)
+            return QtRedisReply::replySimpleStringToBool(reply.arrayValueFirst());
 
         return false;
     }
