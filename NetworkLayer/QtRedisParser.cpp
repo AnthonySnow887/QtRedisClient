@@ -41,26 +41,6 @@ QtRedisReply QtRedisParser::parseRawData(const QByteArray &data, bool *ok)
     return replyArray;
 }
 
-////!
-////! \brief Разобрать ответ от Redis-а (если в данных содержиться несколько сообщений)
-////! \param data
-////! \param ok
-////! \return
-////!
-//QList<QtRedisReply> QtRedisParser::parseRawDataList(const QByteArray &data, bool *ok)
-//{
-//    QByteArray buffData = data;
-//    QList<QtRedisReply> replyList;
-//    while (true) {
-//        replyList.append(QtRedisParser::parseRawDataTypes(buffData, ok));
-//        if (ok && *ok == false)
-//            break;
-//        if (buffData.isEmpty())
-//            break;
-//    }
-//    return replyList;
-//}
-
 //!
 //! \brief Создать строку-команду для Redis-а
 //! \param arg Аргумент

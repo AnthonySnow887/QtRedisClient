@@ -22,7 +22,6 @@ public:
     static QByteArray createRawData(const QtRedisCommand &command);
 
     static QtRedisReply parseRawData(const QByteArray &data, bool *ok = 0);
-//    static QList<QtRedisReply> parseRawDataList(const QByteArray &data, bool *ok = 0);
 
 protected:
     static QByteArray createRawDataArgument(const QByteArray &arg);

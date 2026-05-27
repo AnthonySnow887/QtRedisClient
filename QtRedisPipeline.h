@@ -1,40 +1,49 @@
 #ifndef QTREDISPIPELINE_H
 #define QTREDISPIPELINE_H
 
-#include <QString>
-#include <QStringList>
-#include <QMap>
-#include <QMultiMap>
-#include <QVariant>
-#include <QVector>
-#include <QMutex>
+#include <memory>
 
+#include "QtRedisBase.h"
 #include "NetworkLayer/QtRedisTransporter.h"
-#include "QtRedisClientInfo.h"
-#include "QtRedisClientVersion.h"
 
 //!
-//! \file QtRedisClient.h
-//! \class QtRedisClient
-//! \brief Класс по работе с NoSQL базой данных Redis
+//! \file QtRedisPipeline.h
+//! \class QtRedisPipeline
+//! \brief Класс по работе с NoSQL базой данных Redis в режиме RedisPipeline
 //!
 //! Документация по командам: https://redis.io/commands
 //!
-class QtRedisPipeline : public QObject
+class QtRedisPipeline : public QtRedisBase<QtRedisPipeline, bool>
 {
-    Q_OBJECT
+    friend class QtRedisBase<QtRedisPipeline, bool>;
 
 public:
-    QtRedisPipeline();
-    virtual ~QtRedisPipeline();
+    QtRedisPipeline(std::shared_ptr<QtRedisTransporter> transporter);
+    ~QtRedisPipeline();
+
+    QtRedisPipeline(const QtRedisPipeline &object)
+        : _transporter(object._transporter)
+        , _commandList(object._commandList)
+    {}
+
+    QtRedisPipeline& operator=(const QtRedisPipeline &object) {
+        if (this == &object)
+            return *this;
+        _transporter = object._transporter;
+        _commandList = object._commandList;
+        return *this;
+    }
+
+    QtRedisReply exec();
+    bool execToBool();
+
+    void discard();
 
 protected:
-    mutable QMutex      _mutex;                 //!< мьютекс
-    mutable QMutex      _mutexErr;              //!< мьютекс
-    QString             _lastError;             //!< ошибка
-    QtRedisTransporter *_transporter {nullptr}; //!< слой взаимодействия с redis
+    std::shared_ptr<QtRedisTransporter> _transporter {nullptr}; //!< слой взаимодействия с redis
+    QList<QtRedisCommand> _commandList;
 
-private:
+    bool processCommand(const QtRedisCommand &command);
 };
 
 #endif // QTREDISPIPELINE_H

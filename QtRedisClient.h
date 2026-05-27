@@ -9,10 +9,11 @@
 #include <QVector>
 #include <QMutex>
 
-#include "NetworkLayer/QtRedisTransporter.h"
+#include "QtRedisBase.h"
+#include "QtRedisPipeline.h"
 #include "QtRedisClientInfo.h"
 #include "QtRedisClientVersion.h"
-#include "QtRedisBase.h"
+#include "NetworkLayer/QtRedisTransporter.h"
 
 //!
 //! \file QtRedisClient.h
@@ -24,6 +25,7 @@
 class QtRedisClient : public QObject, public QtRedisBase<QtRedisClient, QtRedisReply>
 {
     Q_OBJECT
+    Q_DISABLE_COPY(QtRedisClient)
     friend class QtRedisBase<QtRedisClient, QtRedisReply>;
 
 public:
@@ -60,17 +62,6 @@ public:
     bool redisReconnect(const int timeOutMsec = -1);
 
     void redisDisconnect();
-
-    // ------------------------------------------------------------------------
-    // -- BASE COMMANDS -------------------------------------------------------
-    // ------------------------------------------------------------------------
-//    QList<QtRedisReply> redisExecCommand_lst(const QString &command);
-//    QList<QtRedisReply> redisExecCommand_lst(const QByteArray &command);
-//    QList<QtRedisReply> redisExecCommandArgv_lst(const QStringList &commandArgv);
-//    QList<QtRedisReply> redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv);
-
-//    bool redisCheckCommand(const QString &command);
-//    bool redisCheckCommandArgv(const QStringList &commandArgv);
 
     // ------------------------------------------------------------------------
     // -- SERVER COMMANDS -----------------------------------------------------
@@ -135,8 +126,11 @@ public:
     bool redisSUnsubscribe(const QString &shardChannel = QString());
     bool redisSUnsubscribe(const QStringList &shardChannels);
 
+    //---------
+    QtRedisPipeline createPipeline();
+
 protected:
-    QtRedisTransporter *_transporter {nullptr}; //!< слой взаимодействия с redis
+    std::shared_ptr<QtRedisTransporter> _transporter {nullptr}; //!< слой взаимодействия с redis
 
     QtRedisReply processCommand(const QtRedisCommand &command);
 

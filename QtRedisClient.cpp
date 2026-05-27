@@ -1,19 +1,17 @@
 #include "QtRedisClient.h"
 #include <QDebug>
 
-//!
-//! \brief Деструктор класса
-//!
 QtRedisClient::QtRedisClient()
     : QObject()
     , QtRedisBase<QtRedisClient, QtRedisReply>()
 {
 }
 
+//!
+//! \brief Деструктор класса
+//!
 QtRedisClient::~QtRedisClient()
 {
-    if (_transporter)
-        delete _transporter;
 }
 
 QString QtRedisClient::libraryVersion()
@@ -93,20 +91,20 @@ bool QtRedisClient::redisConnect(const QString &host,
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter(contextChannelMode);
-        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+        _transporter = std::make_shared<QtRedisTransporter>(contextChannelMode);
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextConnected,
                          this, &QtRedisClient::contextConnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextDisconnected,
                          this, &QtRedisClient::contextDisconnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelShardMessage,
                          this, &QtRedisClient::incomingChannelShardMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelPatternMessage,
                          this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
@@ -142,20 +140,20 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter(contextChannelMode);
-        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+        _transporter = std::make_shared<QtRedisTransporter>(contextChannelMode);
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextConnected,
                          this, &QtRedisClient::contextConnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextDisconnected,
                          this, &QtRedisClient::contextDisconnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelShardMessage,
                          this, &QtRedisClient::incomingChannelShardMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelPatternMessage,
                          this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
@@ -189,20 +187,20 @@ bool QtRedisClient::redisConnectUnix(const QString &sockPath,
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter(contextChannelMode);
-        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+        _transporter = std::make_shared<QtRedisTransporter>(contextChannelMode);
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextConnected,
                          this, &QtRedisClient::contextConnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextDisconnected,
                          this, &QtRedisClient::contextDisconnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelShardMessage,
                          this, &QtRedisClient::incomingChannelShardMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelPatternMessage,
                          this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
@@ -239,179 +237,6 @@ void QtRedisClient::redisDisconnect()
 
     this->clearLastError_safe();
 }
-
-
-// ------------------------------------------------------------------------
-// -- BASE COMMANDS -------------------------------------------------------
-// ------------------------------------------------------------------------
-
-////!
-////! \brief Выпонить команду
-////! \param command Команда
-////! \return
-////!
-//QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QString &command)
-//{
-//    QMutexLocker lock(&_mutex);
-//    if (command.isEmpty()) {
-//        this->setLastError_safe("Command is Empty!");
-//        return QList<QtRedisReply>();
-//    }
-//    if (!_transporter) {
-//        this->setLastError_safe("QtRedisTransporter is NULL!");
-//        return QList<QtRedisReply>();
-//    }
-//    if (!_transporter->isConnected()) {
-//        this->setLastError_safe("Client is not connected!");
-//        return QList<QtRedisReply>();
-//    }
-//    this->clearLastError_safe();
-//    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(QtRedisCommand::fromString(command));
-//    for (const QtRedisReply &reply : replyList) {
-//        if (reply.isError())
-//            this->setLastError_safe(reply.strValue());
-//    }
-//    return replyList;
-//}
-
-////!
-////! \brief Выпонить команду (QByteArray)
-////! \param command Команда
-////! \return
-////!
-//QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QByteArray &command)
-//{
-//    QMutexLocker lock(&_mutex);
-//    if (command.isEmpty()) {
-//        this->setLastError_safe("Command is Empty!");
-//        return QList<QtRedisReply>();
-//    }
-//    if (!_transporter) {
-//        this->setLastError_safe("QtRedisTransporter is NULL!");
-//        return QList<QtRedisReply>();
-//    }
-//    if (!_transporter->isConnected()) {
-//        this->setLastError_safe("Client is not connected!");
-//        return QList<QtRedisReply>();
-//    }
-//    this->clearLastError_safe();
-//    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(QtRedisCommand::fromByteArray(command));
-//    for (const QtRedisReply &reply : replyList) {
-//        if (reply.isError())
-//            this->setLastError_safe(reply.strValue());
-//    }
-//    return replyList;
-//}
-
-////!
-////! \brief Выполнить команду
-////! \param commandArgv Команда в формате списка аргументов
-////! \return
-////!
-//QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QStringList &commandArgv)
-//{
-//    QMutexLocker lock(&_mutex);
-//    if (commandArgv.isEmpty()) {
-//        this->setLastError_safe("CommandList is Empty!");
-//        return QList<QtRedisReply>();
-//    }
-//    if (!_transporter) {
-//        this->setLastError_safe("QtRedisTransporter is NULL!");
-//        return QList<QtRedisReply>();
-//    }
-//    if (!_transporter->isConnected()) {
-//        this->setLastError_safe("Client is not connected!");
-//        return QList<QtRedisReply>();
-//    }
-//    this->clearLastError_safe();
-////    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(commandArgv);
-////    for (const QtRedisReply &reply : replyList) {
-////        if (reply.isError())
-////            this->setLastError_safe(reply.strValue());
-////    }
-////    return replyList;
-//    return QList<QtRedisReply>();
-//}
-
-////!
-////! \brief Выполнить команду (QByteArray)
-////! \param commandArgv Команда в формате списка аргументов
-////! \return
-////!
-//QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv)
-//{
-//    QMutexLocker lock(&_mutex);
-//    if (commandArgv.isEmpty()) {
-//        this->setLastError_safe("CommandList is Empty!");
-//        return QList<QtRedisReply>();
-//    }
-//    if (!_transporter) {
-//        this->setLastError_safe("QtRedisTransporter is NULL!");
-//        return QList<QtRedisReply>();
-//    }
-//    if (!_transporter->isConnected()) {
-//        this->setLastError_safe("Client is not connected!");
-//        return QList<QtRedisReply>();
-//    }
-////    QVariantList cmdList;
-////    for (const QByteArray &ba : commandArgv)
-////        cmdList.append(ba);
-
-////    this->clearLastError_safe();
-////    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(cmdList);
-////    for (const QtRedisReply &reply : replyList) {
-////        if (reply.isError())
-////            this->setLastError_safe(reply.strValue());
-////    }
-////    return replyList;
-//    return QList<QtRedisReply>();
-//}
-
-////!
-////! \brief Проверить команду
-////! \param command Команда
-////! \return
-////!
-////! Данный метод проверяет тип результирующего объекта, и если он:
-////! - replyType_Error   - return false
-////! - replyType_Nil     - return false
-////! - replyType_Status  - если ответ != "OK", то return false
-////!
-//bool QtRedisClient::redisCheckCommand(const QString &command)
-//{
-//    QtRedisReply buffReply = this->redisExecCommand(command);
-//    if (buffReply.type() == QtRedisReply::ReplyType::Error
-//        || buffReply.type() == QtRedisReply::ReplyType::Nil)
-//        return false;
-//    if (buffReply.type() == QtRedisReply::ReplyType::Status
-//        && buffReply.strValue() != "OK")
-//        return false;
-
-//    return true;
-//}
-
-////!
-////! \brief Проверить команду
-////! \param commandArgv Команда в формате списка аргументов
-////! \return
-////!
-////! Данный метод проверяет тип результирующего объекта, и если он:
-////! - replyType_Error   - return false
-////! - replyType_Nil     - return false
-////! - replyType_Status  - если ответ != "OK", то return false
-////!
-//bool QtRedisClient::redisCheckCommandArgv(const QStringList &commandArgv)
-//{
-//    QtRedisReply buffReply = this->redisExecCommandArgv(commandArgv);
-//    if (buffReply.type() == QtRedisReply::ReplyType::Error
-//        || buffReply.type() == QtRedisReply::ReplyType::Nil)
-//        return false;
-//    if (buffReply.type() == QtRedisReply::ReplyType::Status
-//        && buffReply.strValue() != "OK")
-//        return false;
-
-//    return true;
-//}
 
 
 // ------------------------------------------------------------------------
@@ -1739,7 +1564,10 @@ bool QtRedisClient::redisSUnsubscribe(const QStringList &shardChannels)
 }
 
 
-
+QtRedisPipeline QtRedisClient::createPipeline()
+{
+    return QtRedisPipeline(_transporter);
+}
 
 QtRedisReply QtRedisClient::processCommand(const QtRedisCommand &command)
 {

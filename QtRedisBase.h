@@ -10,6 +10,13 @@
 
 #include "QtRedisCommand.h"
 
+//!
+//! \file QtRedisBase.h
+//! \class QtRedisBase
+//! \brief Базовый шаблонный класс по работе с NoSQL базой данных Redis
+//!
+//! Документация по командам: https://redis.io/commands
+//!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 class QtRedisBase
 {
@@ -188,7 +195,7 @@ protected:
     void setLastError_safe(const QString &error);
     void clearLastError_safe();
 
-    mutable QMutex      _mutex;                 //!< мьютекс
+    mutable QMutex  _mutex;  //!< мьютекс
 
 private:
     template <typename T = __RESULT_IMPL>
@@ -207,8 +214,8 @@ private:
 
     __CLIENT_IMPL *as_CLIENT_IMPL_ptr();
 
-    mutable QMutex      _mutexErr;              //!< мьютекс
-    QString             _lastError;             //!< ошибка
+    mutable QMutex  _mutexErr;  //!< мьютекс
+    QString         _lastError; //!< ошибка
 };
 
 

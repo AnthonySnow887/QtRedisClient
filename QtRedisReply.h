@@ -293,10 +293,15 @@ public:
         if (reply.type() == QtRedisReply::ReplyType::Error
             || reply.type() == QtRedisReply::ReplyType::Nil)
             return false;
-        if (reply.type() == QtRedisReply::ReplyType::Status
-            && reply.strValue() != "OK")
+        else if (reply.type() == QtRedisReply::ReplyType::Status
+                 && reply.strValue() != "OK")
             return false;
-
+        else if (reply.type() == QtRedisReply::ReplyType::Array) {
+            for (const QtRedisReply &rpl : reply.arrayValue_ref()) {
+                if (!QtRedisReply::isReplySuccess(rpl))
+                    return false;
+            }
+        }
         return true;
     }
 
