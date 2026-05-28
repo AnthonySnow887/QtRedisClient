@@ -20,7 +20,7 @@ class QtRedisContextTcp : public QtRedisContext
 
 public:
     explicit QtRedisContextTcp(const QString &host, const uint port);
-    virtual ~QtRedisContextTcp();
+    ~QtRedisContextTcp();
 
     bool connectToServer(const int msecs = 30000) final;
     bool reconnectToServer(const int msecs = 30000) final;

@@ -20,7 +20,7 @@ class QtRedisContextSsl : public QtRedisContext
 
 public:
     explicit QtRedisContextSsl(const QString &host, const uint port);
-    virtual ~QtRedisContextSsl();
+    ~QtRedisContextSsl();
 
     bool connectToServer(const int msecs = 30000) final;
     bool reconnectToServer(const int msecs = 30000) final;

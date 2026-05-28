@@ -40,7 +40,7 @@ public:
     };
 
     explicit QtRedisTransporter(const QtRedisTransporter::ChannelMode contextChannelMode);
-    virtual ~QtRedisTransporter();
+    ~QtRedisTransporter();
 
     Type type() const;
     ChannelMode channelMode() const;
