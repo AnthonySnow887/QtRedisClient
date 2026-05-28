@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 
-#project(QtRedisClient VERSION 1.2.0 LANGUAGES CXX)
+#project(QtRedisClient VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
@@ -13,22 +13,28 @@ find_package(QT NAMES Qt5 COMPONENTS Core Network REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Network REQUIRED)
 
 add_library(QtRedisClient STATIC
-    QtRedisClientVersion.h
-    QtRedisReply.h
-    QtRedisClientInfo.h
     QtRedisClient.h
+    QtRedisClientVersion.h
+    Core/QtRedisCommand.h
+    Core/QtRedisReply.h
+    Core/QtRedisClientInfo.h
+    Core/QtRedisBase.h
+    Core/QtRedisPipeline.h
+    Core/QtRedisTransaction.h
+    Core/NetworkLayer/QtRedisParser.h
+    Core/NetworkLayer/QtRedisContext.h
+    Core/NetworkLayer/QtRedisContextTcp.h
+    Core/NetworkLayer/QtRedisTransporter.h
+    Core/NetworkLayer/QtRedisContextSsl.h
+    Core/NetworkLayer/QtRedisContextUnix.h
     QtRedisClient.cpp
-    NetworkLayer/QtRedisParser.h
-    NetworkLayer/QtRedisContext.h
-    NetworkLayer/QtRedisContextTcp.h
-    NetworkLayer/QtRedisTransporter.h
-    NetworkLayer/QtRedisContextSsl.h
-    NetworkLayer/QtRedisContextUnix.h
-    NetworkLayer/QtRedisParser.cpp
-    NetworkLayer/QtRedisContextTcp.cpp
-    NetworkLayer/QtRedisTransporter.cpp
-    NetworkLayer/QtRedisContextSsl.cpp
-    NetworkLayer/QtRedisContextUnix.cpp)
+    Core/QtRedisPipeline.cpp
+    Core/QtRedisTransaction.cpp
+    Core/NetworkLayer/QtRedisParser.cpp
+    Core/NetworkLayer/QtRedisContextTcp.cpp
+    Core/NetworkLayer/QtRedisTransporter.cpp
+    Core/NetworkLayer/QtRedisContextSsl.cpp
+    Core/NetworkLayer/QtRedisContextUnix.cpp)
 
 target_link_libraries(QtRedisClient PRIVATE
     Qt${QT_VERSION_MAJOR}::Core

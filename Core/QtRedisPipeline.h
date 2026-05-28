@@ -11,7 +11,7 @@
 //! \class QtRedisPipeline
 //! \brief Класс по работе с NoSQL базой данных Redis в режиме RedisPipeline
 //!
-//! Документация по командам: https://redis.io/commands
+//! Документация по командам: https://redis.io/docs/latest/commands/
 //!
 class QtRedisPipeline : public QtRedisBase<QtRedisPipeline, bool>
 {
@@ -41,7 +41,7 @@ public:
 
 protected:
     std::shared_ptr<QtRedisTransporter> _transporter {nullptr}; //!< слой взаимодействия с redis
-    QList<QtRedisCommand> _commandList;
+    QList<QtRedisCommand> _commandList; //!< список команд
 
     bool processCommand(const QtRedisCommand &command);
 };

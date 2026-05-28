@@ -3,26 +3,32 @@ DEPENDPATH += $$PWD/..
 
 QT += core network
 
+CONFIG += c++14
+equals(QMAKE_COMPILER, "gcc"): QMAKE_CXXFLAGS += -std=c++14
+equals(QMAKE_COMPILER, "msvc"): QMAKE_CXXFLAGS += /std:c++14
+
 HEADERS +=  $$PWD/QtRedisClient.h \
-            $$PWD/QtRedisBase.h \
             $$PWD/QtRedisClientVersion.h \
-            $$PWD/QtRedisCommand.h \
-            $$PWD/QtRedisPipeline.h \
-            $$PWD/QtRedisReply.h \
-            $$PWD/QtRedisClientInfo.h \
-            $$PWD/NetworkLayer/QtRedisParser.h \
-            $$PWD/NetworkLayer/QtRedisContext.h \
-            $$PWD/NetworkLayer/QtRedisContextTcp.h \
-            $$PWD/NetworkLayer/QtRedisTransporter.h \
-            $$PWD/NetworkLayer/QtRedisContextSsl.h \
-            $$PWD/NetworkLayer/QtRedisContextUnix.h
+            $$PWD/Core/QtRedisCommand.h \
+            $$PWD/Core/QtRedisReply.h \
+            $$PWD/Core/QtRedisClientInfo.h \
+            $$PWD/Core/QtRedisBase.h \
+            $$PWD/Core/QtRedisPipeline.h \
+            $$PWD/Core/QtRedisTransaction.h \
+            $$PWD/Core/NetworkLayer/QtRedisParser.h \
+            $$PWD/Core/NetworkLayer/QtRedisContext.h \
+            $$PWD/Core/NetworkLayer/QtRedisContextTcp.h \
+            $$PWD/Core/NetworkLayer/QtRedisTransporter.h \
+            $$PWD/Core/NetworkLayer/QtRedisContextSsl.h \
+            $$PWD/Core/NetworkLayer/QtRedisContextUnix.h
 
 
 SOURCES +=  $$PWD/QtRedisClient.cpp \
-            $$PWD/NetworkLayer/QtRedisParser.cpp \
-            $$PWD/NetworkLayer/QtRedisContextTcp.cpp \
-            $$PWD/NetworkLayer/QtRedisTransporter.cpp \
-            $$PWD/NetworkLayer/QtRedisContextSsl.cpp \
-            $$PWD/NetworkLayer/QtRedisContextUnix.cpp \
-            $$PWD/QtRedisPipeline.cpp
+            $$PWD/Core/QtRedisPipeline.cpp \
+            $$PWD/Core/QtRedisTransaction.cpp \
+            $$PWD/Core/NetworkLayer/QtRedisParser.cpp \
+            $$PWD/Core/NetworkLayer/QtRedisContextTcp.cpp \
+            $$PWD/Core/NetworkLayer/QtRedisTransporter.cpp \
+            $$PWD/Core/NetworkLayer/QtRedisContextSsl.cpp \
+            $$PWD/Core/NetworkLayer/QtRedisContextUnix.cpp
     

@@ -15,7 +15,7 @@
 //! \class QtRedisBase
 //! \brief Базовый шаблонный класс по работе с NoSQL базой данных Redis
 //!
-//! Документация по командам: https://redis.io/commands
+//! Документация по командам: https://redis.io/docs/latest/commands/
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 class QtRedisBase
@@ -33,10 +33,11 @@ public:
     // ------------------------------------------------------------------------
     // -- BASE COMMANDS -------------------------------------------------------
     // ------------------------------------------------------------------------
+    __RESULT_IMPL redisExecCommand(const QtRedisCommand &command);
     __RESULT_IMPL redisExecCommand(const QString &command);
     __RESULT_IMPL redisExecCommand(const QByteArray &command);
-    __RESULT_IMPL redisExecCommandArgv(const QStringList &commandArgv);
-    __RESULT_IMPL redisExecCommandArgv(const QList<QByteArray> &commandArgv);
+    __RESULT_IMPL redisExecCommand(const QStringList &commandArgv);
+    __RESULT_IMPL redisExecCommand(const QList<QByteArray> &commandArgv);
 
     // ------------------------------------------------------------------------
     // -- KEY-VALUE COMMANDS --------------------------------------------------
@@ -198,6 +199,11 @@ protected:
     mutable QMutex  _mutex;  //!< мьютекс
 
 private:
+    //!
+    //! \brief Задать сообщение об ошибке и вернуть пустой результат
+    //! \param error Сообщение об ошибке
+    //! \return
+    //!
     template <typename T = __RESULT_IMPL>
     typename std::enable_if<std::is_same<T, bool>::value, bool>::type
     make_error(const QString &error) {
@@ -205,6 +211,11 @@ private:
         return false;
     }
 
+    //!
+    //! \brief Задать сообщение об ошибке и вернуть пустой результат
+    //! \param error Сообщение об ошибке
+    //! \return
+    //!
     template <typename T = __RESULT_IMPL>
     typename std::enable_if<!std::is_same<T, bool>::value, __RESULT_IMPL>::type
     make_error(const QString &error) {
@@ -214,8 +225,8 @@ private:
 
     __CLIENT_IMPL *as_CLIENT_IMPL_ptr();
 
-    mutable QMutex  _mutexErr;  //!< мьютекс
-    QString         _lastError; //!< ошибка
+    mutable QMutex  _mutexErr;  //!< мьютекс для обработки ошибок
+    QString         _lastError; //!< сообщение об ошибке
 };
 
 
@@ -224,7 +235,7 @@ private:
 // ------------------------------------------------------------------------
 
 //!
-//! \brief Задана ли ошибка
+//! \brief Задано ли сообщение об ошибке
 //! \return
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
@@ -235,7 +246,7 @@ bool QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::hasLastError() const
 }
 
 //!
-//! \brief Последняя ошибка
+//! \brief Сообщение об ошибке
 //! \return
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
@@ -244,6 +255,7 @@ const QString &QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::lastError() const
     QMutexLocker lock(&_mutexErr);
     return _lastError;
 }
+
 
 
 // ------------------------------------------------------------------------
@@ -256,13 +268,24 @@ const QString &QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::lastError() const
 //! \return
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
-__RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const QString &command)
+__RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const QtRedisCommand &command)
 {
     QMutexLocker lock(&_mutex);
-    if (command.isEmpty())
-        return make_error("Command is Empty!");
+    if (!command.isValid())
+        return make_error("Command is Invalid!");
 
-    return as_CLIENT_IMPL_ptr()->processCommand(QtRedisCommand::fromString(command));
+    return as_CLIENT_IMPL_ptr()->processCommand(command);
+}
+
+//!
+//! \brief Выпонить команду
+//! \param command Команда
+//! \return
+//!
+template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
+__RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const QString &command)
+{
+    return this->redisExecCommand(QtRedisCommand::fromString(command));
 }
 
 //!
@@ -273,11 +296,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const 
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const QByteArray &command)
 {
-    QMutexLocker lock(&_mutex);
-    if (command.isEmpty())
-        return make_error("Command is Empty!");
-
-    return as_CLIENT_IMPL_ptr()->processCommand(QtRedisCommand::fromByteArray(command));
+    return this->redisExecCommand(QtRedisCommand::fromByteArray(command));
 }
 
 //!
@@ -286,17 +305,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const 
 //! \return
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
-__RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommandArgv(const QStringList &commandArgv)
+__RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const QStringList &commandArgv)
 {
-    QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty())
-        return make_error("CommandList is Empty!");
-
-    const QByteArray cmd = commandArgv.first().toUtf8();
-    QList<QByteArray> cmdArgv;
-    for (int i = 1; i < commandArgv.size(); i++)
-        cmdArgv.append(commandArgv.at(i).toUtf8());
-    return as_CLIENT_IMPL_ptr()->processCommand(QtRedisCommand(cmd, cmdArgv));
+    return this->redisExecCommand(QtRedisCommand::fromStringList(commandArgv));
 }
 
 //!
@@ -305,17 +316,9 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommandArgv(co
 //! \return
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
-__RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommandArgv(const QList<QByteArray> &commandArgv)
+__RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const QList<QByteArray> &commandArgv)
 {
-    QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty())
-        return make_error("CommandList is Empty!");
-
-    const QByteArray cmd = commandArgv.first();
-    QList<QByteArray> cmdArgv;
-    for (int i = 1; i < commandArgv.size(); i++)
-        cmdArgv.append(commandArgv.at(i));
-    return as_CLIENT_IMPL_ptr()->processCommand(QtRedisCommand(cmd, cmdArgv));
+    return this->redisExecCommand(QtRedisCommand::fromByteArrayList(commandArgv));
 }
 
 
@@ -328,6 +331,54 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommandArgv(co
 //! \param arg Условие поиска
 //! \return
 //!
+//! Redis command: KEYS
+//!
+//! KEYS pattern
+//!
+//! Available since:
+//!     Redis Open Source 1.0.0
+//! Time complexity:
+//!     O(N) with N being the number of keys in the database, under the assumption that the key names in the database and the given pattern have limited length.
+//! ACL categories:
+//!     @keyspace, @read, @slow, @dangerous
+//! Compatibility:
+//!     Redis Software and Redis Cloud compatibility
+//!
+//! Note:
+//! This command's behavior varies in clustered Redis environments. See the multi-key operations page for more information.
+//!
+//! Returns all keys matching pattern.
+//!
+//! While the time complexity for this operation is O(N), the constant times are fairly low. For example, Redis running on an entry level laptop can scan a 1 million key database in 40 milliseconds.
+//!
+//! Warning: consider KEYS as a command that should only be used in production environments with extreme care. It may ruin performance when it is executed against large databases. This command is intended for debugging and special operations, such as changing your keyspace layout. Don't use KEYS in your regular application code. If you're looking for a way to find keys in a subset of your keyspace, consider using SCAN or sets.
+//!
+//! Supported glob-style patterns:
+//!
+//!     h?llo matches hello, hallo and hxllo
+//!     h*llo matches hllo and heeeello
+//!     h[ae]llo matches hello and hallo, but not hillo
+//!     h[^e]llo matches hallo, hbllo, ... but not hello
+//!     h[a-b]llo matches hallo and hbllo
+//!
+//! Use \ to escape special characters if you want to match them verbatim.
+//!
+//! When using Redis Cluster, the search is optimized for patterns that imply a single slot. If a pattern can only match keys of one slot, Redis only iterates over keys in that slot, rather than the whole database, when searching for keys matching the pattern. For example, with the pattern {a}h*llo, Redis would only try to match it with the keys in slot 15495, which hash tag {a} implies. To use pattern with hash tag, see Hash tags in the Cluster specification for more information.
+//!
+//! Example (Redis-CLI):
+//!
+//! > MSET firstname Jack lastname Stuntman age 35
+//! "OK"
+//! > KEYS *name*
+//! 1) "lastname"
+//! 2) "firstname"
+//! > KEYS a??
+//! 1) "age"
+//! > KEYS *
+//! 1) "age"
+//! 2) "lastname"
+//! 3) "firstname"
+//!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisKeys(const QString &arg)
 {
@@ -337,6 +388,21 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisKeys(const QString
 //!
 //! \brief Случайный ключ из текущей БД
 //! \return
+//!
+//! Redis command: RANDOMKEY
+//!
+//! RANDOMKEY
+//!
+//! Available since:
+//!     Redis Open Source 1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @read, @slow
+//! Compatibility:
+//!     Redis Software and Redis Cloud compatibility
+//!
+//! Return a random key from the currently selected database.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRandomKey()
@@ -452,7 +518,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetSet(const QStri
 
     QStringList argv;
     argv << "GETSET" << key << value;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -483,7 +549,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisAppend(const QStri
 
     QStringList argv;
     argv << "APPEND" << key << appendValue;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -526,7 +592,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSet(const QString 
     if (!existFlag.isEmpty())
         argv << existFlag.toUpper();
 
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -551,7 +617,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSetRange(const QSt
 
     QStringList argv;
     argv << "SETRANGE" << key << QString::number(offset) << value;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1023,7 +1089,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSet(const QMap<QS
         i.next();
         argv << i.key() << i.value();
     }
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1055,7 +1121,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSetNx(const QMap<
         i.next();
         argv << i.key() << i.value();
     }
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1065,6 +1131,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSetNx(const QMap<
 //!
 //! Returns the values of all specified keys. For every key that does not hold a string value or does not exist, the special value nil is returned.
 //! Because of this, the operation never fails.
+//!
 //! Examples
 //! redis>  SET key1 "Hello"
 //! "OK"
@@ -1198,7 +1265,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLInsert(const QStr
 
     QStringList argv;
     argv << "LINSERT" << key << insertFlag.toUpper() << pilot << value;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1266,7 +1333,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPush(const QStrin
     for (const QString &str : valueList)
         argv << str;
 
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1286,7 +1353,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPushX(const QStri
 
     QStringList argv;
     argv << "LPUSHX" << key << value;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1345,7 +1412,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRem(const QString
 
     QStringList argv;
     argv << "LREM" << key << QString::number(count) << value;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1363,7 +1430,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLSet(const QString
 
     QStringList argv;
     argv << "LSET" << key << QString::number(index) << value;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1487,7 +1554,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPush(const QStrin
     for (const QString &str : valueList)
         argv << str;
 
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1508,7 +1575,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPushX(const QStri
 
     QStringList argv;
     argv << "RPUSHX" << key << value;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 
@@ -1545,7 +1612,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSAdd(const QString
     for (const QString &str : memberList)
         argv << str;
 
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1690,7 +1757,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSIsMember(const QS
 
     QStringList argv;
     argv << "SISMEMBER" << key << member;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1734,7 +1801,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMove(const QStrin
 
     QStringList argv;
     argv << "SMOVE" << sourceKey << destKey << member;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1749,6 +1816,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMove(const QStrin
 //!
 //! The count argument is available since version 3.2.
 //! Return value: the removed element, or nil when key does not exist.
+//!
 //! Examples
 //! redis>  SADD myset "one"
 //! (integer) 1
@@ -1784,7 +1852,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSPop(const QString
     if (count > 1)
         argv << QString::number(count);
 
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -1860,7 +1928,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRem(const QString
     for (const QString &str : memberList)
         argv << str;
 
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -2003,7 +2071,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZAdd(const QString
         i.next();
         argv << i.key() << i.value();
     }
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -2099,7 +2167,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZIncrBy(const QStr
 
     QStringList argv;
     argv << "ZINCRBY" << key << QString::number(incr) << member;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -2121,6 +2189,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZIncrBy(const QStr
 //!
 //! If destination already exists, it is overwritten.
 //! Return value: the number of elements in the resulting sorted set at destination.
+//!
 //! Examples
 //! redis>  ZADD zset1 1 "one"
 //! (integer) 1
@@ -2468,7 +2537,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRank(const QStrin
 
     QStringList argv;
     argv << "ZRANK" << key << member;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -2497,7 +2566,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRem(const QString
     for (const QString &member : members)
         argv << member;
 
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -2774,6 +2843,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByLex(con
 //! Return value
 //!
 //! Array reply: list of elements in the specified score range (optionally with their scores).
+//!
 //! Examples
 //! redis>  ZADD myzset 1 "one"
 //! (integer) 1
@@ -2858,7 +2928,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRank(const QSt
 
     QStringList argv;
     argv << "ZREVRANK" << key << member;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -2887,7 +2957,7 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZScore(const QStri
 
     QStringList argv;
     argv << "ZSCORE" << key << member;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!

@@ -1,6 +1,10 @@
 #include "QtRedisPipeline.h"
-#include <QDebug>
+#include <utility>
 
+//!
+//! \brief Конструктор класса
+//! \param transporter Класс транспорта для работы с Redis
+//!
 QtRedisPipeline::QtRedisPipeline(std::shared_ptr<QtRedisTransporter> transporter)
     : QtRedisBase<QtRedisPipeline, bool>()
     , _transporter(transporter)
@@ -14,6 +18,10 @@ QtRedisPipeline::~QtRedisPipeline()
 {
 }
 
+//!
+//! \brief Отправить все команды одним пакетом
+//! \return
+//!
 QtRedisReply QtRedisPipeline::exec()
 {
     QMutexLocker lock(&_mutex);
@@ -43,18 +51,34 @@ QtRedisReply QtRedisPipeline::exec()
     return reply;
 }
 
+//!
+//! \brief Отправить все команды одним пакетом
+//! \return
+//!
+//! Note: This is a wrapper over function QtRedisPipeline::exec()
+//!
 bool QtRedisPipeline::execToBool()
 {
     this->exec();
     return !this->hasLastError();
 }
 
+//!
+//! \brief Отменить все внесенные изменения
+//!
+//! Note: This method clears the entire command queue.
+//!
 void QtRedisPipeline::discard()
 {
     QMutexLocker lock(&_mutex);
     _commandList.clear();
 }
 
+//!
+//! \brief Выполнить команду
+//! \param command Команда
+//! \return
+//!
 bool QtRedisPipeline::processCommand(const QtRedisCommand &command)
 {
     _commandList.append(std::move(command));

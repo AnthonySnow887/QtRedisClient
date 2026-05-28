@@ -134,16 +134,12 @@ QtRedisReply QtRedisParser::parseRawDataToState(QByteArray &data, bool *ok)
         return QtRedisReply();
     }
     QByteArray buffData = data;
-    int buffIndex = buffData.indexOf("\r\n");
+    const int buffIndex = buffData.indexOf("\r\n");
     if (buffIndex == -1)
         return QtRedisReply();
-    if (buffIndex != -1) {
-        buffData = buffData.remove(buffIndex, 2);
-        buffData.remove(0, 1);
-    }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Status);
-    reply.setRawValue(buffData);
+    reply.setRawValue(buffData.mid(1, buffIndex - 1));
     if (ok)
         *ok = true;
 
@@ -173,16 +169,12 @@ QtRedisReply QtRedisParser::parseRawDataToError(QByteArray &data, bool *ok)
         return QtRedisReply();
     }
     QByteArray buffData = data;
-    int buffIndex = buffData.indexOf("\r\n");
+    const int buffIndex = buffData.indexOf("\r\n");
     if (buffIndex == -1)
         return QtRedisReply();
-    if (buffIndex != -1) {
-        buffData = buffData.remove(buffIndex, 2);
-        buffData.remove(0, 1);
-    }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Error);
-    reply.setRawValue(buffData);
+    reply.setRawValue(buffData.mid(1, buffIndex - 1));
     if (ok)
         *ok = true;
 
@@ -212,16 +204,12 @@ QtRedisReply QtRedisParser::parseRawDataToInt(QByteArray &data, bool *ok)
         return QtRedisReply();
     }
     QByteArray buffData = data;
-    int buffIndex = buffData.indexOf("\r\n");
+    const int buffIndex = buffData.indexOf("\r\n");
     if (buffIndex == -1)
         return QtRedisReply();
-    if (buffIndex != -1) {
-        buffData = buffData.remove(buffIndex, 2);
-        buffData.remove(0, 1);
-    }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Integer);
-    reply.setRawValue(buffData);
+    reply.setRawValue(buffData.mid(1, buffIndex - 1));
     if (ok)
         *ok = true;
 
@@ -253,22 +241,24 @@ QtRedisReply QtRedisParser::parseRawDataToString(QByteArray &data, bool *ok)
         return QtRedisReply();
     }
     QByteArray buffData = data;
-    int buffIndexLen = buffData.indexOf("\r\n");
+    const int buffIndexLen = buffData.indexOf("\r\n");
     if (buffIndexLen < 0)
         return QtRedisReply();
 
     // get strlen...
-    QByteArray strLenData = data;
-    strLenData = strLenData.remove(buffIndexLen, strLenData.length() - buffIndexLen); // remove data
-    strLenData = strLenData.remove(0, 1); // remove type
-    qlonglong strLen = strLenData.toLongLong();
-    // check is Nil object
-    if (strLen < 0)
+    const QByteArray strLenData = data.mid(1, buffIndexLen - 1);
+    const qlonglong strLen = strLenData.toLongLong();
+    // check is Nil object (Nil string)
+    if (strLen < 0) {
+        if (ok)
+            *ok = true;
+        data.remove(0, buffIndexLen + 2); // remove type + len
         return QtRedisReply();
+    }
 
     // get data...
     buffData = buffData.remove(0, buffIndexLen + 2); // remove type + strlen
-    int buffIndexData = buffData.indexOf("\r\n", strLen);
+    const int buffIndexData = buffData.indexOf("\r\n", strLen);
     if (buffIndexData == -1)
         return QtRedisReply();
     if (buffIndexData != -1)
@@ -310,18 +300,20 @@ QtRedisReply QtRedisParser::parseRawDataToArray(QByteArray &data, bool *ok)
     }
 
     QByteArray buffData = data;
-    int buffIndexLen = buffData.indexOf("\r\n");
+    const int buffIndexLen = buffData.indexOf("\r\n");
     if (buffIndexLen < 0)
         return QtRedisReply();
 
     // get strlen...
-    QByteArray arrayLenData = data;
-    arrayLenData = arrayLenData.remove(buffIndexLen, arrayLenData.length() - buffIndexLen); // remove data
-    arrayLenData = arrayLenData.remove(0, 1); // remove type
-    qlonglong arrayLen = arrayLenData.toLongLong();
-    // check is Nil object
-    if (arrayLen < 0)
+    const QByteArray arrayLenData = data.mid(1, buffIndexLen - 1);;
+    const qlonglong arrayLen = arrayLenData.toLongLong();
+    // check is Nil object (Nil array)
+    if (arrayLen < 0) {
+        if (ok)
+            *ok = true;
+        data.remove(0, buffIndexLen + 2); // remove type + len
         return QtRedisReply();
+    }
 
     // get data...
     buffData = buffData.remove(0, buffIndexLen + 2); // remove type + len
@@ -354,8 +346,8 @@ QtRedisReply QtRedisParser::parseRawDataToArray(QByteArray &data, bool *ok)
         *ok = true;
 
     if (!buffData.isEmpty()) {
-        int oldRawSize = reply.rawValue().size();
-        int newRawSize = buffData.size();
+        const int oldRawSize = reply.rawValue().size();
+        const int newRawSize = buffData.size();
         reply.setRawValue(data.left(oldRawSize - newRawSize));
     }
     data = buffData; // remove parsed data (index + 2 chars (\r\n))

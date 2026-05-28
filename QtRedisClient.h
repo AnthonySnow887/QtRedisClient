@@ -9,18 +9,19 @@
 #include <QVector>
 #include <QMutex>
 
-#include "QtRedisBase.h"
-#include "QtRedisPipeline.h"
-#include "QtRedisClientInfo.h"
 #include "QtRedisClientVersion.h"
-#include "NetworkLayer/QtRedisTransporter.h"
+#include "Core/QtRedisBase.h"
+#include "Core/QtRedisPipeline.h"
+#include "Core/QtRedisTransaction.h"
+#include "Core/QtRedisClientInfo.h"
+#include "Core/NetworkLayer/QtRedisTransporter.h"
 
 //!
 //! \file QtRedisClient.h
 //! \class QtRedisClient
 //! \brief Класс по работе с NoSQL базой данных Redis
 //!
-//! Документация по командам: https://redis.io/commands
+//! Документация по командам: https://redis.io/docs/latest/commands/
 //!
 class QtRedisClient : public QObject, public QtRedisBase<QtRedisClient, QtRedisReply>
 {
@@ -89,7 +90,7 @@ public:
     bool redisConfigResetStat();
 
     // -- CLIENT-methods --
-    QVector<QtRedisClientInfo> redisClientList();
+    QList<QtRedisClientInfo> redisClientList();
     bool redisClientSetName(const QString &connectionName);
     QString redisClientGetName();
     bool redisClientKill(const QString &ip, const uint port);
@@ -126,8 +127,17 @@ public:
     bool redisSUnsubscribe(const QString &shardChannel = QString());
     bool redisSUnsubscribe(const QStringList &shardChannels);
 
-    //---------
+    // ------------------------------------------------------------------------
+    // -- Pipeline & Transaction COMMANDS -------------------------------------
+    // ------------------------------------------------------------------------
     QtRedisPipeline createPipeline();
+    QtRedisTransaction createTransaction(const bool piped = true);
+
+    // ------------------------------------------------------------------------
+    // -- TOOLS ---------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    static QMap<QString, QVariant> redisInfoFromRawData(const QByteArray &data);
+    static QMap<QString, QVariant> redisInfoFromStringData(const QString &data);
 
 protected:
     std::shared_ptr<QtRedisTransporter> _transporter {nullptr}; //!< слой взаимодействия с redis

@@ -1,6 +1,9 @@
 #include "QtRedisClient.h"
 #include <QDebug>
 
+//!
+//! \brief Конструктор класса
+//!
 QtRedisClient::QtRedisClient()
     : QObject()
     , QtRedisBase<QtRedisClient, QtRedisReply>()
@@ -14,6 +17,10 @@ QtRedisClient::~QtRedisClient()
 {
 }
 
+//!
+//! \brief Версия библиотеки
+//! \return
+//!
 QString QtRedisClient::libraryVersion()
 {
     return QT_REDIS_CLIENT_VERSION_STR;
@@ -73,7 +80,7 @@ bool QtRedisClient::redisIsConnected()
 //! \param timeOutMsec Время ожидания в мсек
 //! \return
 //!
-//! Данный метод сипользует протокол TCP.
+//! Данный метод использует протокол TCP.
 //!
 bool QtRedisClient::redisConnect(const QString &host,
                                  const int port,
@@ -121,7 +128,7 @@ bool QtRedisClient::redisConnect(const QString &host,
 //! \param timeOutMsec Время ожидания в мсек
 //! \return
 //!
-//! Данный метод сипользует протокол TCP-SSL.
+//! Данный метод использует протокол TCP-SSL.
 //!
 bool QtRedisClient::redisConnectEncrypted(const QString &host,
                                           const int port,
@@ -170,7 +177,7 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
 //! \param timeOutMsec Время ожидания в мсек
 //! \return
 //!
-//! Данный метод сипользует UNIX-sockets.
+//! Данный метод использует UNIX-sockets.
 //!
 bool QtRedisClient::redisConnectUnix(const QString &sockPath,
                                      const int timeOutMsec,
@@ -263,7 +270,7 @@ bool QtRedisClient::redisAuth(const QString &password)
 {
     QStringList argv;
     argv << "AUTH" << password;
-    return QtRedisReply::replySimpleStringToBool(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(argv));
 }
 
 //!
@@ -278,7 +285,7 @@ bool QtRedisClient::redisPing(const QString &msg)
     if (!msg.isEmpty())
         argv << msg;
 
-    const QtRedisReply buffReply = this->redisExecCommandArgv(argv);
+    const QtRedisReply buffReply = this->redisExecCommand(argv);
     if (msg.isEmpty()) {
         if (buffReply.type() != QtRedisReply::ReplyType::Status) {
             this->setLastError_safe("Invalid reply type!");
@@ -310,7 +317,7 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 {
     QStringList argv;
     argv << "ECHO" << msg;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
@@ -363,20 +370,7 @@ QMap<QString, QVariant> QtRedisClient::redisInfo(const QString &section)
         this->setLastError_safe("Invalid reply type!");
         return QMap<QString, QVariant>();
     }
-
-    QMap<QString, QVariant> buffInfo;
-    QStringList buffReplyList = buffReply.strValue().split("\n");
-    for (int i = 0; i < buffReplyList.size(); i++) {
-        buffReplyList[i] = buffReplyList[i].trimmed();
-        if (buffReplyList[i].isEmpty())
-            continue;
-
-        QStringList buffSplitValue = buffReplyList[i].split(":");
-        if (buffSplitValue.size() < 2)
-            continue;
-        buffInfo.insert(buffSplitValue[0], buffSplitValue[1]);
-    }
-    return buffInfo;
+    return QtRedisClient::redisInfoFromRawData(buffReply.rawValue());
 }
 
 //!
@@ -609,7 +603,7 @@ bool QtRedisClient::redisConfigSet(const QString &param, const QString &value)
     }
     QStringList argv;
     argv << "CONFIG SET" << param << value;
-    return QtRedisReply::replySimpleStringToBool(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(argv));
 }
 
 //!
@@ -659,7 +653,7 @@ bool QtRedisClient::redisConfigResetStat()
 // -- CLIENT-methods --
 
 //!
-//! \brief Список подключенный к серверу клиентов
+//! \brief Список подключенных к серверу клиентов
 //! \return
 //!
 //! The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
@@ -682,32 +676,14 @@ bool QtRedisClient::redisConfigResetStat()
 //! - events: file descriptor events (see below)
 //! - cmd: last command played
 //!
-QVector<QtRedisClientInfo> QtRedisClient::redisClientList()
+QList<QtRedisClientInfo> QtRedisClient::redisClientList()
 {
     const QtRedisReply buffReply = this->redisExecCommand(QString("CLIENT LIST"));
     if (buffReply.type() != QtRedisReply::ReplyType::String) {
         this->setLastError_safe("Invalid reply type!");
-        return QVector<QtRedisClientInfo>();
+        return QList<QtRedisClientInfo>();
     }
-
-    QVector<QtRedisClientInfo> buffList;
-    QStringList buffReplyList = buffReply.strValue().split("\n");
-    for (int i = 0; i < buffReplyList.size(); i++) {
-        buffReplyList[i] = buffReplyList[i].trimmed();
-        if (buffReplyList[i].isEmpty())
-            continue;
-
-        QMap <QString, QVariant> buffInfo;
-        const QStringList buffSplitValue = buffReplyList[i].split(" ");
-        for (const QString &str : buffSplitValue) {
-            QStringList strSplit = str.split("=");
-            if (strSplit.size() != 2)
-                continue;
-            buffInfo.insert(strSplit[0], strSplit[1]);
-        }
-        buffList.append(QtRedisClientInfo(buffInfo));
-    }
-    return buffList;
+    return QtRedisClientInfo::fromRawData(buffReply.rawValue_ref());
 }
 
 //!
@@ -765,7 +741,7 @@ bool QtRedisClient::redisClientKill(const QString &ip, const uint port)
     }
     QStringList argv;
     argv << "CLIENT" << "KILL" << "ADDR" << QString("%1:%2").arg(ip).arg(port);
-    return QtRedisReply::replyIntToBool(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyIntToBool(this->redisExecCommand(argv));
 }
 
 //!
@@ -819,7 +795,7 @@ QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
     argv << "PUBSUB" << "CHANNELS";
     if (!pattern.trimmed().isEmpty())
         argv << pattern.trimmed();
-    return QtRedisReply::replyToStringList(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToStringList(this->redisExecCommand(argv));
 }
 
 //!
@@ -849,7 +825,7 @@ qlonglong QtRedisClient::redisPubSubNumPat()
 {
     QStringList argv;
     argv << "PUBSUB" << "NUMPAT";
-    return QtRedisReply::replyToLong(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToLong(this->redisExecCommand(argv));
 }
 
 //!
@@ -915,7 +891,7 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &cha
     argv << "PUBSUB" << "NUMSUB";
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    const QtRedisReply reply = this->redisExecCommandArgv(argv);
+    const QtRedisReply reply = this->redisExecCommand(argv);
     if (reply.arrayValueSize() != tmpChannels.size() * 2)
         return QMap<QString, qlonglong>();
     // parse result
@@ -965,7 +941,7 @@ QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
     argv << "PUBSUB" << "SHARDCHANNELS";
     if (!pattern.trimmed().isEmpty())
         argv << pattern;
-    return QtRedisReply::replyToStringList(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToStringList(this->redisExecCommand(argv));
 }
 
 //!
@@ -1039,7 +1015,7 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList
     argv << "PUBSUB" << "SHARDNUMSUB";
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    const QtRedisReply reply = this->redisExecCommandArgv(argv);
+    const QtRedisReply reply = this->redisExecCommand(argv);
     if (reply.arrayValueSize() != tmpChannels.size() * 2)
         return QMap<QString, qlonglong>();
     // parse result
@@ -1110,7 +1086,7 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
     }
     QList<QByteArray> argv;
     argv << "PUBLISH" << channel.trimmed().toUtf8() << message;
-    return QtRedisReply::replyToLong(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToLong(this->redisExecCommand(argv));
 }
 
 //!
@@ -1190,7 +1166,7 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteA
     }
     QList<QByteArray> argv;
     argv << "SPUBLISH" << shardChannel.trimmed().toUtf8() << message;
-    return QtRedisReply::replyToLong(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToLong(this->redisExecCommand(argv));
 }
 
 //!
@@ -1564,11 +1540,106 @@ bool QtRedisClient::redisSUnsubscribe(const QStringList &shardChannels)
 }
 
 
+// ------------------------------------------------------------------------
+// -- Pipeline & Transaction COMMANDS -------------------------------------
+// ------------------------------------------------------------------------
+
+//!
+//! \brief Создать объект для работы в режиме RedisPipeline
+//! \return
+//!
 QtRedisPipeline QtRedisClient::createPipeline()
 {
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QtRedisPipeline(nullptr);
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QtRedisPipeline(nullptr);
+    }
     return QtRedisPipeline(_transporter);
 }
 
+//!
+//! \brief Создать объект для работы в режиме RedisTransaction
+//! \return
+//!
+QtRedisTransaction QtRedisClient::createTransaction(const bool piped)
+{
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QtRedisTransaction(nullptr, piped);
+    }
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QtRedisTransaction(nullptr, piped);
+    }
+    return QtRedisTransaction(_transporter, piped);
+}
+
+
+// ------------------------------------------------------------------------
+// -- TOOLS ---------------------------------------------------------------
+// ------------------------------------------------------------------------
+
+//!
+//! \brief Получить информацию о сервере в формате массива ключ-значение из "сырого" формата данных
+//! \param data "Сырой" формат данных
+//! \return
+//!
+QMap<QString, QVariant> QtRedisClient::redisInfoFromRawData(const QByteArray &data)
+{
+    if (data.isEmpty())
+        return QMap<QString, QVariant>();
+
+    QMap<QString, QVariant> buffInfo;
+    QList<QByteArray> buffReplyList = data.split('\n');
+    for (int i = 0; i < buffReplyList.size(); i++) {
+        buffReplyList[i] = buffReplyList[i].trimmed();
+        if (buffReplyList[i].isEmpty())
+            continue;
+
+        const QList<QByteArray> buffSplitValue = buffReplyList[i].split(':');
+        if (buffSplitValue.size() < 2)
+            continue;
+        buffInfo.insert(QString::fromUtf8(buffSplitValue.at(0)), buffSplitValue.at(1));
+    }
+    return buffInfo;
+}
+
+//!
+//! \brief Получить информацию о сервере в формате массива ключ-значение из строкового формата данных
+//! \param data Строковый формат данных
+//! \return
+//!
+QMap<QString, QVariant> QtRedisClient::redisInfoFromStringData(const QString &data)
+{
+    if (data.isEmpty())
+        return QMap<QString, QVariant>();
+
+    QMap<QString, QVariant> buffInfo;
+    QStringList buffReplyList = data.split("\n");
+    for (int i = 0; i < buffReplyList.size(); i++) {
+        buffReplyList[i] = buffReplyList[i].trimmed();
+        if (buffReplyList[i].isEmpty())
+            continue;
+
+        const QStringList buffSplitValue = buffReplyList[i].split(":");
+        if (buffSplitValue.size() < 2)
+            continue;
+        buffInfo.insert(buffSplitValue.at(0), buffSplitValue.at(1));
+    }
+    return buffInfo;
+}
+
+// --- protected ---
+
+//!
+//! \brief Выполнить команду
+//! \param command Команда
+//! \return
+//!
 QtRedisReply QtRedisClient::processCommand(const QtRedisCommand &command)
 {
     if (!_transporter) {
@@ -1592,6 +1663,14 @@ QtRedisReply QtRedisClient::processCommand(const QtRedisCommand &command)
     return reply;
 }
 
+// --- private ---
+
+//!
+//! \brief Выполнить подписку на каналы
+//! \param command Команда
+//! \param channels Список каналов
+//! \return
+//!
 bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringList &channels)
 {
     QMutexLocker lock(&_mutex);
@@ -1640,6 +1719,12 @@ bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringLis
     return isOk;
 }
 
+//!
+//! \brief Выполнить отписку от каналов
+//! \param command Команда
+//! \param channels Список каналов
+//! \return
+//!
 bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringList &channels)
 {
     QMutexLocker lock(&_mutex);
