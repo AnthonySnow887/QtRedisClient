@@ -88,6 +88,7 @@ protected:
     QtRedisReply sendContextCommand(QtRedisContext *context, const QtRedisCommand &command, QString &error, bool *ok = 0);
     QtRedisReply sendContextCommands(QtRedisContext *context, const QList<QtRedisCommand> &commands, QString &error, bool *ok = 0);
 
+    bool isCommandSelect(const QtRedisCommand &command) const;
     void checkCommandResult(QtRedisContext *context, const QtRedisCommand &command, const QtRedisReply &reply);
 
 protected slots:

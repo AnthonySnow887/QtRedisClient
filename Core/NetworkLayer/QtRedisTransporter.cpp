@@ -413,6 +413,7 @@ QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, con
         error = QString("Command is Invalid!");
         return QtRedisReply();
     }
+    const bool isSelectDb = this->isCommandSelect(command);
     context->writeRawData(QtRedisParser::createRawData(command));
     if (!context->waitForReadyRead()) {
         error = QString("Context waitForReadyRead failed!");
@@ -437,8 +438,8 @@ QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, con
     if (ok)
         *ok = true;
 
-    for (const QtRedisReply &r : qAsConst(reply.arrayValue_ref()))
-        this->checkCommandResult(context, command, r);
+    if (isSelectDb && !reply.isArrayValueEmpty())
+        this->checkCommandResult(context, command, reply.arrayValueFirst_ref());
     if (reply.arrayValueSize() == 1)
         return reply.arrayValueFirst();
 
@@ -461,13 +462,19 @@ QtRedisReply QtRedisTransporter::sendContextCommands(QtRedisContext *context, co
         return QtRedisReply();
     }
     // create data
+    int index = 0;
+    int selectDbCommandIndex = -1;
     QByteArray data;
     for (const QtRedisCommand &cmd : commands) {
         if (!cmd.isValid()) {
             error = QString("Invalid command in commands list!");
             return QtRedisReply();
         }
+        if (this->isCommandSelect(cmd))
+            selectDbCommandIndex = index;
+
         data += QtRedisParser::createRawData(cmd);
+        index++;
     }
     // send
     context->writeRawData(data);
@@ -491,8 +498,8 @@ QtRedisReply QtRedisTransporter::sendContextCommands(QtRedisContext *context, co
         error = QString("Invalid reply size (command-list-size != reply-list-size)!");
         return QtRedisReply();
     }
-    for (int i = 0; i < reply.arrayValueSize(); i++)
-        this->checkCommandResult(context, commands.at(i), reply.arrayValueAt(i));
+    if (selectDbCommandIndex != -1)
+        this->checkCommandResult(context, commands.at(selectDbCommandIndex), reply.arrayValueAt(selectDbCommandIndex));
 
     if (ok)
         *ok = true;
@@ -500,6 +507,16 @@ QtRedisReply QtRedisTransporter::sendContextCommands(QtRedisContext *context, co
     if (reply.arrayValueSize() == 1)
         return reply.arrayValueFirst();
     return reply;
+}
+
+bool QtRedisTransporter::isCommandSelect(const QtRedisCommand &command) const
+{
+    if (!command.isValid())
+        return false;
+
+    // check select db
+    return (command.size() == 2 && command.command() == QString("SELECT"));
+
 }
 
 //!
