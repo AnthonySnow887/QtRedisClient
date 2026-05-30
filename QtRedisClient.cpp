@@ -117,8 +117,15 @@ bool QtRedisClient::redisConnect(const QString &host,
     } else {
         _transporter->clearTransporter();
     }
-    _transporter->initTransporter(QtRedisTransporter::Type::Tcp, host, port);
-    return _transporter->connectToServer(timeOutMsec);
+    QString error;
+    if (!_transporter->initTransporter(QtRedisTransporter::Type::Tcp, host, port, error)) {
+        this->setLastError_safe(error);
+        return false;
+    }
+    const bool isOk = _transporter->connectToServer(error, timeOutMsec);
+    if (!isOk)
+        this->setLastError_safe(error);
+    return isOk;
 }
 
 //!
@@ -166,8 +173,15 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
     } else {
         _transporter->clearTransporter();
     }
-    _transporter->initTransporter(QtRedisTransporter::Type::Ssl, host, port);
-    return _transporter->connectToServer(timeOutMsec);
+    QString error;
+    if (!_transporter->initTransporter(QtRedisTransporter::Type::Ssl, host, port, error)) {
+        this->setLastError_safe(error);
+        return false;
+    }
+    const bool isOk = _transporter->connectToServer(error, timeOutMsec);
+    if (!isOk)
+        this->setLastError_safe(error);
+    return isOk;
 }
 
 #if defined(Q_OS_LINUX)
@@ -213,8 +227,15 @@ bool QtRedisClient::redisConnectUnix(const QString &sockPath,
     } else {
         _transporter->clearTransporter();
     }
-    _transporter->initTransporter(QtRedisTransporter::Type::Unix, sockPath, -1);
-    return _transporter->connectToServer(timeOutMsec);
+    QString error;
+    if (!_transporter->initTransporter(QtRedisTransporter::Type::Unix, sockPath, -1, error)) {
+        this->setLastError_safe(error);
+        return false;
+    }
+    const bool isOk = _transporter->connectToServer(error, timeOutMsec);
+    if (!isOk)
+        this->setLastError_safe(error);
+    return isOk;
 }
 #endif
 
@@ -230,7 +251,11 @@ bool QtRedisClient::redisReconnect(const int timeOutMsec)
         this->setLastError_safe("QtRedisTransporter is NULL!");
         return false;
     }
-    return _transporter->reconnectToServer(timeOutMsec);
+    QString error;
+    const bool isOk = _transporter->reconnectToServer(error, timeOutMsec);
+    if (!isOk)
+        this->setLastError_safe(error);
+    return isOk;
 }
 
 //!
@@ -1651,15 +1676,11 @@ QtRedisReply QtRedisClient::processCommand(const QtRedisCommand &command)
         return QtRedisReply();
     }
     this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(command);
-    if (reply.isError()) {
-        this->setLastError_safe(reply.strValue());
-    } else if (reply.isArray()) {
-        for (const QtRedisReply &replyObj : reply.arrayValue_ref()) {
-            if (replyObj.isError())
-                this->setLastError_safe(replyObj.strValue());
-        }
-    }
+    QString error;
+    bool isOk = false;
+    const QtRedisReply reply = _transporter->sendCommand(command, error, &isOk);
+    if (!error.isEmpty())
+        this->setLastError_safe(error);
     return reply;
 }
 
@@ -1690,20 +1711,37 @@ bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringLis
         this->setLastError_safe("Client is not connected!");
         return false;
     }
+    QString error;
     if (!_transporter->isSubscribed()
-        && !_transporter->subscribeToServer()) {
-        this->setLastError_safe("Subscribe to the server failed!");
+        && !_transporter->subscribeToServer(error)) {
+        this->setLastError_safe(!error.isEmpty() ? error : "Subscribe to the server failed!");
         return false;
     }
     // make args
     QStringList argv;
     argv << command.trimmed().toUpper() << tmpChannels;
-    const QtRedisReply replyList = _transporter->sendChannelCommand(QtRedisCommand::fromString(argv.join(" ")));
+    bool isOk = false;
+    const QtRedisReply replyList = _transporter->sendChannelCommand(QtRedisCommand::fromString(argv.join(" ")), error, &isOk);
+    if (!isOk) {
+        this->setLastError_safe(error);
+        return false;
+    }
+
+    // if 1 channel - check reply
+    if (tmpChannels.size() == 1
+        && replyList.type() == QtRedisReply::ReplyType::Array
+        && replyList.arrayValueSize() == 3
+        && replyList.arrayValue().at(0).strValue() == command.trimmed().toLower()
+        && replyList.arrayValue().at(1).strValue() == tmpChannels.constFirst())
+        return true;
+
+    // check size
     if (replyList.arrayValueSize() != tmpChannels.size()) {
         this->setLastError_safe("Invalid reply list size!");
         return false;
     }
-    bool isOk = true;
+
+    isOk = true;
     for (int i = 0; i < tmpChannels.size(); i++) {
         const QtRedisReply reply = replyList.arrayValueAt(i);
         const QString channel = tmpChannels[i];
@@ -1748,12 +1786,29 @@ bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringL
     argv << command.trimmed().toUpper();
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    const QtRedisReply replyList = _transporter->sendChannelCommand(QtRedisCommand::fromString(argv.join(" ")));
+    QString error;
+    bool isOk = false;
+    const QtRedisReply replyList = _transporter->sendChannelCommand(QtRedisCommand::fromString(argv.join(" ")), error, &isOk);
+    if (!isOk) {
+        this->setLastError_safe(error);
+        return false;
+    }
+
+    // if 1 channel - check reply
+    if (tmpChannels.size() == 1
+        && replyList.type() == QtRedisReply::ReplyType::Array
+        && replyList.arrayValueSize() == 3
+        && replyList.arrayValue().at(0).strValue() == command.trimmed().toLower()
+        && replyList.arrayValue().at(1).strValue() == tmpChannels.constFirst())
+        return true;
+
+    // check size
     if (replyList.arrayValueSize() != tmpChannels.size()) {
         this->setLastError_safe("Invalid reply list size!");
         return false;
     }
-    bool isOk = true;
+
+    isOk = true;
     for (int i = 0; i < tmpChannels.size(); i++) {
         const QtRedisReply reply = replyList.arrayValueAt(i);
         const QString channel = tmpChannels[i];

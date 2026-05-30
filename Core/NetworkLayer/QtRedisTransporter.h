@@ -51,22 +51,23 @@ public:
 
     bool initTransporter(const Type &type,
                          const QString &host,
-                         const int port);
+                         const int port,
+                         QString &error);
 
     void clearTransporter();
 
-    bool connectToServer(const int timeoutMSec = 0);
-    bool reconnectToServer(const int timeoutMSec = 0);
-    bool subscribeToServer(const int timeoutMSec = 0);
+    bool connectToServer(QString &error,const int timeoutMSec = 0);
+    bool reconnectToServer(QString &error, const int timeoutMSec = 0);
+    bool subscribeToServer(QString &error, const int timeoutMSec = 0);
     void unsubscribeFromServer();
     void disconnectFromServer();
     bool isConnected() const;
     bool isSubscribed() const;
 
-    QtRedisReply sendCommand(const QtRedisCommand &command);
-    QtRedisReply sendCommands(const QList<QtRedisCommand> &commands);
+    QtRedisReply sendCommand(const QtRedisCommand &command, QString &error, bool *ok = 0);
+    QtRedisReply sendCommands(const QList<QtRedisCommand> &commands, QString &error, bool *ok = 0);
 
-    QtRedisReply sendChannelCommand(const QtRedisCommand &command);
+    QtRedisReply sendChannelCommand(const QtRedisCommand &command, QString &error, bool *ok = 0);
 
 protected:
     Type            _type {Type::NoType};                            //!< тип
@@ -84,8 +85,8 @@ protected:
 
     QtRedisContext *channelContext_unsafe() const;
 
-    QtRedisReply sendContextCommand(QtRedisContext *context, const QtRedisCommand &command);
-    QtRedisReply sendContextCommands(QtRedisContext *context, const QList<QtRedisCommand> &commands);
+    QtRedisReply sendContextCommand(QtRedisContext *context, const QtRedisCommand &command, QString &error, bool *ok = 0);
+    QtRedisReply sendContextCommands(QtRedisContext *context, const QList<QtRedisCommand> &commands, QString &error, bool *ok = 0);
 
     void checkCommandResult(QtRedisContext *context, const QtRedisCommand &command, const QtRedisReply &reply);
 

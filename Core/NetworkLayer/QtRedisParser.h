@@ -21,17 +21,17 @@ public:
 
     static QByteArray createRawData(const QtRedisCommand &command);
 
-    static QtRedisReply parseRawData(const QByteArray &data, bool *ok = 0);
+    static QtRedisReply parseRawData(const QByteArray &data, QString &error, bool *ok = 0);
 
 protected:
     static QByteArray createRawDataArgument(const QByteArray &arg);
 
-    static QtRedisReply parseRawDataTypes(QByteArray &data, bool *ok = 0);
-    static QtRedisReply parseRawDataToState(QByteArray &data, bool *ok = 0);
-    static QtRedisReply parseRawDataToError(QByteArray &data, bool *ok = 0);
-    static QtRedisReply parseRawDataToInt(QByteArray &data, bool *ok = 0);
-    static QtRedisReply parseRawDataToString(QByteArray &data, bool *ok = 0);
-    static QtRedisReply parseRawDataToArray(QByteArray &data, bool *ok = 0);
+    static QtRedisReply parseRawDataTypes(QByteArray &data, QString &error, bool *ok = 0);
+    static QtRedisReply parseRawDataToState(QByteArray &data, QString &error, bool *ok = 0);
+    static QtRedisReply parseRawDataToError(QByteArray &data, QString &error, bool *ok = 0);
+    static QtRedisReply parseRawDataToInt(QByteArray &data, QString &error, bool *ok = 0);
+    static QtRedisReply parseRawDataToString(QByteArray &data, QString &error, bool *ok = 0);
+    static QtRedisReply parseRawDataToArray(QByteArray &data, QString &error, bool *ok = 0);
 };
 
 #endif // QTREDISPARSER_H

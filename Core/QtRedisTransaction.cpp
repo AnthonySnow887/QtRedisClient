@@ -59,9 +59,11 @@ bool QtRedisTransaction::watch(const QString &key)
     if (_watchList.contains(key.trimmed()))
         return true;
     this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand::fromString(QString("WATCH %1").arg(key).trimmed()));
-    if (reply.isError())
-        this->setLastError_safe(reply.strValue());
+    QString error;
+    bool isOk = false;
+    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand::fromString(QString("WATCH %1").arg(key).trimmed()), error, &isOk);
+    if (!error.isEmpty())
+        this->setLastError_safe(error);
 
     const bool res = QtRedisReply::replySimpleStringToBool(reply);
     if (res)
@@ -120,9 +122,11 @@ bool QtRedisTransaction::watch(const QStringList &keys)
         return false;
     }
     this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand::fromString(QString("WATCH %1").arg(tmpKeys.join(" ")).trimmed()));
-    if (reply.isError())
-        this->setLastError_safe(reply.strValue());
+    QString error;
+    bool isOk = false;
+    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand::fromString(QString("WATCH %1").arg(tmpKeys.join(" ")).trimmed()), error, &isOk);
+    if (!error.isEmpty())
+        this->setLastError_safe(error);
 
     const bool res = QtRedisReply::replySimpleStringToBool(reply);
     if (res)
@@ -161,9 +165,11 @@ bool QtRedisTransaction::unwatch()
         return false;
     }
     this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand("UNWATCH"));
-    if (reply.isError())
-        this->setLastError_safe(reply.strValue());
+    QString error;
+    bool isOk = false;
+    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand("UNWATCH"), error, &isOk);
+    if (!error.isEmpty())
+        this->setLastError_safe(error);
 
     _watchList.clear();
     return QtRedisReply::replySimpleStringToBool(reply);
@@ -220,8 +226,15 @@ QtRedisReply QtRedisTransaction::exec()
     this->clearLastError_safe();
     // queued commands
     if (_piped) {
-        const QtRedisReply reply = _transporter->sendCommands(_commandList);
+        QString error;
+        bool isOk = false;
+        const QtRedisReply reply = _transporter->sendCommands(_commandList, error, &isOk);
         _commandList.clear();
+        if (!isOk) {
+            this->setLastError_safe(error);
+            this->discardTransaction_unsafe();
+            return QtRedisReply();
+        }
         if (!this->isReplyQueued(reply)) {
             this->setLastError_safe("Commands not queuede!");
             this->discardTransaction_unsafe();
@@ -229,18 +242,17 @@ QtRedisReply QtRedisTransaction::exec()
         }
     }
     // exec transaction
-    const QtRedisReply replyExec = _transporter->sendCommand(QtRedisCommand("EXEC"));
-    if (replyExec.isNil()) {
+    QString error;
+    bool isOk = false;
+    const QtRedisReply replyExec = _transporter->sendCommand(QtRedisCommand("EXEC"), error, &isOk);
+    if (!isOk)
+        this->setLastError_safe(error);
+    else if (replyExec.isNil())
         this->setLastError_safe(QString("Transaction aborted: Write collision detected via WATCH on keys [%1]! Optimistic lock failed!")
                                 .arg(_watchList.join(", ")));
-    } else if (replyExec.isError()) {
-        this->setLastError_safe(replyExec.strValue());
-    } else if (replyExec.isArray()) {
-        for (const QtRedisReply &replyObj : replyExec.arrayValue_ref()) {
-            if (replyObj.isError())
-                this->setLastError_safe(replyObj.strValue());
-        }
-    }
+    else if (!error.isEmpty())
+        this->setLastError_safe(error);
+
     // clear transaction flag
     _inTransaction = false;
     _watchList.clear();
@@ -292,7 +304,14 @@ bool QtRedisTransaction::processCommand(const QtRedisCommand &command)
             return false;
         // queued command
         this->clearLastError_safe();
-        const QtRedisReply reply = _transporter->sendCommand(command);
+        QString error;
+        bool isOk = false;
+        const QtRedisReply reply = _transporter->sendCommand(command, error, &isOk);
+        if (!isOk) {
+            this->setLastError_safe(error);
+            this->discardTransaction_unsafe();
+            return false;
+        }
         if (!this->isReplyQueued(reply)) {
             this->setLastError_safe("Commands not queuede!");
             this->discardTransaction_unsafe();
@@ -359,11 +378,15 @@ bool QtRedisTransaction::openTransaction_unsafe()
         return false;
     }
     this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand("MULTI"));
-    if (QtRedisReply::replySimpleStringToBool(reply))
+    QString error;
+    bool isOk = false;
+    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand("MULTI"), error, &isOk);
+    if (!isOk)
+        this->setLastError_safe(error);
+    else if (QtRedisReply::replySimpleStringToBool(reply))
         _inTransaction = true;
-    else if (reply.isError())
-        this->setLastError_safe(reply.strValue());
+    else if (!error.isEmpty())
+        this->setLastError_safe(error);
     else
         this->setLastError_safe("Open transaction failed (invalid reply)!");
 
@@ -402,11 +425,15 @@ bool QtRedisTransaction::discardTransaction_unsafe()
         return false;
     }
     this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand("DISCARD"));
-    if (QtRedisReply::replySimpleStringToBool(reply))
+    QString error;
+    bool isOk = false;
+    const QtRedisReply reply = _transporter->sendCommand(QtRedisCommand("DISCARD"), error, &isOk);
+    if (!isOk)
+        this->setLastError_safe(error);
+    else if (QtRedisReply::replySimpleStringToBool(reply))
         _inTransaction = false;
-    if (reply.isError())
-        this->setLastError_safe(reply.strValue());
+    if (!error.isEmpty())
+        this->setLastError_safe(error);
     else
         this->setLastError_safe("Discard transaction failed (invalid reply)!");
 

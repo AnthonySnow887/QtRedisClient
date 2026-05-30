@@ -38,15 +38,11 @@ QtRedisReply QtRedisPipeline::exec()
         return QtRedisReply();
     }
     this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommands(_commandList);
-    if (reply.isError()) {
-        this->setLastError_safe(reply.strValue());
-    } else if (reply.isArray()) {
-        for (const QtRedisReply &replyObj : reply.arrayValue_ref()) {
-            if (replyObj.isError())
-                this->setLastError_safe(replyObj.strValue());
-        }
-    }
+    QString error;
+    bool isOk = false;
+    const QtRedisReply reply = _transporter->sendCommands(_commandList, error, &isOk);
+    if (!error.isEmpty())
+        this->setLastError_safe(error);
     _commandList.clear();
     return reply;
 }

@@ -22,7 +22,7 @@ public:
     //! \param command Команда
     //!
     explicit QtRedisCommand(const QByteArray &command)
-        : _command(command)
+        : _command(command.toUpper())
     {}
 
     //!
@@ -32,7 +32,7 @@ public:
     //!
     explicit QtRedisCommand(const QByteArray &command,
                             const QList<QByteArray> &commandArgv)
-        : _command(command)
+        : _command(command.toUpper())
         , _commandArgv(commandArgv)
     {}
 
