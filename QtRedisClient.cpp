@@ -1,5 +1,4 @@
 #include "QtRedisClient.h"
-#include <QDebug>
 
 //!
 //! \brief Конструктор класса
@@ -304,20 +303,29 @@ void QtRedisClient::redisDisconnect()
 //!
 //! AUTH <password>
 //!
-//! This form just authenticates against the password set with requirepass. In this configuration Redis will deny any command executed by the just connected clients, unless the connection gets authenticated via AUTH.
+//! This form just authenticates against the password set with requirepass.
+//! In this configuration Redis will deny any command executed by the just connected clients,
+//! unless the connection gets authenticated via AUTH.
 //!
-//! If the password provided via AUTH matches the password in the configuration file, the server replies with the OK status code and starts accepting commands. Otherwise, an error is returned and the clients needs to try a new password.
+//! If the password provided via AUTH matches the password in the configuration file,
+//! the server replies with the OK status code and starts accepting commands.
+//! Otherwise, an error is returned and the clients needs to try a new password.
 //!
 //! When Redis ACLs are used, the command should be given in an extended way:
 //!
 //! AUTH <username> <password>
 //!
-//! In order to authenticate the current connection with one of the connections defined in the ACL list (see ACL SETUSER) and the official ACL guide for more information.
+//! In order to authenticate the current connection with one of the connections defined in the ACL list
+//! (see ACL SETUSER) and the official ACL guide for more information.
 //!
-//! When ACLs are used, the single argument form of the command, where only the password is specified, assumes that the implicit username is "default".
+//! When ACLs are used, the single argument form of the command, where only the password is specified,
+//! assumes that the implicit username is "default".
+//!
 //! Security notice
 //!
-//! Because of the high performance nature of Redis, it is possible to try a lot of passwords in parallel in very short time, so make sure to generate a strong and very long password so that this attack is infeasible. A good way to generate strong passwords is via the ACL GENPASS command.
+//! Because of the high performance nature of Redis, it is possible to try a lot of passwords in parallel in very short time,
+//! so make sure to generate a strong and very long password so that this attack is infeasible.
+//! A good way to generate strong passwords is via the ACL GENPASS command.
 //!
 //! RESP2/RESP3 Reply
 //! Simple string reply: OK, or an error if the password, or username/password pair, is invalid.
@@ -350,22 +358,27 @@ bool QtRedisClient::redisAuth(const QString &password)
 //! ACL categories:
 //!     @fast, @connection
 //!
-//! Returns PONG if no argument is provided, otherwise return a copy of the argument as a bulk. This command is useful for:
+//! Returns PONG if no argument is provided, otherwise return a copy of the argument as a bulk.
+//! This command is useful for:
 //!
 //!     Testing whether a connection is still alive.
-//!     Verifying the server's ability to serve data - an error is returned when this isn't the case (e.g., during load from persistence or accessing a stale replica).
+//!     Verifying the server's ability to serve data - an error is returned when this isn't the case
+//!     (e.g., during load from persistence or accessing a stale replica).
 //!     Measuring latency.
 //!
-//! If the client is subscribed to a channel or a pattern, it will instead return a multi-bulk with a "pong" in the first position and an empty bulk in the second position, unless an argument is provided in which case it returns a copy of the argument.
+//! If the client is subscribed to a channel or a pattern, it will instead return a multi-bulk with a "pong"
+//! in the first position and an empty bulk in the second position, unless an argument is provided in which case
+//! it returns a copy of the argument.
 //!
 //! Examples
-//! PING
-//! PING "hello world"
+//! redis> PING
+//! "PONG"
+//! redis> PING "hello world"
+//! "hello world"
 //!
 //! RESP2/RESP3 Reply
 //!
 //! Any of the following:
-//!
 //!     Simple string reply: PONG when no argument is provided.
 //!     Bulk string reply: the provided argument.
 //!
@@ -420,7 +433,8 @@ bool QtRedisClient::redisPing(const QString &msg)
 //! Returns message.
 //!
 //! Examples
-//! ECHO "Hello World!"
+//! redis> ECHO "Hello World!"
+//! "Hello World!"
 //!
 //! RESP2/RESP3 Reply
 //! Bulk string reply: the given string.
@@ -449,7 +463,8 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //! ACL categories:
 //!     @slow, @dangerous
 //!
-//! The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
+//! The INFO command returns information and statistics about the server in a format that is simple to parse
+//! by computers and easy to read by humans.
 //!
 //! The optional parameter can be used to select a specific section of information:
 //!
@@ -479,7 +494,9 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!
 //! Notes
 //!
-//! Please note depending on the version of Redis some of the fields have been added or removed. A robust client application should therefore parse the result of this command by skipping unknown properties, and gracefully handle missing fields.
+//! Please note depending on the version of Redis some of the fields have been added or removed.
+//! A robust client application should therefore parse the result of this command by skipping unknown properties,
+//! and gracefully handle missing fields.
 //!
 //! Here is the description of fields for Redis >= 2.4.
 //!
@@ -508,13 +525,15 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!     executable: The path to the server's executable
 //!     config_file: The path to the config file
 //!     io_threads_active: Flag indicating if I/O threads are active
-//!     shutdown_in_milliseconds: The maximum time remaining for replicas to catch up the replication before completing the shutdown sequence. This field is only present during shutdown.
+//!     shutdown_in_milliseconds: The maximum time remaining for replicas to catch up the replication
+//!                               before completing the shutdown sequence. This field is only present during shutdown.
 //!
 //! Here is the meaning of all fields in the clients section:
 //!
 //!     connected_clients: Number of client connections (excluding connections from replicas)
 //!     cluster_connections: An approximation of the number of sockets used by the cluster's bus
-//!     maxclients: The value of the maxclients configuration directive. This is the upper limit for the sum of connected_clients, connected_slaves and cluster_connections.
+//!     maxclients: The value of the maxclients configuration directive.
+//!                 This is the upper limit for the sum of connected_clients, connected_slaves and cluster_connections.
 //!     client_recent_max_input_buffer: Biggest input buffer among current client connections
 //!     client_recent_max_output_buffer: Biggest output buffer among current client connections
 //!     blocked_clients: Number of clients pending on a blocking call (BLPOP, BRPOP, BRPOPLPUSH, BLMOVE, BZPOPMIN, BZPOPMAX)
@@ -524,13 +543,16 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!     clients_in_timeout_table: Number of clients in the clients timeout table
 //!     total_watched_keys: Number of watched keys. Added in Redis 7.4.
 //!     total_blocking_keys: Number of blocking keys. Added in Redis 7.2.
-//!     total_blocking_keys_on_nokey: Number of blocking keys that one or more clients that would like to be unblocked when the key is deleted. Added in Redis 7.2.
+//!     total_blocking_keys_on_nokey: Number of blocking keys that one or more clients that would like
+//!                                   to be unblocked when the key is deleted. Added in Redis 7.2.
 //!
 //! Here is the meaning of all fields in the memory section:
 //!
-//!     used_memory: Total number of bytes allocated by Redis using its allocator (either standard libc, jemalloc, or an alternative allocator such as tcmalloc)
+//!     used_memory: Total number of bytes allocated by Redis using its allocator
+//!                  (either standard libc, jemalloc, or an alternative allocator such as tcmalloc)
 //!     used_memory_human: Human readable representation of previous value
-//!     used_memory_rss: Number of bytes that Redis allocated as seen by the operating system (a.k.a resident set size). This is the number reported by tools such as top(1) and ps(1)
+//!     used_memory_rss: Number of bytes that Redis allocated as seen by the operating system
+//!                      (a.k.a resident set size). This is the number reported by tools such as top(1) and ps(1)
 //!     used_memory_rss_human: Human readable representation of previous value
 //!     used_memory_peak: Peak memory consumed by Redis (in bytes)
 //!     used_memory_peak_human: Human readable representation of previous value
@@ -538,17 +560,21 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!     used_memory_overhead: The sum in bytes of all overheads that the server allocated for managing its internal data structures
 //!     used_memory_startup: Initial amount of memory consumed by Redis at startup in bytes
 //!     used_memory_dataset: The size in bytes of the dataset (used_memory_overhead subtracted from used_memory)
-//!     used_memory_dataset_perc: The percentage of used_memory_dataset out of the net memory usage (used_memory minus used_memory_startup)
+//!     used_memory_dataset_perc: The percentage of used_memory_dataset out of the net memory usage
+//!                              (used_memory minus used_memory_startup)
 //!     total_system_memory: The total amount of memory that the Redis host has
 //!     total_system_memory_human: Human readable representation of previous value
-//!     used_memory_lua: Number of bytes used by the Lua engine for EVAL scripts. Deprecated in Redis 7.0, renamed to used_memory_vm_eval
-//!     used_memory_vm_eval: Number of bytes used by the script VM engines for EVAL framework (not part of used_memory). Added in Redis 7.0
+//!     used_memory_lua: Number of bytes used by the Lua engine for EVAL scripts.
+//!                      Deprecated in Redis 7.0, renamed to used_memory_vm_eval
+//!     used_memory_vm_eval: Number of bytes used by the script VM engines for EVAL framework
+//!                          (not part of used_memory). Added in Redis 7.0
 //!     used_memory_lua_human: Human readable representation of previous value. Deprecated in Redis 7.0
 //!     used_memory_scripts_eval: Number of bytes overhead by the EVAL scripts (part of used_memory). Added in Redis 7.0
 //!     number_of_cached_scripts: The number of EVAL scripts cached by the server. Added in Redis 7.0
 //!     number_of_functions: The number of functions. Added in Redis 7.0
 //!     number_of_libraries: The number of libraries. Added in Redis 7.0
-//!     used_memory_vm_functions: Number of bytes used by the script VM engines for Functions framework (not part of used_memory). Added in Redis 7.0
+//!     used_memory_vm_functions: Number of bytes used by the script VM engines for Functions framework
+//!                               (not part of used_memory). Added in Redis 7.0
 //!     used_memory_vm_total: used_memory_vm_eval + used_memory_vm_functions (not part of used_memory). Added in Redis 7.0
 //!     used_memory_vm_total_human: Human readable representation of previous value.
 //!     used_memory_functions: Number of bytes overhead by Function scripts (part of used_memory). Added in Redis 7.0
@@ -557,20 +583,31 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!     maxmemory: The value of the maxmemory configuration directive
 //!     maxmemory_human: Human readable representation of previous value
 //!     maxmemory_policy: The value of the maxmemory-policy configuration directive
-//!     mem_fragmentation_ratio: Ratio between used_memory_rss and used_memory. Note that this doesn't only includes fragmentation, but also other process overheads (see the allocator_* metrics), and also overheads like code, shared libraries, stack, etc.
-//!     mem_fragmentation_bytes: Delta between used_memory_rss and used_memory. Note that when the total fragmentation bytes is low (few megabytes), a high ratio (e.g. 1.5 and above) is not an indication of an issue.
-//!     allocator_frag_ratio:: Ratio between allocator_active and allocator_allocated. This is the true (external) fragmentation metric (not mem_fragmentation_ratio).
-//!     allocator_frag_bytes Delta between allocator_active and allocator_allocated. See note about mem_fragmentation_bytes.
-//!     allocator_rss_ratio: Ratio between allocator_resident and allocator_active. This usually indicates pages that the allocator can and probably will soon release back to the OS.
+//!     mem_fragmentation_ratio: Ratio between used_memory_rss and used_memory. Note that this doesn't only includes fragmentation,
+//!                              but also other process overheads (see the allocator_* metrics), and also overheads like code,
+//!                              shared libraries, stack, etc.
+//!     mem_fragmentation_bytes: Delta between used_memory_rss and used_memory. Note that when the total fragmentation bytes is low (few megabytes),
+//!                              a high ratio (e.g. 1.5 and above) is not an indication of an issue.
+//!     allocator_frag_ratio: Ratio between allocator_active and allocator_allocated. This is the true
+//!                           (external) fragmentation metric (not mem_fragmentation_ratio).
+//!     allocator_frag_bytes: Delta between allocator_active and allocator_allocated.
+//!                           See note about mem_fragmentation_bytes.
+//!     allocator_rss_ratio: Ratio between allocator_resident and allocator_active.
+//!                          This usually indicates pages that the allocator can and probably will soon release back to the OS.
 //!     allocator_rss_bytes: Delta between allocator_resident and allocator_active
-//!     rss_overhead_ratio: Ratio between used_memory_rss (the process RSS) and allocator_resident. This includes RSS overheads that are not allocator or heap related.
+//!     rss_overhead_ratio: Ratio between used_memory_rss (the process RSS) and allocator_resident.
+//!                         This includes RSS overheads that are not allocator or heap related.
 //!     rss_overhead_bytes: Delta between used_memory_rss (the process RSS) and allocator_resident
-//!     allocator_allocated: Total bytes allocated form the allocator, including internal-fragmentation. Normally the same as used_memory.
+//!     allocator_allocated: Total bytes allocated form the allocator, including internal-fragmentation.
+//!                          Normally the same as used_memory.
 //!     allocator_active: Total bytes in the allocator active pages, this includes external-fragmentation.
 //!     allocator_resident: Total bytes resident (RSS) in the allocator, this includes pages that can be released to the OS (by MEMORY PURGE, or just waiting).
-//!     allocator_muzzy: Total bytes of 'muzzy' memory (RSS) in the allocator. Muzzy memory is memory that has been freed, but not yet fully returned to the operating system. It can be reused immediately when needed or reclaimed by the OS when system pressure increases.
+//!     allocator_muzzy: Total bytes of 'muzzy' memory (RSS) in the allocator.
+//!                      Muzzy memory is memory that has been freed, but not yet fully returned to the operating system.
+//!                      It can be reused immediately when needed or reclaimed by the OS when system pressure increases.
 //!     mem_not_counted_for_evict: Used memory that's not counted for key eviction. This is basically transient replica and AOF buffers.
-//!     mem_clients_slaves: Memory used by replica clients - Starting Redis 7.0, replica buffers share memory with the replication backlog, so this field can show 0 when replicas don't trigger an increase of memory usage.
+//!     mem_clients_slaves: Memory used by replica clients - Starting Redis 7.0, replica buffers share memory with the replication backlog,
+//!                         so this field can show 0 when replicas don't trigger an increase of memory usage.
 //!     mem_clients_normal: Memory used by normal clients
 //!     mem_cluster_links: Memory used by links to peers on the cluster bus when cluster mode is enabled.
 //!     mem_aof_buffer: Transient memory used for AOF and AOF rewrite buffers
@@ -578,26 +615,33 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!     mem_total_replication_buffers: Total memory consumed for replication buffers - Added in Redis 7.0.
 //!     mem_allocator: Memory allocator, chosen at compile time.
 //!     mem_overhead_db_hashtable_rehashing: Temporary memory overhead of database dictionaries currently being rehashed - Added in 7.4.
-//!     active_defrag_running: When activedefrag is enabled, this indicates whether defragmentation is currently active, and the CPU percentage it intends to utilize.
+//!     active_defrag_running: When activedefrag is enabled, this indicates whether defragmentation is currently active,
+//!                            and the CPU percentage it intends to utilize.
 //!     lazyfree_pending_objects: The number of objects waiting to be freed (as a result of calling UNLINK, or FLUSHDB and FLUSHALL with the ASYNC option)
 //!     lazyfreed_objects: The number of objects that have been lazy freed.
 //!
-//! Ideally, the used_memory_rss value should be only slightly higher than used_memory. When rss >> used, a large difference may mean there is (external) memory fragmentation, which can be evaluated by checking allocator_frag_ratio, allocator_frag_bytes. When used >> rss, it means part of Redis memory has been swapped off by the operating system: expect some significant latencies.
+//! Ideally, the used_memory_rss value should be only slightly higher than used_memory. When rss >> used,
+//! a large difference may mean there is (external) memory fragmentation, which can be evaluated by checking allocator_frag_ratio, allocator_frag_bytes.
+//! When used >> rss, it means part of Redis memory has been swapped off by the operating system: expect some significant latencies.
 //!
 //! Because Redis does not have control over how its allocations are mapped to memory pages, high used_memory_rss is often the result of a spike in memory usage.
 //!
-//! When Redis frees memory, the memory is given back to the allocator, and the allocator may or may not give the memory back to the system. There may be a discrepancy between the used_memory value and memory consumption as reported by the operating system. It may be due to the fact memory has been used and released by Redis, but not given back to the system. The used_memory_peak value is generally useful to check this point.
+//! When Redis frees memory, the memory is given back to the allocator, and the allocator may or may not give the memory back to the system.
+//! There may be a discrepancy between the used_memory value and memory consumption as reported by the operating system.
+//! It may be due to the fact memory has been used and released by Redis, but not given back to the system. The used_memory_peak value is generally useful to check this point.
 //!
 //! Additional introspective information about the server's memory can be obtained by referring to the MEMORY STATS command and the MEMORY DOCTOR.
 //!
 //! Here is the meaning of all fields in the persistence section:
 //!
 //!     loading: Flag indicating if the load of a dump file is on-going
-//!     async_loading: Currently loading replication data-set asynchronously while serving old data. This means repl-diskless-load is enabled and set to swapdb. Added in Redis 7.0.
+//!     async_loading: Currently loading replication data-set asynchronously while serving old data.
+//!                    This means repl-diskless-load is enabled and set to swapdb. Added in Redis 7.0.
 //!     current_cow_peak: The peak size in bytes of copy-on-write memory while a child fork is running
 //!     current_cow_size: The size in bytes of copy-on-write memory while a child fork is running
 //!     current_cow_size_age: The age, in seconds, of the current_cow_size value.
-//!     current_fork_perc: The percentage of progress of the current fork process. For AOF and RDB forks it is the percentage of current_save_keys_processed out of current_save_keys_total.
+//!     current_fork_perc: The percentage of progress of the current fork process.
+//!                        For AOF and RDB forks it is the percentage of current_save_keys_processed out of current_save_keys_total.
 //!     current_save_keys_processed: Number of keys processed by the current save operation
 //!     current_save_keys_total: Number of keys at the beginning of the current save operation
 //!     rdb_changes_since_last_save: Number of changes since the last dump
@@ -622,7 +666,8 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!     aof_rewrites: Number of AOF rewrites performed since startup
 //!     rdb_saves: Number of RDB snapshots performed since startup
 //!
-//! rdb_changes_since_last_save refers to the number of operations that produced some kind of changes in the dataset since the last time either SAVE or BGSAVE was called.
+//! rdb_changes_since_last_save refers to the number of operations that produced some kind of changes in the dataset
+//! since the last time either SAVE or BGSAVE was called.
 //!
 //! If AOF is activated, these additional fields will be added:
 //!
@@ -689,7 +734,8 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!     tracking_total_items: Number of items, that is the sum of clients number for each key, that are being tracked
 //!     tracking_total_prefixes: Number of tracked prefixes in server's prefix table (only applicable for broadcast mode)
 //!     unexpected_error_replies: Number of unexpected error replies, that are types of errors from an AOF load or replication
-//!     total_error_replies: Total number of issued error replies, that is the sum of rejected commands (errors prior command execution) and failed commands (errors within the command execution)
+//!     total_error_replies: Total number of issued error replies, that is the sum of rejected commands (errors prior command execution)
+//!                          and failed commands (errors within the command execution)
 //!     dump_payload_sanitizations: Total number of dump payload deep integrity validations (see sanitize-dump-payload config).
 //!     total_reads_processed: Total number of read events processed
 //!     total_writes_processed: Total number of write events processed
@@ -711,7 +757,8 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!
 //! Here is the meaning of all fields in the replication section:
 //!
-//!     role: Value is "master" if the instance is replica of no one, or "slave" if the instance is a replica of some master instance. Note that a replica can be master of another replica (chained replication).
+//!     role: Value is "master" if the instance is replica of no one, or "slave" if the instance is a replica of some master instance.
+//!           Note that a replica can be master of another replica (chained replication).
 //!     master_failover_state: The state of an ongoing failover, if any.
 //!     master_replid: The replication ID of the Redis server.
 //!     master_replid2: The secondary replication ID, used for PSYNC after a failover.
@@ -737,10 +784,12 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!
 //! If a SYNC operation is on-going, these additional fields are provided:
 //!
-//!     master_sync_total_bytes: Total number of bytes that need to be transferred. this may be 0 when the size is unknown (for example, when the repl-diskless-sync configuration directive is used)
+//!     master_sync_total_bytes: Total number of bytes that need to be transferred.
+//!                              This may be 0 when the size is unknown (for example, when the repl-diskless-sync configuration directive is used)
 //!     master_sync_read_bytes: Number of bytes already transferred
 //!     master_sync_left_bytes: Number of bytes left before syncing is complete (may be negative when master_sync_total_bytes is 0)
-//!     master_sync_perc: The percentage master_sync_read_bytes from master_sync_total_bytes, or an approximation that uses loading_rdb_used_mem when master_sync_total_bytes is 0
+//!     master_sync_perc: The percentage master_sync_read_bytes from master_sync_total_bytes,
+//!                       or an approximation that uses loading_rdb_used_mem when master_sync_total_bytes is 0
 //!     master_sync_last_io_seconds_ago: Number of seconds since last transfer I/O during a SYNC operation
 //!
 //! If the link between master and replica is down, an additional field is provided:
@@ -751,7 +800,8 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!
 //!     connected_slaves: Number of connected replicas
 //!
-//! If the server is configured with the min-slaves-to-write (or starting with Redis 5 with the min-replicas-to-write) directive, an additional field is provided:
+//! If the server is configured with the min-slaves-to-write (or starting with Redis 5 with the min-replicas-to-write) directive,
+//! an additional field is provided:
 //!
 //!     min_slaves_good_slaves: Number of replicas currently considered good
 //!
@@ -761,14 +811,18 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!
 //! Here is the meaning of all fields in the cpu section:
 //!
-//!     used_cpu_sys: System CPU consumed by the Redis server, which is the sum of system CPU consumed by all threads of the server process (main thread and background threads)
-//!     used_cpu_user: User CPU consumed by the Redis server, which is the sum of user CPU consumed by all threads of the server process (main thread and background threads)
+//!     used_cpu_sys: System CPU consumed by the Redis server, which is the sum of system CPU consumed by all threads
+//!                   of the server process (main thread and background threads)
+//!     used_cpu_user: User CPU consumed by the Redis server, which is the sum of user CPU consumed by all threads
+//!                    of the server process (main thread and background threads)
 //!     used_cpu_sys_children: System CPU consumed by the background processes
 //!     used_cpu_user_children: User CPU consumed by the background processes
 //!     used_cpu_sys_main_thread: System CPU consumed by the Redis server main thread
 //!     used_cpu_user_main_thread: User CPU consumed by the Redis server main thread
 //!
-//! The commandstats section provides statistics based on the command type, including the number of calls that reached command execution (not rejected), the total CPU time consumed by these commands, the average CPU consumed per command execution, the number of rejected calls (errors prior command execution), and the number of failed calls (errors within the command execution).
+//! The commandstats section provides statistics based on the command type, including the number of calls that reached command execution (not rejected),
+//! the total CPU time consumed by these commands, the average CPU consumed per command execution,
+//! the number of rejected calls (errors prior command execution), and the number of failed calls (errors within the command execution).
 //!
 //! For each command type, the following line is added:
 //!
@@ -776,21 +830,25 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!
 //! The latencystats section provides latency percentile distribution statistics based on the command type.
 //!
-//! By default, the exported latency percentiles are the p50, p99, and p999. If you need to change the exported percentiles, use CONFIG SET latency-tracking-info-percentiles "50.0 99.0 99.9".
+//! By default, the exported latency percentiles are the p50, p99, and p999. If you need to change the exported percentiles,
+//! use CONFIG SET latency-tracking-info-percentiles "50.0 99.0 99.9".
 //!
-//! This section requires the extended latency monitoring feature to be enabled (by default it's enabled). If you need to enable it, use CONFIG SET latency-tracking yes.
+//! This section requires the extended latency monitoring feature to be enabled (by default it's enabled).
+//! If you need to enable it, use CONFIG SET latency-tracking yes.
 //!
 //! For each command type, the following line is added:
 //!
 //!     latency_percentiles_usec_XXX: p<percentile 1>=<percentile 1 value>,p<percentile 2>=<percentile 2 value>,...
 //!
-//! The errorstats section enables keeping track of the different errors that occurred within Redis, based upon the reply error prefix ( The first word after the "-", up to the first space. Example: ERR ).
+//! The errorstats section enables keeping track of the different errors that occurred within Redis,
+//! based upon the reply error prefix ( The first word after the "-", up to the first space. Example: ERR ).
 //!
 //! For each error type, the following line is added:
 //!
 //!     errorstat_XXX: count=XXX
 //!
-//! If the server detects that this section was flooded with an excessive number of errors, it will be disabled, show a single ERRORSTATS_DISABLED error, and print the errors to the server log. This can be reset by CONFIG RESETSTAT.
+//! If the server detects that this section was flooded with an excessive number of errors, it will be disabled,
+//! show a single ERRORSTATS_DISABLED error, and print the errors to the server log. This can be reset by CONFIG RESETSTAT.
 //!
 //! The sentinel section is only available in Redis Sentinel instances. It consists of the following fields:
 //!
@@ -805,32 +863,43 @@ QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 //!
 //!     cluster_enabled: Indicate Redis cluster is enabled
 //!
-//! The modules section contains additional information about loaded modules if the modules provide it. The field part of properties lines in this section is always prefixed with the module's name.
+//! The modules section contains additional information about loaded modules if the modules provide it.
+//! The field part of properties lines in this section is always prefixed with the module's name.
 //!
-//! The keyspace section provides statistics on the main dictionary of each database. The statistics are the number of keys, and the number of keys with an expiration.
+//! The keyspace section provides statistics on the main dictionary of each database.
+//! The statistics are the number of keys, and the number of keys with an expiration.
 //!
 //! For each database, the following line is added:
 //!
 //!     dbXXX: keys=XXX,expires=XXX,avg_ttl=XXX,subexpiry=XXX
 //!
-//! The debug section contains experimental metrics, which might change or get removed in future versions. It won't be included when INFO or INFO ALL are called, and it is returned only when INFO DEBUG is used.
+//! The debug section contains experimental metrics, which might change or get removed in future versions.
+//! It won't be included when INFO or INFO ALL are called, and it is returned only when INFO DEBUG is used.
 //!
 //!     eventloop_duration_aof_sum: Total time spent on flushing AOF in eventloop in microseconds.
-//!     eventloop_duration_cron_sum: Total time consumption of cron in microseconds (including serverCron and beforeSleep, but excluding IO and AOF flushing).
+//!     eventloop_duration_cron_sum: Total time consumption of cron in microseconds
+//!                                  (including serverCron and beforeSleep, but excluding IO and AOF flushing).
 //!     eventloop_duration_max: The maximal time spent in a single eventloop cycle in microseconds.
 //!     eventloop_cmd_per_cycle_max: The maximal number of commands processed in a single eventloop cycle.
 //!     allocator_allocated_lua: Total bytes allocated from the allocator specifically for Lua, including internal-fragmentation.
 //!     allocator_active_lua: Total bytes in the allocator active pages specifically for Lua, including external-fragmentation.
-//!     allocator_resident_lua: Total bytes resident (RSS) in the allocator specifically for Lua. This includes pages that can be released to the OS (by MEMORY PURGE, or just waiting).
+//!     allocator_resident_lua: Total bytes resident (RSS) in the allocator specifically for Lua.
+//!                             This includes pages that can be released to the OS (by MEMORY PURGE, or just waiting).
 //!     allocator_frag_bytes_lua: Delta between allocator_active_lua and allocator_allocated_lua.
 //!
-//! A note about the word slave used in this man page: Starting with Redis 5, if not for backward compatibility, the Redis project no longer uses the word slave. Unfortunately in this command the word slave is part of the protocol, so we'll be able to remove such occurrences only when this API will be naturally deprecated.
+//! A note about the word slave used in this man page: Starting with Redis 5,
+//! if not for backward compatibility, the Redis project no longer uses the word slave.
+//! Unfortunately in this command the word slave is part of the protocol,
+//! so we'll be able to remove such occurrences only when this API will be naturally deprecated.
 //!
-//! Modules generated sections: Starting with Redis 6, modules can inject their information into the INFO command. These are excluded by default even when the all argument is provided (it will include a list of loaded modules but not their generated info fields). To get these you must use either the modules argument or everything.
+//! Modules generated sections: Starting with Redis 6, modules can inject their information into the INFO command.
+//! These are excluded by default even when the all argument is provided (it will include a list of loaded modules but not their generated info fields).
+//! To get these you must use either the modules argument or everything.
 //!
 //! RESP2/RESP3 Reply
 //!
-//! Bulk string reply: a map of info fields, one field per line in the form of <field>:<value> where the value can be a comma separated map like <key>=<val>. Also contains section header lines starting with # and blank lines.
+//! Bulk string reply: a map of info fields, one field per line in the form of <field>:<value> where the value can be a comma separated map like <key>=<val>.
+//! Also contains section header lines starting with # and blank lines.
 //!
 //! Lines can contain a section name (starting with a # character) or a property. All the properties are in the form of field:value terminated by \r\n.
 //!
@@ -885,10 +954,16 @@ QMap<QString, QVariant> QtRedisClient::redisInfo(const QString &section)
 //! ACL categories:
 //!     @fast
 //!
-//! The TIME command returns the current server time as a two items lists: a Unix timestamp and the amount of microseconds already elapsed in the current second. Basically the interface is very similar to the one of the gettimeofday system call.
+//! The TIME command returns the current server time as a two items lists: a Unix timestamp and the amount of microseconds already elapsed in the current second.
+//! Basically the interface is very similar to the one of the gettimeofday system call.
 //!
 //! Examples
-//! TIME TIME
+//! redis> TIME
+//! 1) "1780314965"
+//! 2) "427145"
+//! redis> TIME
+//! 1) "1780314965"
+//! 2) "427457"
 //!
 //! RESP2/RESP3 Reply
 //! Array reply: specifically, a two-element array consisting of the Unix timestamp in seconds and the microseconds' count.
@@ -918,13 +993,18 @@ QtRedisReply QtRedisClient::redisTime()
 //!
 //! Select the Redis logical database having the specified zero-based numeric index. New connections always use the database 0.
 //!
-//! Selectable Redis databases are a form of namespacing: all databases are still persisted in the same RDB / AOF file. However different databases can have keys with the same name, and commands like FLUSHDB, SWAPDB or RANDOMKEY work on specific databases.
+//! Selectable Redis databases are a form of namespacing: all databases are still persisted in the same RDB / AOF file.
+//! However different databases can have keys with the same name, and commands like FLUSHDB, SWAPDB or RANDOMKEY work on specific databases.
 //!
-//! In practical terms, Redis databases should be used to separate different keys belonging to the same application (if needed), and not to use a single Redis instance for multiple unrelated applications.
+//! In practical terms, Redis databases should be used to separate different keys belonging to the same application (if needed),
+//! and not to use a single Redis instance for multiple unrelated applications.
 //!
-//! When using Redis Cluster, the SELECT command cannot be used, since Redis Cluster only supports database zero. In the case of a Redis Cluster, having multiple databases would be useless and an unnecessary source of complexity. Commands operating atomically on a single database would not be possible with the Redis Cluster design and goals.
+//! When using Redis Cluster, the SELECT command cannot be used, since Redis Cluster only supports database zero.
+//! In the case of a Redis Cluster, having multiple databases would be useless and an unnecessary source of complexity.
+//! Commands operating atomically on a single database would not be possible with the Redis Cluster design and goals.
 //!
-//! Since the currently selected database is a property of the connection, clients should track the currently selected database and re-select it on reconnection. While there is no command in order to query the selected database in the current connection, the CLIENT LIST output shows, for each client, the currently selected database.
+//! Since the currently selected database is a property of the connection, clients should track the currently selected database and re-select it on reconnection.
+//! While there is no command in order to query the selected database in the current connection, the CLIENT LIST output shows, for each client, the currently selected database.
 //!
 //! RESP2/RESP3 Reply
 //! Simple string reply: OK.
@@ -941,6 +1021,8 @@ bool QtRedisClient::redisSelect(const int dbIndex)
 //!
 //! \brief Индекс текущей БД
 //! \return
+//!
+//! Get the Redis logical database having the specified zero-based numeric index. New connections always use the database 0.
 //!
 int QtRedisClient::redisSelectedDb()
 {
@@ -1008,16 +1090,18 @@ qlonglong QtRedisClient::redisDbSize()
 //!
 //! Delete all the keys of all the existing databases, not just the currently selected one. This command never fails.
 //!
-//! By default, FLUSHALL will synchronously flush all the databases. Starting with Redis 6.2, setting the lazyfree-lazy-user-flush configuration directive to "yes" changes the default flush mode to asynchronous.
+//! By default, FLUSHALL will synchronously flush all the databases. Starting with Redis 6.2,
+//! setting the lazyfree-lazy-user-flush configuration directive to "yes" changes the default flush mode to asynchronous.
 //!
 //! It is possible to use one of the following modifiers to dictate the flushing mode explicitly:
 //!
 //!     ASYNC: flushes the databases asynchronously
 //!     SYNC: flushes the databases synchronously
 //!
-//! Note: an asynchronous FLUSHALL command only deletes keys that were present at the time the command was invoked. Keys created during an asynchronous flush will be unaffected.
-//! Behavior change history
+//! Note: an asynchronous FLUSHALL command only deletes keys that were present at the time the command was invoked.
+//!       Keys created during an asynchronous flush will be unaffected.
 //!
+//! Behavior change history
 //!     >= 6.2.0: Default flush behavior now configurable by the lazyfree-lazy-user-flush configuration directive.
 //!
 //! RESP2/RESP3 Reply
@@ -1056,16 +1140,18 @@ bool QtRedisClient::redisFlushAll(const bool async)
 //!
 //! Delete all the keys of the currently selected DB. This command never fails.
 //!
-//! By default, FLUSHDB will synchronously flush all keys from the database. Starting with Redis 6.2, setting the lazyfree-lazy-user-flush configuration directive to "yes" changes the default flush mode to asynchronous.
+//! By default, FLUSHDB will synchronously flush all keys from the database. Starting with Redis 6.2,
+//! setting the lazyfree-lazy-user-flush configuration directive to "yes" changes the default flush mode to asynchronous.
 //!
 //! It is possible to use one of the following modifiers to dictate the flushing mode explicitly:
 //!
 //!     ASYNC: flushes the database asynchronously
 //!     SYNC: flushes the database synchronously
 //!
-//! Note: an asynchronous FLUSHDB command only deletes keys that were present at the time the command was invoked. Keys created during an asynchronous flush will be unaffected.
-//! Behavior change history
+//! Note: an asynchronous FLUSHDB command only deletes keys that were present at the time the command was invoked.
+//!       Keys created during an asynchronous flush will be unaffected.
 //!
+//! Behavior change history
 //!     >= 6.2.0: Default flush behavior now configurable by the lazyfree-lazy-user-flush configuration directive.
 //!
 //! RESP2/RESP3 Reply
@@ -1106,7 +1192,9 @@ bool QtRedisClient::redisFlushDb(const bool async)
 //!
 //! The SAVE commands performs a synchronous save of the dataset producing a point in time snapshot of all the data inside the Redis instance, in the form of an RDB file.
 //!
-//! You almost never want to call SAVE in production environments where it will block all the other clients. Instead usually BGSAVE is used. However in case of issues preventing Redis to create the background saving child (for instance errors in the fork(2) system call), the SAVE command can be a good last resort to perform the dump of the latest dataset.
+//! You almost never want to call SAVE in production environments where it will block all the other clients. Instead usually BGSAVE is used.
+//! However in case of issues preventing Redis to create the background saving child (for instance errors in the fork(2) system call),
+//! the SAVE command can be a good last resort to perform the dump of the latest dataset.
 //!
 //! See the persistence documentation for detailed information.
 //!
@@ -1179,7 +1267,8 @@ QtRedisReply QtRedisClient::redisBgSave()
 //! ACL categories:
 //!     @admin, @fast, @dangerous
 //!
-//! Return the UNIX TIME of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed. Redis considers the database saved successfully at startup.
+//! Return the UNIX TIME of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value,
+//! then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed. Redis considers the database saved successfully at startup.
 //!
 //! RESP2/RESP3 Reply
 //! Integer reply: UNIX TIME of the last DB save executed with success.
@@ -1215,11 +1304,14 @@ uint QtRedisClient::redisLastSave()
 //! ACL categories:
 //!     @admin, @slow, @dangerous
 //!
-//! The CONFIG GET command is used to read the configuration parameters of a running Redis server. Not all the configuration parameters are supported in Redis 2.4, while Redis 2.6 can read the whole configuration of a server using this command.
+//! The CONFIG GET command is used to read the configuration parameters of a running Redis server.
+//! Not all the configuration parameters are supported in Redis 2.4, while Redis 2.6 can read the whole configuration of a server using this command.
 //!
 //! The symmetric command used to alter the configuration at run time is CONFIG SET.
 //!
-//! CONFIG GET takes multiple arguments, which are glob-style patterns. Any configuration parameter matching any of the patterns are reported as a list of key-value pairs. Example:
+//! CONFIG GET takes multiple arguments, which are glob-style patterns. Any configuration parameter matching any of the patterns are reported as a list of key-value pairs.
+//!
+//! Example:
 //!
 //! redis> config get *max-*-entries* maxmemory
 //!  1) "maxmemory"
@@ -1239,7 +1331,8 @@ uint QtRedisClient::redisLastSave()
 //!
 //! All the supported parameters have the same meaning of the equivalent configuration parameter used in the redis.conf file:
 //!
-//! Note that you should look at the redis.conf file relevant to the version you're working with as configuration options might change between versions. The link above is to the latest development version.
+//! Note that you should look at the redis.conf file relevant to the version you're working with as configuration options might change between versions.
+//! The link above is to the latest development version.
 //!
 //! RESP2 Reply
 //! Array reply: a list of configuration parameters matching the provided arguments.
@@ -1278,19 +1371,25 @@ QtRedisReply QtRedisClient::redisConfigGet(const QString &param)
 //! ACL categories:
 //!     @admin, @slow, @dangerous
 //!
-//! The CONFIG SET command is used in order to reconfigure the server at run time without the need to restart Redis. You can change both trivial parameters or switch from one to another persistence option using this command.
+//! The CONFIG SET command is used in order to reconfigure the server at run time without the need to restart Redis.
+//! You can change both trivial parameters or switch from one to another persistence option using this command.
 //!
-//! The list of configuration parameters supported by CONFIG SET can be obtained issuing a CONFIG GET * command, that is the symmetrical command used to obtain information about the configuration of a running Redis instance.
+//! The list of configuration parameters supported by CONFIG SET can be obtained issuing a CONFIG GET * command,
+//! that is the symmetrical command used to obtain information about the configuration of a running Redis instance.
 //!
 //! All the configuration parameters set using CONFIG SET are immediately loaded by Redis and will take effect starting with the next command executed.
 //!
 //! All the supported parameters have the same meaning of the equivalent configuration parameter used in the redis.conf file.
 //!
-//! Note that you should look at the redis.conf file relevant to the version you're working with as configuration options might change between versions. The link above is to the latest development version.
+//! Note that you should look at the redis.conf file relevant to the version you're working with as configuration options might change between versions.
+//! The link above is to the latest development version.
 //!
-//! It is possible to switch persistence from RDB snapshotting to append-only file (and the other way around) using the CONFIG SET command. See the persistence page for more information.
+//! It is possible to switch persistence from RDB snapshotting to append-only file (and the other way around) using the CONFIG SET command.
+//! See the persistence page for more information.
 //!
-//! In general what you should know is that setting the appendonly parameter to yes will start a background process to save the initial append-only file (obtained from the in memory data set), and will append all the subsequent commands on the append-only file, thus obtaining exactly the same effect of a Redis server that started with AOF turned on since the start.
+//! In general what you should know is that setting the appendonly parameter to yes will start a background process to save the initial append-only file
+//! (obtained from the in memory data set), and will append all the subsequent commands on the append-only file,
+//! thus obtaining exactly the same effect of a Redis server that started with AOF turned on since the start.
 //!
 //! You can have both the AOF enabled with RDB snapshotting if you want, the two options are not mutually exclusive.
 //!
@@ -1328,7 +1427,9 @@ bool QtRedisClient::redisConfigSet(const QString &param, const QString &value)
 //! ACL categories:
 //!     @admin, @slow, @dangerous
 //!
-//! The CONFIG REWRITE command rewrites the redis.conf file the server was started with, applying the minimal changes needed to make it reflect the configuration currently used by the server, which may be different compared to the original one because of the use of the CONFIG SET command.
+//! The CONFIG REWRITE command rewrites the redis.conf file the server was started with,
+//! applying the minimal changes needed to make it reflect the configuration currently used by the server,
+//! which may be different compared to the original one because of the use of the CONFIG SET command.
 //!
 //! The rewrite is performed in a very conservative way:
 //!
@@ -1336,12 +1437,18 @@ bool QtRedisClient::redisConfigSet(const QString &param, const QString &value)
 //!     If an option already exists in the old redis.conf file, it will be rewritten at the same position (line number).
 //!     If an option was not already present, but it is set to its default value, it is not added by the rewrite process.
 //!     If an option was not already present, but it is set to a non-default value, it is appended at the end of the file.
-//!     Non used lines are blanked. For instance if you used to have multiple save directives, but the current configuration has fewer or none as you disabled RDB persistence, all the lines will be blanked.
+//!     Non used lines are blanked. For instance if you used to have multiple save directives,
+//!     but the current configuration has fewer or none as you disabled RDB persistence, all the lines will be blanked.
 //!
-//! CONFIG REWRITE is also able to rewrite the configuration file from scratch if the original one no longer exists for some reason. However if the server was started without a configuration file at all, the CONFIG REWRITE will just return an error.
+//! CONFIG REWRITE is also able to rewrite the configuration file from scratch if the original one no longer exists for some reason.
+//! However if the server was started without a configuration file at all, the CONFIG REWRITE will just return an error.
+//!
 //! Atomic rewrite process
 //!
-//! In order to make sure the redis.conf file is always consistent, that is, on errors or crashes you always end with the old file, or the new one, the rewrite is performed with a single write(2) call that has enough content to be at least as big as the old file. Sometimes additional padding in the form of comments is added in order to make sure the resulting file is big enough, and later the file gets truncated to remove the padding at the end.
+//! In order to make sure the redis.conf file is always consistent, that is, on errors or crashes you always end with the old file,
+//! or the new one, the rewrite is performed with a single write(2) call that has enough content to be at least as big as the old file.
+//! Sometimes additional padding in the form of comments is added in order to make sure the resulting file is big enough,
+//! and later the file gets truncated to remove the padding at the end.
 //!
 //! RESP2/RESP3 Reply
 //! Simple string reply: OK when the configuration was rewritten properly. Otherwise an error is returned.
@@ -1410,7 +1517,8 @@ bool QtRedisClient::redisConfigResetStat()
 //!
 //! The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
 //!
-//! You can use one of the optional subcommands to filter the list. The TYPE type subcommand filters the list by clients' type, where type is one of normal, master, replica, and pubsub. Note that clients blocked by the MONITOR command belong to the normal class.
+//! You can use one of the optional subcommands to filter the list. The TYPE type subcommand filters the list by clients' type,
+//! where type is one of normal, master, replica, and pubsub. Note that clients blocked by the MONITOR command belong to the normal class.
 //!
 //! The ID filter only returns entries for clients with IDs matching the client-id arguments.
 //!
@@ -1473,13 +1581,13 @@ bool QtRedisClient::redisConfigResetStat()
 //!
 //! Notes
 //!
-//! New fields are regularly added for debugging purpose. Some could be removed in the future. A version safe Redis client using this command should parse the output accordingly (i.e. handling gracefully missing fields, skipping unknown fields).
+//! New fields are regularly added for debugging purpose. Some could be removed in the future.
+//! A version safe Redis client using this command should parse the output accordingly (i.e. handling gracefully missing fields, skipping unknown fields).
 //!
 //! RESP2/RESP3 Reply
 //! Bulk string reply: information and statistics about client connections.
 //!
 //! History
-//!
 //!     Starting with Redis version 2.8.12: Added unique client id field.
 //!     Starting with Redis version 5.0.0: Added optional TYPE filter.
 //!     Starting with Redis version 6.0.0: Added user field.
@@ -1502,16 +1610,38 @@ QList<QtRedisClientInfo> QtRedisClient::redisClientList()
 //! \param connectionName Имя
 //! \return
 //!
+//! Redis command: CLIENT SETNAME
+//!
+//! Syntax
+//!
+//! CLIENT SETNAME connection-name
+//!
+//! Available since:
+//!     2.6.9
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @slow, @connection
+//!
 //! The CLIENT SETNAME command assigns a name to the current connection.
+//!
 //! The assigned name is displayed in the output of CLIENT LIST so that it is possible to identify the client that performed a given connection.
+//!
 //! For instance when Redis is used in order to implement a queue, producers and consumers of messages may want to set the name of the connection according to their role.
+//!
 //! There is no limit to the length of the name that can be assigned if not the usual limits of the Redis string type (512 MB).
 //! However it is not possible to use spaces in the connection name as this would violate the format of the CLIENT LIST reply.
 //!
 //! It is possible to entirely remove the connection name setting it to the empty string, that is not a valid connection name since it serves to this specific purpose.
+//!
 //! The connection name can be inspected using CLIENT GETNAME.
+//!
 //! Every new connection starts without an assigned name.
+//!
 //! Tip: setting names to connections is a good way to debug connection leaks due to bugs in the application using Redis.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK if the connection name was successfully set.
 //!
 bool QtRedisClient::redisClientSetName(const QString &connectionName)
 {
@@ -1526,8 +1656,33 @@ bool QtRedisClient::redisClientSetName(const QString &connectionName)
 //! \brief Имя для текущего соединения (если задано)
 //! \return
 //!
+//! Redis command: CLIENT GETNAME
+//!
+//! Syntax
+//!
+//! CLIENT GETNAME
+//!
+//! Available since:
+//!     2.6.9
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @slow, @connection
+//!
 //! The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME.
 //! Since every new connection starts without an associated name, if no name was assigned a null bulk reply is returned.
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the connection name of the current connection.
+//!     Nil reply: the connection name was not set.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the connection name of the current connection.
+//!     Null reply: the connection name was not set.
 //!
 QString QtRedisClient::redisClientGetName()
 {
@@ -1539,6 +1694,77 @@ QString QtRedisClient::redisClientGetName()
 //! \param ip IP-адрес
 //! \param port Порт
 //! \return
+//!
+//! Redis command: CLIENT KILL
+//!
+//! Syntax
+//!
+//! CLIENT KILL <ip:port | <[ID client-id] | [TYPE <NORMAL | MASTER |
+//!   SLAVE | REPLICA | PUBSUB>] | [USER username] | [ADDR ip:port] |
+//!   [LADDR ip:port] | [SKIPME <YES | NO>] | [MAXAGE maxage]
+//!   [[ID client-id] | [TYPE <NORMAL | MASTER | SLAVE | REPLICA |
+//!   PUBSUB>] | [USER username] | [ADDR ip:port] | [LADDR ip:port] |
+//!   [SKIPME <YES | NO>] | [MAXAGE maxage] ...]>>
+//!
+//! Available since:
+//!     2.4.0
+//! Time complexity:
+//!     O(N) where N is the number of client connections
+//! ACL categories:
+//!     @admin, @slow, @dangerous, @connection
+//!
+//! The CLIENT KILL command closes a given client connection. This command support two formats, the old format:
+//!
+//! CLIENT KILL addr:port
+//!
+//! The ip:port should match a line returned by the CLIENT LIST command (addr field).
+//!
+//! The new format:
+//!
+//! CLIENT KILL <filter> <value> ... ... <filter> <value>
+//!
+//! With the new form it is possible to kill clients by different attributes instead of killing just by address. The following filters are available:
+//!
+//!     CLIENT KILL ADDR ip:port. This is exactly the same as the old three-arguments behavior.
+//!     CLIENT KILL LADDR ip:port. Kill all clients connected to specified local (bind) address.
+//!     CLIENT KILL ID client-id. Allows to kill a client by its unique ID field. Client ID's are retrieved using the CLIENT LIST command.
+//!     CLIENT KILL TYPE type, where type is one of normal, master, replica and pubsub. This closes the connections of all the clients in the specified class.
+//!                            Note that clients blocked into the MONITOR command are considered to belong to the normal class.
+//!     CLIENT KILL USER username. Closes all the connections that are authenticated with the specified ACL username,
+//!                                however it returns an error if the username does not map to an existing ACL user.
+//!     CLIENT KILL SKIPME yes/no. By default this option is set to yes, that is, the client calling the command will not get killed,
+//!                                however setting this option to no will have the effect of also killing the client calling the command.
+//!     CLIENT KILL MAXAGE maxage. Closes all the connections that are older than the specified age, in seconds. Added in Redis v7.4.
+//!
+//! It is possible to provide multiple filters at the same time. The command will handle multiple filters via logical AND. For example:
+//!
+//! CLIENT KILL addr 127.0.0.1:12345 type pubsub
+//!
+//! is valid and will kill only a pubsub client with the specified address. This format containing multiple filters is rarely useful currently.
+//!
+//! When the new form is used the command no longer returns OK or an error, but instead the number of killed clients, that may be zero.
+//!
+//! CLIENT KILL and Redis Sentinel
+//!     Recent versions of Redis Sentinel (Redis 2.8.12 or greater) use CLIENT KILL in order to kill clients when an instance is reconfigur ed,
+//!     in order to force clients to perform the handshake with one Sentinel again and update its configuration.
+//!
+//! Notes
+//!     Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.
+//!     From the client point of view, the connection can never be closed in the middle of the execution of a command. However,
+//!     the client will notice the connection has been closed only when the next command is sent (and results in network error).
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Simple string reply: OK when called in 3 argument format and the connection has been closed.
+//!     Integer reply: when called in filter/value format, the number of clients killed.
+//!
+//! History
+//!     Starting with Redis version 2.8.12: Added new filter format.
+//!     Starting with Redis version 2.8.12: ID option.
+//!     Starting with Redis version 3.2.0: Added master type in for TYPE option.
+//!     Starting with Redis version 5.0.0: Replaced slave TYPE with replica. slave still supported for backward compatibility.
+//!     Starting with Redis version 6.2.0: LADDR option.
 //!
 bool QtRedisClient::redisClientKill(const QString &ip, const uint port)
 {
@@ -1560,6 +1786,77 @@ bool QtRedisClient::redisClientKill(const QString &ip, const uint port)
 //! \param id ID клиента
 //! \return
 //!
+//! Redis command: CLIENT KILL
+//!
+//! Syntax
+//!
+//! CLIENT KILL <ip:port | <[ID client-id] | [TYPE <NORMAL | MASTER |
+//!   SLAVE | REPLICA | PUBSUB>] | [USER username] | [ADDR ip:port] |
+//!   [LADDR ip:port] | [SKIPME <YES | NO>] | [MAXAGE maxage]
+//!   [[ID client-id] | [TYPE <NORMAL | MASTER | SLAVE | REPLICA |
+//!   PUBSUB>] | [USER username] | [ADDR ip:port] | [LADDR ip:port] |
+//!   [SKIPME <YES | NO>] | [MAXAGE maxage] ...]>>
+//!
+//! Available since:
+//!     2.4.0
+//! Time complexity:
+//!     O(N) where N is the number of client connections
+//! ACL categories:
+//!     @admin, @slow, @dangerous, @connection
+//!
+//! The CLIENT KILL command closes a given client connection. This command support two formats, the old format:
+//!
+//! CLIENT KILL addr:port
+//!
+//! The ip:port should match a line returned by the CLIENT LIST command (addr field).
+//!
+//! The new format:
+//!
+//! CLIENT KILL <filter> <value> ... ... <filter> <value>
+//!
+//! With the new form it is possible to kill clients by different attributes instead of killing just by address. The following filters are available:
+//!
+//!     CLIENT KILL ADDR ip:port. This is exactly the same as the old three-arguments behavior.
+//!     CLIENT KILL LADDR ip:port. Kill all clients connected to specified local (bind) address.
+//!     CLIENT KILL ID client-id. Allows to kill a client by its unique ID field. Client ID's are retrieved using the CLIENT LIST command.
+//!     CLIENT KILL TYPE type, where type is one of normal, master, replica and pubsub. This closes the connections of all the clients in the specified class.
+//!                            Note that clients blocked into the MONITOR command are considered to belong to the normal class.
+//!     CLIENT KILL USER username. Closes all the connections that are authenticated with the specified ACL username,
+//!                                however it returns an error if the username does not map to an existing ACL user.
+//!     CLIENT KILL SKIPME yes/no. By default this option is set to yes, that is, the client calling the command will not get killed,
+//!                                however setting this option to no will have the effect of also killing the client calling the command.
+//!     CLIENT KILL MAXAGE maxage. Closes all the connections that are older than the specified age, in seconds. Added in Redis v7.4.
+//!
+//! It is possible to provide multiple filters at the same time. The command will handle multiple filters via logical AND. For example:
+//!
+//! CLIENT KILL addr 127.0.0.1:12345 type pubsub
+//!
+//! is valid and will kill only a pubsub client with the specified address. This format containing multiple filters is rarely useful currently.
+//!
+//! When the new form is used the command no longer returns OK or an error, but instead the number of killed clients, that may be zero.
+//!
+//! CLIENT KILL and Redis Sentinel
+//!     Recent versions of Redis Sentinel (Redis 2.8.12 or greater) use CLIENT KILL in order to kill clients when an instance is reconfigur ed,
+//!     in order to force clients to perform the handshake with one Sentinel again and update its configuration.
+//!
+//! Notes
+//!     Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.
+//!     From the client point of view, the connection can never be closed in the middle of the execution of a command. However,
+//!     the client will notice the connection has been closed only when the next command is sent (and results in network error).
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Simple string reply: OK when called in 3 argument format and the connection has been closed.
+//!     Integer reply: when called in filter/value format, the number of clients killed.
+//!
+//! History
+//!     Starting with Redis version 2.8.12: Added new filter format.
+//!     Starting with Redis version 2.8.12: ID option.
+//!     Starting with Redis version 3.2.0: Added master type in for TYPE option.
+//!     Starting with Redis version 5.0.0: Replaced slave TYPE with replica. slave still supported for backward compatibility.
+//!     Starting with Redis version 6.2.0: LADDR option.
+//!
 bool QtRedisClient::redisClientKill(const QString &id)
 {
     if (id.isEmpty()) {
@@ -1578,6 +1875,8 @@ bool QtRedisClient::redisClientKill(const QString &id)
 //! \brief Получить список каналов, на которые выполнена подписка
 //! \param pattern
 //! \return
+//!
+//! Redis command: PUBSUB CHANNELS
 //!
 //! Syntax
 //!
@@ -1600,6 +1899,9 @@ bool QtRedisClient::redisClientKill(const QString &id)
 //! The cluster will make sure that published messages are forwarded as needed.
 //! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
 //!
+//! RESP2/RESP3 Reply
+//! Array reply: a list of active channels, optionally matching the specified pattern.
+//!
 QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
 {
     QStringList argv;
@@ -1612,6 +1914,8 @@ QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
 //!
 //! \brief Получить число уникальных шаблонов, на которые подписаны клиенты.
 //! \return The number of unique patterns that are subscribed to by clients
+//!
+//! Redis command: PUBSUB NUMPAT
 //!
 //! Syntax
 //!
@@ -1632,6 +1936,9 @@ QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
 //! The cluster will make sure that published messages are forwarded as needed.
 //! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
 //!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of patterns all the clients are subscribed to.
+//!
 qlonglong QtRedisClient::redisPubSubNumPat()
 {
     QStringList argv;
@@ -1644,6 +1951,8 @@ qlonglong QtRedisClient::redisPubSubNumPat()
 //! \param channel
 //! \return
 //!
+//! Redis command: PUBSUB NUMSUB
+//!
 //! Syntax
 //!
 //! PUBSUB NUMSUB [channel [channel ...]]
@@ -1662,6 +1971,9 @@ qlonglong QtRedisClient::redisPubSubNumPat()
 //! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
 //! The cluster will make sure that published messages are forwarded as needed.
 //! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: the number of subscribers per channel, each even element (including the 0th) is channel name, each odd element is the number of subscribers
 //!
 QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QString &channel)
 {
@@ -1673,6 +1985,8 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QString &channel
 //! \param channels
 //! \return
 //!
+//! Redis command: PUBSUB NUMSUB
+//!
 //! Syntax
 //!
 //! PUBSUB NUMSUB [channel [channel ...]]
@@ -1691,6 +2005,9 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QString &channel
 //! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
 //! The cluster will make sure that published messages are forwarded as needed.
 //! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: the number of subscribers per channel, each even element (including the 0th) is channel name, each odd element is the number of subscribers
 //!
 QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &channels)
 {
@@ -1721,6 +2038,8 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &cha
 //! \param pattern
 //! \return
 //!
+//! Redis command: PUBSUB SHARDCHANNELS
+//!
 //! Syntax
 //!
 //! PUBSUB SHARDCHANNELS [pattern]
@@ -1736,15 +2055,19 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &cha
 //!
 //! An active shard channel is a Pub/Sub shard channel with one or more subscribers.
 //!
-//! If no pattern is specified, all the channels are listed, otherwise if pattern is specified only channels matching the specified glob-style pattern are listed.
+//! If no pattern is specified, all the channels are listed,
+//! otherwise if pattern is specified only channels matching the specified glob-style pattern are listed.
 //!
 //! The information returned about the active shard channels are at the shard level and not at the cluster level.
-//! Examples
 //!
+//! Examples
 //! > PUBSUB SHARDCHANNELS
 //! 1) "orders"
 //! > PUBSUB SHARDCHANNELS o*
 //! 1) "orders"
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: a list of active channels, optionally matching the specified pattern.
 //!
 QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
 {
@@ -1760,6 +2083,8 @@ QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
 //! \param shardChannel
 //! \return
 //!
+//! Redis command: PUBSUB SHARDNUMSUB
+//!
 //! Syntax
 //!
 //! PUBSUB SHARDNUMSUB [shardchannel [shardchannel ...]]
@@ -1775,13 +2100,17 @@ QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
 //!
 //! Note that it is valid to call this command without channels, in this case it will just return an empty list.
 //!
-//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context,
+//!               rather than the entire cluster.
 //!
 //! Examples
-//!
 //! > PUBSUB SHARDNUMSUB orders
 //! 1) "orders"
 //! 2) (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: the number of subscribers per shard channel, each even element (including the 0th) is channel name,
+//! each odd element is the number of subscribers.
 //!
 QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QString &shardChannel)
 {
@@ -1793,6 +2122,8 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QString &sh
 //! \param shardChannels
 //! \return
 //!
+//! Redis command: PUBSUB SHARDNUMSUB
+//!
 //! Syntax
 //!
 //! PUBSUB SHARDNUMSUB [shardchannel [shardchannel ...]]
@@ -1808,13 +2139,17 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QString &sh
 //!
 //! Note that it is valid to call this command without channels, in this case it will just return an empty list.
 //!
-//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context,
+//!               rather than the entire cluster.
 //!
 //! Examples
-//!
 //! > PUBSUB SHARDNUMSUB orders
 //! 1) "orders"
 //! 2) (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: the number of subscribers per shard channel, each even element (including the 0th) is channel name,
+//! each odd element is the number of subscribers.
 //!
 QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList &shardChannels)
 {
@@ -1846,6 +2181,8 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList
 //! \param message Сообщение
 //! \return The number of clients that received the message.
 //!
+//! Redis command: PUBLISH
+//!
 //! Syntax
 //!
 //! PUBLISH channel message
@@ -1861,6 +2198,10 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList
 //!
 //! In a Redis Cluster clients can publish to every node. The cluster makes sure that published messages are forwarded as needed,
 //! so clients can subscribe to any channel by connecting to any one of the nodes.
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of clients that the message was sent to. Note that in a Redis Cluster,
+//! only clients that are connected to the same node as the publishing client are included in the count.
 //!
 qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &message)
 {
@@ -1873,6 +2214,8 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &mes
 //! \param message Сообщение
 //! \return The number of clients that received the message.
 //!
+//! Redis command: PUBLISH
+//!
 //! Syntax
 //!
 //! PUBLISH channel message
@@ -1888,6 +2231,10 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &mes
 //!
 //! In a Redis Cluster clients can publish to every node. The cluster makes sure that published messages are forwarded as needed,
 //! so clients can subscribe to any channel by connecting to any one of the nodes.
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of clients that the message was sent to. Note that in a Redis Cluster,
+//! only clients that are connected to the same node as the publishing client are included in the count.
 //!
 qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &message)
 {
@@ -1906,6 +2253,8 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
 //! \param message Сообщение
 //! \return The number of clients that received the message.
 //!
+//! Redis command: SPUBLISH
+//!
 //! Syntax
 //!
 //! SPUBLISH shardchannel message
@@ -1924,13 +2273,18 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
 //! The cluster makes sure that published shard messages are forwarded to all the node in the shard,
 //! so clients can subscribe to a shard channel by connecting to any one of the nodes in the shard.
 //!
-//! For more information about sharded pubsub, see Sharded Pubsub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded pubsub, see Sharded Pubsub.
+//!
 //! Examples
 //!
 //! For example the following command publish to channel orders with a subscriber already waiting for message(s).
 //!
 //! > spublish orders hello
 //! (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of clients that the message was sent to. Note that in a Redis Cluster,
+//! only clients that are connected to the same node as the publishing client are included in the count
 //!
 qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QString &message)
 {
@@ -1943,6 +2297,8 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QStrin
 //! \param message Сообщение
 //! \return The number of clients that received the message.
 //!
+//! Redis command: SPUBLISH
+//!
 //! Syntax
 //!
 //! SPUBLISH shardchannel message
@@ -1961,13 +2317,18 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QStrin
 //! The cluster makes sure that published shard messages are forwarded to all the node in the shard,
 //! so clients can subscribe to a shard channel by connecting to any one of the nodes in the shard.
 //!
-//! For more information about sharded pubsub, see Sharded Pubsub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded pubsub, see Sharded Pubsub.
+//!
 //! Examples
 //!
 //! For example the following command publish to channel orders with a subscriber already waiting for message(s).
 //!
 //! > spublish orders hello
 //! (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of clients that the message was sent to. Note that in a Redis Cluster,
+//! only clients that are connected to the same node as the publishing client are included in the count
 //!
 qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteArray &message)
 {
@@ -1985,6 +2346,8 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteA
 //! \param channel Название канала
 //! \return
 //!
+//! Redis command: SUBSCRIBE
+//!
 //! Syntax
 //!
 //! SUBSCRIBE channel [channel ...]
@@ -2001,6 +2364,15 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteA
 //! Once the client enters the subscribed state it is not supposed to issue any other commands,
 //! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
 //! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+//! For more information, see Pub/sub.
+//!
+//! Behavior change history
+//!     >= 6.2.0: RESET can be called to exit subscribed state.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each channel,
+//! one message with the first element being the string subscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisSubscribe(const QString &channel)
 {
@@ -2012,6 +2384,8 @@ bool QtRedisClient::redisSubscribe(const QString &channel)
 //! \param channels Названия каналов
 //! \return
 //!
+//! Redis command: SUBSCRIBE
+//!
 //! Syntax
 //!
 //! SUBSCRIBE channel [channel ...]
@@ -2029,6 +2403,15 @@ bool QtRedisClient::redisSubscribe(const QString &channel)
 //! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
 //! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
 //!
+//! For more information, see Pub/sub.
+//!
+//! Behavior change history
+//!     >= 6.2.0: RESET can be called to exit subscribed state.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each channel,
+//! one message with the first element being the string subscribe is pushed as a confirmation that the command succeeded.
+//!
 bool QtRedisClient::redisSubscribe(const QStringList &channels)
 {
     return this->redisSubscribe_safe("SUBSCRIBE", channels);
@@ -2038,6 +2421,8 @@ bool QtRedisClient::redisSubscribe(const QStringList &channels)
 //! \brief Отписаться от канала сообщений
 //! \param channel Название канала
 //! \return
+//!
+//! Redis command: UNSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -2054,6 +2439,10 @@ bool QtRedisClient::redisSubscribe(const QStringList &channels)
 //!
 //! When no channels are specified, the client is unsubscribed from all the previously subscribed channels.
 //! In this case, a message for every unsubscribed channel will be sent to the client.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each channel,
+//! one message with the first element being the string unsubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisUnsubscribe(const QString &channel)
 {
@@ -2065,6 +2454,8 @@ bool QtRedisClient::redisUnsubscribe(const QString &channel)
 //! \param channels Названия каналов
 //! \return
 //!
+//! Redis command: UNSUBSCRIBE
+//!
 //! Syntax
 //!
 //! UNSUBSCRIBE [channel [channel ...]]
@@ -2081,6 +2472,10 @@ bool QtRedisClient::redisUnsubscribe(const QString &channel)
 //! When no channels are specified, the client is unsubscribed from all the previously subscribed channels.
 //! In this case, a message for every unsubscribed channel will be sent to the client.
 //!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each channel,
+//! one message with the first element being the string unsubscribe is pushed as a confirmation that the command succeeded.
+//!
 bool QtRedisClient::redisUnsubscribe(const QStringList &channels)
 {
     return this->redisUnsubscribe_safe("UNSUBSCRIBE", channels);
@@ -2090,6 +2485,8 @@ bool QtRedisClient::redisUnsubscribe(const QStringList &channels)
 //! \brief Подписаться на канал по заданному шаблону
 //! \param pattern
 //! \return
+//!
+//! Redis command: PSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -2115,6 +2512,15 @@ bool QtRedisClient::redisUnsubscribe(const QStringList &channels)
 //! Once the client enters the subscribed state it is not supposed to issue any other commands,
 //! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
 //! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+//! For more information, see Pub/sub.
+//!
+//! Behavior change history
+//!     >= 6.2.0: RESET can be called to exit subscribed state.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each pattern,
+//! one message with the first element being the string psubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisPSubscribe(const QString &pattern)
 {
@@ -2126,6 +2532,8 @@ bool QtRedisClient::redisPSubscribe(const QString &pattern)
 //! \param patterns
 //! \return
 //!
+//! Redis command: PSUBSCRIBE
+//!
 //! Syntax
 //!
 //! PSUBSCRIBE pattern [pattern ...]
@@ -2151,6 +2559,15 @@ bool QtRedisClient::redisPSubscribe(const QString &pattern)
 //! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
 //! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
 //!
+//! For more information, see Pub/sub.
+//!
+//! Behavior change history
+//!     >= 6.2.0: RESET can be called to exit subscribed state.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each pattern,
+//! one message with the first element being the string psubscribe is pushed as a confirmation that the command succeeded.
+//!
 bool QtRedisClient::redisPSubscribe(const QStringList &patterns)
 {
     return this->redisSubscribe_safe("PSUBSCRIBE", patterns);
@@ -2160,6 +2577,8 @@ bool QtRedisClient::redisPSubscribe(const QStringList &patterns)
 //! \brief Отписаться от канала по заданному шаблону
 //! \param pattern
 //! \return
+//!
+//! Redis command: PUNSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -2176,6 +2595,10 @@ bool QtRedisClient::redisPSubscribe(const QStringList &patterns)
 //!
 //! When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns.
 //! In this case, a message for every unsubscribed pattern will be sent to the client.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each pattern,
+//! one message with the first element being the string punsubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisPUnsubscribe(const QString &pattern)
 {
@@ -2187,6 +2610,8 @@ bool QtRedisClient::redisPUnsubscribe(const QString &pattern)
 //! \param patterns
 //! \return
 //!
+//! Redis command: PUNSUBSCRIBE
+//!
 //! Syntax
 //!
 //! PUNSUBSCRIBE [pattern [pattern ...]]
@@ -2203,6 +2628,10 @@ bool QtRedisClient::redisPUnsubscribe(const QString &pattern)
 //! When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns.
 //! In this case, a message for every unsubscribed pattern will be sent to the client.
 //!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each pattern,
+//! one message with the first element being the string punsubscribe is pushed as a confirmation that the command succeeded.
+//!
 bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
 {
     return this->redisUnsubscribe_safe("PUNSUBSCRIBE", patterns);
@@ -2212,6 +2641,8 @@ bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
 //! \brief Подписаться на сообщения указанного канала сегмента.
 //! \param shardChannel Название канала
 //! \return
+//!
+//! Redis command: SSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -2231,7 +2662,7 @@ bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
 //! All the specified shard channels needs to belong to a single slot to subscribe in a given SSUBSCRIBE call,
 //! A client can subscribe to channels across different slots over separate SSUBSCRIBE call.
 //!
-//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub.
 //!
 //! Examples
 //!
@@ -2243,6 +2674,16 @@ bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
 //! 1) "smessage"
 //! 2) "orders"
 //! 3) "hello"
+//!
+//! RESP2 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string ssubscribe is pushed as a confirmation that the command succeeded.
+//! Note that this command can also return a -MOVED redirect.
+//!
+//! RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string 'ssubscribe' is pushed as a confirmation that the command succeeded.
+//! Note that this command can also return a -MOVED redirect.
 //!
 bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
 {
@@ -2254,6 +2695,8 @@ bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
 //! \param shardChannels Название канала
 //! \return
 //!
+//! Redis command: SSUBSCRIBE
+//!
 //! Syntax
 //!
 //! SSUBSCRIBE shardchannel [shardchannel ...]
@@ -2272,7 +2715,7 @@ bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
 //! All the specified shard channels needs to belong to a single slot to subscribe in a given SSUBSCRIBE call,
 //! A client can subscribe to channels across different slots over separate SSUBSCRIBE call.
 //!
-//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub.
 //!
 //! Examples
 //!
@@ -2285,6 +2728,16 @@ bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
 //! 2) "orders"
 //! 3) "hello"
 //!
+//! RESP2 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string ssubscribe is pushed as a confirmation that the command succeeded.
+//! Note that this command can also return a -MOVED redirect.
+//!
+//! RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string 'ssubscribe' is pushed as a confirmation that the command succeeded.
+//! Note that this command can also return a -MOVED redirect.
+//!
 bool QtRedisClient::redisSSubscribe(const QStringList &shardChannels)
 {
     return this->redisSubscribe_safe("SSUBSCRIBE", shardChannels);
@@ -2294,6 +2747,8 @@ bool QtRedisClient::redisSSubscribe(const QStringList &shardChannels)
 //! \brief Отписаться от сообщений указанного канала сегмента.
 //! \param shardChannel
 //! \return
+//!
+//! Redis command: SUNSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -2313,7 +2768,11 @@ bool QtRedisClient::redisSSubscribe(const QStringList &shardChannels)
 //!
 //! Note: The global channels and shard channels needs to be unsubscribed from separately.
 //!
-//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string sunsubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisSUnsubscribe(const QString &shardChannel)
 {
@@ -2325,6 +2784,8 @@ bool QtRedisClient::redisSUnsubscribe(const QString &shardChannel)
 //! \param shardChannels
 //! \return
 //!
+//! Redis command: SUNSUBSCRIBE
+//!
 //! Syntax
 //!
 //! SUNSUBSCRIBE [shardchannel [shardchannel ...]]
@@ -2343,7 +2804,11 @@ bool QtRedisClient::redisSUnsubscribe(const QString &shardChannel)
 //!
 //! Note: The global channels and shard channels needs to be unsubscribed from separately.
 //!
-//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string sunsubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisSUnsubscribe(const QStringList &shardChannels)
 {

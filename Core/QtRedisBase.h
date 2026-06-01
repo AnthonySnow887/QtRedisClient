@@ -333,25 +333,26 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const 
 //!
 //! Redis command: KEYS
 //!
+//! Syntax
+//!
 //! KEYS pattern
 //!
 //! Available since:
-//!     Redis Open Source 1.0.0
+//!     1.0.0
 //! Time complexity:
 //!     O(N) with N being the number of keys in the database, under the assumption that the key names in the database and the given pattern have limited length.
 //! ACL categories:
 //!     @keyspace, @read, @slow, @dangerous
-//! Compatibility:
-//!     Redis Software and Redis Cloud compatibility
-//!
-//! Note:
-//! This command's behavior varies in clustered Redis environments. See the multi-key operations page for more information.
 //!
 //! Returns all keys matching pattern.
 //!
-//! While the time complexity for this operation is O(N), the constant times are fairly low. For example, Redis running on an entry level laptop can scan a 1 million key database in 40 milliseconds.
+//! While the time complexity for this operation is O(N), the constant times are fairly low. For example,
+//! Redis running on an entry level laptop can scan a 1 million key database in 40 milliseconds.
 //!
-//! Warning: consider KEYS as a command that should only be used in production environments with extreme care. It may ruin performance when it is executed against large databases. This command is intended for debugging and special operations, such as changing your keyspace layout. Don't use KEYS in your regular application code. If you're looking for a way to find keys in a subset of your keyspace, consider using SCAN or sets.
+//! Warning: consider KEYS as a command that should only be used in production environments with extreme care.
+//! It may ruin performance when it is executed against large databases. This command is intended for debugging and special operations,
+//! such as changing your keyspace layout. Don't use KEYS in your regular application code.
+//! If you're looking for a way to find keys in a subset of your keyspace, consider using SCAN or sets.
 //!
 //! Supported glob-style patterns:
 //!
@@ -363,21 +364,27 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExecCommand(const 
 //!
 //! Use \ to escape special characters if you want to match them verbatim.
 //!
-//! When using Redis Cluster, the search is optimized for patterns that imply a single slot. If a pattern can only match keys of one slot, Redis only iterates over keys in that slot, rather than the whole database, when searching for keys matching the pattern. For example, with the pattern {a}h*llo, Redis would only try to match it with the keys in slot 15495, which hash tag {a} implies. To use pattern with hash tag, see Hash tags in the Cluster specification for more information.
+//! When using Redis Cluster, the search is optimized for patterns that imply a single slot.
+//! If a pattern can only match keys of one slot, Redis only iterates over keys in that slot,
+//! rather than the whole database, when searching for keys matching the pattern.
+//! For example, with the pattern {a}h*llo, Redis would only try to match it with the keys in slot 15495, which hash tag {a} implies.
+//! To use pattern with hash tag, see Hash tags in the Cluster specification for more information.
 //!
-//! Example (Redis-CLI):
-//!
-//! > MSET firstname Jack lastname Stuntman age 35
+//! Examples
+//! redis> MSET firstname Jack lastname Stuntman age 35
 //! "OK"
-//! > KEYS *name*
+//! redis> KEYS *name*
 //! 1) "lastname"
 //! 2) "firstname"
-//! > KEYS a??
+//! redis> KEYS a??
 //! 1) "age"
-//! > KEYS *
+//! redis> KEYS *
 //! 1) "age"
 //! 2) "lastname"
 //! 3) "firstname"
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: a list of keys matching pattern.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisKeys(const QString &arg)
@@ -391,18 +398,30 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisKeys(const QString
 //!
 //! Redis command: RANDOMKEY
 //!
+//! Syntax
+//!
 //! RANDOMKEY
 //!
 //! Available since:
-//!     Redis Open Source 1.0.0
+//!     1.0.0
 //! Time complexity:
 //!     O(1)
 //! ACL categories:
 //!     @keyspace, @read, @slow
-//! Compatibility:
-//!     Redis Software and Redis Cloud compatibility
 //!
 //! Return a random key from the currently selected database.
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Nil reply: when the database is empty.
+//!     Bulk string reply: a random key in database.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Null reply: when the database is empty.
+//!     Bulk string reply: a random key in the database.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRandomKey()
@@ -415,18 +434,41 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRandomKey()
 //! \param keyList Список ключей
 //! \return
 //!
-//! Since Redis 3.0.3 it is possible to specify multiple keys instead of a single one. In such a case, it returns the total number of keys existing.
-//! Note that returning 1 or 0 for a single key is just a special case of the variadic usage, so the command is completely backward compatible.
+//! Redis command: EXISTS
 //!
-//! The user should be aware that if the same existing key is mentioned in the arguments multiple times, it will be counted multiple times.
-//! So if somekey exists, EXISTS somekey somekey will return 2.
+//! Syntax
 //!
-//! Integer reply, specifically:
-//! - 1 if the key exists.
-//! - 0 if the key does not exist.
+//! EXISTS key [key ...]
 //!
-//! Since Redis 3.0.3 the command accepts a variable number of keys and the return value is generalized:
-//! - The number of keys existing among the ones specified as arguments. Keys mentioned multiple times and existing are counted multiple times.
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of keys to check.
+//! ACL categories:
+//!     @keyspace, @read, @fast
+//!
+//! Returns if key exists.
+//!
+//! The user should be aware that if the same existing key is mentioned in the arguments multiple times,
+//! it will be counted multiple times. So if somekey exists, EXISTS somekey somekey will return 2.
+//!
+//! Examples
+//! redis> SET key1 "Hello"
+//! "OK"
+//! redis> EXISTS key1
+//! (integer) 1
+//! redis> EXISTS nosuchkey
+//! (integer) 0
+//! redis> SET key2 "World"
+//! "OK"
+//! redis> EXISTS key1 key2 nosuchkey
+//! (integer) 2
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of keys that exist from those specified as arguments.
+//!
+//! History
+//!     Starting with Redis version 3.0.3: Accepts multiple key arguments.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExists(const QStringList &keyList)
@@ -446,8 +488,40 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExists(const QStri
 //! \param key Ключ
 //! \return
 //!
-//! Get the value of key. If the key does not exist the special value nil is returned.
-//! An error is returned if the value stored at key is not a string, because GET only handles string values.
+//! Redis command: GET
+//!
+//! Syntax
+//!
+//! GET key
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @read, @string, @fast
+//!
+//! Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
+//!
+//! Examples
+//! redis> GET nonexisting
+//! (nil)
+//! redis> SET mykey "Hello"
+//! "OK"
+//! redis> GET mykey
+//! "Hello"
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the value of the key.
+//!     Nil reply: if the key does not exist.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the value of the key.
+//!     Null reply: key does not exist.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGet(const QString &key)
@@ -465,22 +539,40 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGet(const QString 
 //! \param endPos Конец
 //! \return
 //!
-//! Warning: this command was renamed to GETRANGE, it is called SUBSTR in Redis versions <= 2.0.
+//! Redis commadn: GETRANGE
+//!
+//! Syntax
+//!
+//! GETRANGE key start end
+//!
+//! Available since:
+//!     2.4.0
+//! Time complexity:
+//!     O(N) where N is the length of the returned string. The complexity is ultimately determined by the returned length,
+//!          but because creating a substring from an existing string is very cheap, it can be considered O(1) for small strings.
+//! ACL categories:
+//!     @read, @string, @slow
+//!
 //! Returns the substring of the string value stored at key, determined by the offsets start and end (both are inclusive).
-//! Negative offsets can be used in order to provide an offset starting from the end of the string. So -1 means the last character, -2 the penultimate and so forth.
+//! Negative offsets can be used in order to provide an offset starting from the end of the string.
+//! So -1 means the last character, -2 the penultimate and so forth.
+//!
 //! The function handles out of range requests by limiting the resulting range to the actual length of the string.
-//! Examples:
-//! redis>  SET mykey "This is a string"
+//!
+//! Examples
+//! redis> SET mykey "This is a string"
 //! "OK"
-//! redis>  GETRANGE mykey 0 3
+//! redis> GETRANGE mykey 0 3
 //! "This"
-//! redis>  GETRANGE mykey -3 -1
+//! redis> GETRANGE mykey -3 -1
 //! "ing"
-//! redis>  GETRANGE mykey 0 -1
+//! redis> GETRANGE mykey 0 -1
 //! "This is a string"
-//! redis>  GETRANGE mykey 10 100
+//! redis> GETRANGE mykey 10 100
 //! "string"
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//! Bulk string reply: The substring of the string value stored at key, determined by the offsets start and end (both are inclusive).
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetRange(const QString &key, const int startPos, const int endPos)
@@ -497,18 +589,57 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetRange(const QSt
 //! \param value Новое значение
 //! \return
 //!
+//! Redis command: GETSET (deprecated)
+//!
+//! As of Redis version 6.2.0, this command is regarded as deprecated.
+//!
+//! It can be replaced by SET with the GET argument when migrating or writing new code.
+//!
+//! Syntax
+//!
+//! GETSET key value
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @string, @fast
+//!
 //! Atomically sets key to value and returns the old value stored at key. Returns an error when key exists but does not hold a string value.
+//! Any previous time to live associated with the key is discarded on successful SET operation.
+//!
+//! Design pattern
 //!
 //! GETSET can be used together with INCR for counting with atomic reset. For example: a process may call INCR against the key mycounter every time some event occurs,
-//! but from time to time we need to get the value of the counter and reset it to zero atomically.
-//! This can be done using GETSET mycounter "0":
-//! redis>  INCR mycounter
+//! but from time to time we need to get the value of the counter and reset it to zero atomically. This can be done using GETSET mycounter "0":
+//!
+//! redis> INCR mycounter
 //! (integer) 1
-//! redis>  GETSET mycounter "0"
+//! redis> GETSET mycounter "0"
 //! "1"
-//! redis>  GET mycounter
+//! redis> GET mycounter
 //! "0"
-//! redis>
+//!
+//! Examples
+//! redis> SET mykey "Hello"
+//! "OK"
+//! redis> GETSET mykey "World"
+//! "Hello"
+//! redis> GET mykey
+//! "World"
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the old value stored at the key.
+//!     Nil reply: if the key does not exist.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the old value stored at the key.
+//!     Null reply: if the key does not exist.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetSet(const QString &key, const QString &value)
@@ -527,19 +658,65 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisGetSet(const QStri
 //! \param appendValue Значение
 //! \return
 //!
+//! Redis command: APPEND
+//!
+//! Syntax
+//!
+//! APPEND key value
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(1). The amortized time complexity is O(1) assuming the appended value is small and the already present value is of any size,
+//!           since the dynamic string library used by Redis will double the free space available on every reallocation.
+//! ACL categories:
+//!     @write, @string, @fast
+//!
 //! If key already exists and is a string, this command appends the value at the end of the string.
 //! If key does not exist it is created and set as an empty string, so APPEND will be similar to SET in this special case.
 //!
 //! Examples
-//! redis>  EXISTS mykey
+//! redis> EXISTS mykey
 //! (integer) 0
-//! redis>  APPEND mykey "Hello"
+//! redis> APPEND mykey "Hello"
 //! (integer) 5
-//! redis>  APPEND mykey " World"
+//! redis> APPEND mykey " World"
 //! (integer) 11
-//! redis>  GET mykey
+//! redis> GET mykey
 //! "Hello World"
-//! redis>
+//!
+//! Pattern: Time series
+//!
+//! The APPEND command can be used to create a very compact representation of a list of fixed-size samples,
+//! usually referred as time series. Every time a new sample arrives we can store it using the command
+//!
+//! APPEND timeseries "fixed-size sample"
+//!
+//! Accessing individual elements in the time series is not hard:
+//!
+//!     STRLEN can be used in order to obtain the number of samples.
+//!     GETRANGE allows for random access of elements. If our time series have associated time information we can easily implement a binary search
+//!              to get range combining GETRANGE with the Lua scripting engine available in Redis 2.6.
+//!     SETRANGE can be used to overwrite an existing time series.
+//!
+//! The limitation of this pattern is that we are forced into an append-only mode of operation, there is no way to cut the time series to a given size easily
+//! because Redis currently lacks a command able to trim string objects. However the space efficiency of time series stored in this way is remarkable.
+//!
+//! Hint: it is possible to switch to a different key based on the current Unix time, in this way it is possible to have just a relatively small amount of samples per key,
+//! to avoid dealing with very big keys, and to make this pattern more friendly to be distributed across many Redis instances.
+//!
+//! An example sampling the temperature of a sensor using fixed-size strings (using a binary format is better in real implementations).
+//! redis> APPEND ts "0043"
+//! (integer) 4
+//! redis> APPEND ts "0035"
+//! (integer) 8
+//! redis> GETRANGE ts 0 3
+//! "0043"
+//! redis> GETRANGE ts 4 7
+//! "0035"
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the length of the string after the append operation.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisAppend(const QString &key, const QString &appendValue)
@@ -563,14 +740,95 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisAppend(const QStri
 //!
 //! Если заданы exSec и(или) pxMSec, то по истечении времени объект будет автоматически удален.
 //!
-//! Set key to hold the string value. If key already holds a value, it is overwritten, regardless of its type. Any previous time to live associated with the key is discarded on successful SET operation.
+//! Redis command: SET
+//!
+//! Syntax
+//!
+//! SET key value [NX | XX] [GET] [EX seconds | PX milliseconds |
+//!   EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @string, @slow
+//!
+//! Set key to hold the string value. If key already holds a value, it is overwritten, regardless of its type.
+//! Any previous time to live associated with the key is discarded on successful SET operation.
+//!
 //! Options
 //!
-//! Starting with Redis 2.6.12 SET supports a set of options that modify its behavior:
-//! - EX seconds -- Set the specified expire time, in seconds.
-//! - PX milliseconds -- Set the specified expire time, in milliseconds.
-//! - NX -- Only set the key if it does not already exist.
-//! - XX -- Only set the key if it already exist.
+//! The SET command supports a set of options that modify its behavior:
+//!
+//!     EX seconds -- Set the specified expire time, in seconds (a positive integer).
+//!     PX milliseconds -- Set the specified expire time, in milliseconds (a positive integer).
+//!     EXAT timestamp-seconds -- Set the specified Unix time at which the key will expire, in seconds (a positive integer).
+//!     PXAT timestamp-milliseconds -- Set the specified Unix time at which the key will expire, in milliseconds (a positive integer).
+//!     NX -- Only set the key if it does not already exist.
+//!     XX -- Only set the key if it already exists.
+//!     KEEPTTL -- Retain the time to live associated with the key.
+//!     GET -- Return the old string stored at key, or nil if key did not exist. An error is returned and SET aborted if the value stored at key is not a string.
+//!
+//! Note: Since the SET command options can replace SETNX, SETEX, PSETEX, GETSET, it is possible that in future versions of Redis these commands will be deprecated and finally removed.
+//!
+//! Examples
+//! redis> SET mykey "Hello"
+//! "OK"
+//! redis> GET mykey
+//! "Hello"
+//! redis> SET anotherkey "will expire in a minute" EX 60
+//! "OK"
+//!
+//! Patterns
+//!
+//! Note: The following pattern is discouraged in favor of the Redlock algorithm which is only a bit more complex to implement, but offers better guarantees and is fault tolerant.
+//!
+//! The command SET resource-name anystring NX EX max-lock-time is a simple way to implement a locking system with Redis.
+//!
+//! A client can acquire the lock if the above command returns OK (or retry after some time if the command returns Nil), and remove the lock just using DEL.
+//!
+//! The lock will be auto-released after the expire time is reached.
+//!
+//! It is possible to make this system more robust modifying the unlock schema as follows:
+//!
+//!     Instead of setting a fixed string, set a non-guessable large random string, called token.
+//!     Instead of releasing the lock with DEL, send a script that only removes the key if the value matches.
+//!
+//! This avoids that a client will try to release the lock after the expire time deleting the key created by another client that acquired the lock later.
+//!
+//! An example of unlock script would be similar to the following:
+//!
+//! if redis.call("get",KEYS[1]) == ARGV[1]
+//! then
+//!     return redis.call("del",KEYS[1])
+//! else
+//!     return 0
+//! end
+//!
+//! The script should be called with EVAL ...script... 1 resource-name token-value
+//!
+//! RESP2 Reply
+//!
+//! Any of the following:
+//!     Nil reply: GET not given: Operation was aborted (conflict with one of the XX/NX options).
+//!     Simple string reply: OK. GET not given: The key was set.
+//!     Nil reply: GET given: The key didn't exist before the SET.
+//!     Bulk string reply: GET given: The previous value of the key.
+//!
+//! RESP3 Reply
+//!
+//! Any of the following:
+//!     Null reply: GET not given: Operation was aborted (conflict with one of the XX/NX options).
+//!     Simple string reply: OK. GET not given: The key was set.
+//!     Null reply: GET given: The key didn't exist before the SET.
+//!     Bulk string reply: GET given: The previous value of the key.
+//!
+//! History
+//!     Starting with Redis version 2.6.12: Added the EX, PX, NX and XX options.
+//!     Starting with Redis version 6.0.0: Added the KEEPTTL option.
+//!     Starting with Redis version 6.2.0: Added the GET, EXAT and PXAT option.
+//!     Starting with Redis version 7.0.0: Allowed the NX and GET options to be used together.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSet(const QString &key, const QString &value, const uint exSec, const uint pxMSec, const QString existFlag)
@@ -602,12 +860,54 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSet(const QString 
 //! \param offset Позиция
 //! \return
 //!
-//! Overwrites part of the string stored at key, starting at the specified offset, for the entire length of value.
-//! If the offset is larger than the current length of the string at key, the string is padded with zero-bytes to make offset fit.
-//! Non-existing keys are considered as empty strings, so this command will make sure it holds a string large enough to be able to set value at offset.
+//! Redis command: SETRANGE
 //!
-//! Note that the maximum offset that you can set is 229 -1 (536870911), as Redis Strings are limited to 512 megabytes.
+//! Syntax
+//!
+//! SETRANGE key offset value
+//!
+//! Available since:
+//!     2.2.0
+//! Time complexity:
+//!     O(1), not counting the time taken to copy the new string in place. Usually, this string is very small so the amortized complexity is O(1).
+//!           Otherwise, complexity is O(M) with M being the length of the value argument.
+//! ACL categories:
+//!     @write, @string, @slow
+//!
+//! Overwrites part of the string stored at key, starting at the specified offset, for the entire length of value. If the offset is larger than the current length
+//! of the string at key, the string is padded with zero-bytes to make offset fit. Non-existing keys are considered as empty strings,
+//! so this command will make sure it holds a string large enough to be able to set value at offset.
+//!
+//! Note that the maximum offset that you can set is 2^29 -1 (536870911), as Redis Strings are limited to 512 megabytes.
 //! If you need to grow beyond this size, you can use multiple keys.
+//!
+//! Warning: When setting the last possible byte and the string value stored at key does not yet hold a string value, or holds a small string value,
+//! Redis needs to allocate all intermediate memory which can block the server for some time. On a 2010 MacBook Pro,
+//! setting byte number 536870911 (512MB allocation) takes ~300ms, setting byte number 134217728 (128MB allocation) takes ~80ms,
+//! setting bit number 33554432 (32MB allocation) takes ~30ms and setting bit number 8388608 (8MB allocation) takes ~8ms.
+//! Note that once this first allocation is done, subsequent calls to SETRANGE for the same key will not have the allocation overhead.
+//!
+//! Patterns
+//!
+//! Thanks to SETRANGE and the analogous GETRANGE commands, you can use Redis strings as a linear array with O(1) random access.
+//! This is a very fast and efficient storage in many real world use cases.
+//!
+//! Examples
+//! redis> SET key1 "Hello World"
+//! "OK"
+//! redis> SETRANGE key1 6 "Redis"
+//! (integer) 11
+//! redis> GET key1
+//! "Hello Redis"
+//!
+//! Example of zero padding:
+//! redis> SETRANGE key2 6 "Redis"
+//! (integer) 11
+//! redis> GET key2
+//! "Redis"
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the length of the string after it was modified by the command.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSetRange(const QString &key, const QString &value, const int offset)
@@ -625,16 +925,33 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSetRange(const QSt
 //! \param keyList Список ключей
 //! \return
 //!
+//! Redis command: DEL
+//!
+//! Syntax
+//!
+//! DEL key [key ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of keys that will be removed. When a key to remove holds a value other than a string,
+//!          the individual complexity for this key is O(M) where M is the number of elements in the list, set,
+//!          sorted set or hash. Removing a single key that holds a string value is O(1).
+//! ACL categories:
+//!     @keyspace, @write, @slow
+//!
 //! Removes the specified keys. A key is ignored if it does not exist.
-//! Return value: The number of keys that were removed.
+//!
 //! Examples
-//! redis>  SET key1 "Hello"
+//! redis> SET key1 "Hello"
 //! "OK"
-//! redis>  SET key2 "World"
+//! redis> SET key2 "World"
 //! "OK"
-//! redis>  DEL key1 key2 key3
+//! redis> DEL key1 key2 key3
 //! (integer) 2
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of keys that were removed.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDel(const QStringList &keyList)
@@ -654,16 +971,31 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDel(const QStringL
 //! \param key Ключ
 //! \return
 //!
+//! Redis command: STRLEN
+//!
+//! Syntax
+//!
+//! STRLEN key
+//!
+//! Available since:
+//!     2.2.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @read, @string, @fast
+//!
 //! Returns the length of the string value stored at key. An error is returned when key holds a non-string value.
-//! Return value: the length of the string at key, or 0 when key does not exist.
+//!
 //! Examples
-//! redis>  SET mykey "Hello world"
+//! redis> SET mykey "Hello world"
 //! "OK"
-//! redis>  STRLEN mykey
+//! redis> STRLEN mykey
 //! (integer) 11
-//! redis>  STRLEN nonexisting
+//! redis> STRLEN nonexisting
 //! (integer) 0
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the length of the string stored at key, or 0 when the key does not exist.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisStrlen(const QString &key)
@@ -680,34 +1012,143 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisStrlen(const QStri
 //! \param sec Время в сек.
 //! \return
 //!
-//! Set a timeout on key. After the timeout has expired, the key will automatically be deleted. A key with an associated timeout is often said to be volatile in Redis terminology.
+//! Redis command: EXPIRE
+//!
+//! Syntax
+//!
+//! EXPIRE key seconds [NX | XX | GT | LT]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @write, @fast
+//!
+//! Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+//! A key with an associated timeout is often said to be volatile in Redis terminology.
 //!
 //! The timeout will only be cleared by commands that delete or overwrite the contents of the key, including DEL, SET, GETSET and all the *STORE commands.
 //! This means that all the operations that conceptually alter the value stored at the key without replacing it with a new one will leave the timeout untouched.
-//! For instance, incrementing the value of a key with INCR, pushing a new value into a list with LPUSH, or altering the field value of a hash with HSET are all operations
-//! that will leave the timeout untouched.
+//! For instance, incrementing the value of a key with INCR, pushing a new value into a list with LPUSH,
+//! or altering the field value of a hash with HSET are all operations that will leave the timeout untouched.
 //!
 //! The timeout can also be cleared, turning the key back into a persistent key, using the PERSIST command.
+//!
 //! If a key is renamed with RENAME, the associated time to live is transferred to the new key name.
+//!
 //! If a key is overwritten by RENAME, like in the case of an existing key Key_A that is overwritten by a call like RENAME Key_B Key_A,
 //! it does not matter if the original Key_A had a timeout associated or not, the new key Key_A will inherit all the characteristics of Key_B.
 //!
+//! Note that calling EXPIRE/PEXPIRE with a non-positive timeout or EXPIREAT/PEXPIREAT with a time in the past will result
+//! in the key being deleted rather than expired (accordingly, the emitted key event will be del, not expired).
+//!
+//! Options
+//!
+//! The EXPIRE command supports a set of options:
+//!
+//!     NX -- Set expiry only when the key has no expiry
+//!     XX -- Set expiry only when the key has an existing expiry
+//!     GT -- Set expiry only when the new expiry is greater than current one
+//!     LT -- Set expiry only when the new expiry is less than current one
+//!
+//! A non-volatile key is treated as an infinite TTL for the purpose of GT and LT. The GT, LT and NX options are mutually exclusive.
+//!
 //! Refreshing expires
+//!
 //! It is possible to call EXPIRE using as argument a key that already has an existing expire set. In this case the time to live of a key is updated to the new value.
 //! There are many useful applications for this, an example is documented in the Navigation session pattern section below.
 //!
+//! Differences in Redis prior 2.1.3
+//!
+//! In Redis versions prior 2.1.3 altering a key with an expire set using a command altering its value had the effect of removing the key entirely.
+//! This semantics was needed because of limitations in the replication layer that are now fixed.
+//!
+//! EXPIRE would return 0 and not alter the timeout for a key with a timeout set.
+//!
 //! Examples
-//! redis>  SET mykey "Hello"
+//! redis> SET mykey "Hello"
 //! "OK"
-//! redis>  EXPIRE mykey 10
+//! redis> EXPIRE mykey 10
 //! (integer) 1
-//! redis>  TTL mykey
+//! redis> TTL mykey
 //! (integer) 10
-//! redis>  SET mykey "Hello World"
+//! redis> SET mykey "Hello World"
 //! "OK"
-//! redis>  TTL mykey
+//! redis> TTL mykey
 //! (integer) -1
-//! redis>
+//! redis> EXPIRE mykey 10 XX
+//! (integer) 0
+//! redis> TTL mykey
+//!
+//! Pattern: Navigation session
+//!
+//! Imagine you have a web service and you are interested in the latest N pages recently visited by your users,
+//! such that each adjacent page view was not performed more than 60 seconds after the previous. Conceptually you may consider this set of page views as a Navigation session of your user,
+//! that may contain interesting information about what kind of products he or she is looking for currently, so that you can recommend related products.
+//!
+//! You can easily model this pattern in Redis using the following strategy: every time the user does a page view you call the following commands:
+//!
+//! MULTI
+//! RPUSH pagewviews.user:<userid> http://.....
+//! EXPIRE pagewviews.user:<userid> 60
+//! EXEC
+//!
+//! If the user will be idle more than 60 seconds, the key will be deleted and only subsequent page views that have less than 60 seconds of difference will be recorded.
+//!
+//! This pattern is easily modified to use counters using INCR instead of lists using RPUSH.
+//!
+//! Appendix: Redis expires
+//! Keys with an expire
+//!
+//! Normally Redis keys are created without an associated time to live. The key will simply live forever, unless it is removed by the user in an explicit way, for instance using the DEL command.
+//!
+//! The EXPIRE family of commands is able to associate an expire to a given key, at the cost of some additional memory used by the key. When a key has an expire set,
+//! Redis will make sure to remove the key when the specified amount of time elapsed.
+//!
+//! The key time to live can be updated or entirely removed using the EXPIRE and PERSIST command (or other strictly related commands).
+//!
+//! Expire accuracy
+//!
+//! In Redis 2.4 the expire might not be pin-point accurate, and it could be between zero to one seconds out.
+//!
+//! Since Redis 2.6 the expire error is from 0 to 1 milliseconds.
+//!
+//! Expires and persistence
+//!
+//! Keys expiring information is stored as absolute Unix timestamps (in milliseconds in case of Redis version 2.6 or greater).
+//! This means that the time is flowing even when the Redis instance is not active.
+//!
+//! For expires to work well, the computer time must be taken stable. If you move an RDB file from two computers with a big desync in their clocks,
+//! funny things may happen (like all the keys loaded to be expired at loading time).
+//!
+//! Even running instances will always check the computer clock, so for instance if you set a key with a time to live of 1000 seconds,
+//! and then set your computer time 2000 seconds in the future, the key will be expired immediately, instead of lasting for 1000 seconds.
+//!
+//! How Redis expires keys
+//!
+//! Redis keys are expired in two ways: a passive way and an active way.
+//!
+//! A key is passively expired when a client tries to access it and the key is timed out.
+//!
+//! However, this is not enough as there are expired keys that will never be accessed again. These keys should be expired anyway,
+//! so periodically, Redis tests a few keys at random amongst the set of keys with an expiration. All the keys that are already expired are deleted from the keyspace.
+//! How expires are handled in the replication link and AOF file
+//!
+//! In order to obtain a correct behavior without sacrificing consistency, when a key expires, a DEL operation is synthesized in both the AOF file and gains all the attached replicas nodes.
+//! This way the expiration process is centralized in the master instance, and there is no chance of consistency errors.
+//!
+//! However while the replicas connected to a master will not expire keys independently (but will wait for the DEL coming from the master),
+//! they'll still take the full state of the expires existing in the dataset, so when a replica is elected to master it will be able to expire the keys independently, fully acting as a master.
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 0 if the timeout was not set; for example, the key doesn't exist, or the operation was skipped because of the provided arguments.
+//!     Integer reply: 1 if the timeout was set.
+//!
+//! History
+//!     Starting with Redis version 7.0.0: Added options: NX, XX, GT and LT.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExpire(const QString &key, const uint sec)
@@ -727,18 +1168,57 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExpire(const QStri
 //! \param utcSec Время в формате utc (сек)
 //! \return
 //!
+//! Redis command: EXPIREAT
+//!
+//! Syntax
+//!
+//! EXPIREAT key unix-time-seconds [NX | XX | GT | LT]
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @write, @fast
+//!
 //! EXPIREAT has the same effect and semantic as EXPIRE, but instead of specifying the number of seconds representing the TTL (time to live),
 //! it takes an absolute Unix timestamp (seconds since January 1, 1970). A timestamp in the past will delete the key immediately.
+//!
+//! Please for the specific semantics of the command refer to the documentation of EXPIRE.
+//! Background
+//!
+//! EXPIREAT was introduced in order to convert relative timeouts to absolute timeouts for the AOF persistence mode.
+//! Of course, it can be used directly to specify that a given key should expire at a given time in the future.
+//!
+//! Options
+//!
+//! The EXPIREAT command supports a set of options:
+//!
+//!     NX -- Set expiry only when the key has no expiry
+//!     XX -- Set expiry only when the key has an existing expiry
+//!     GT -- Set expiry only when the new expiry is greater than current one
+//!     LT -- Set expiry only when the new expiry is less than current one
+//!
+//! A non-volatile key is treated as an infinite TTL for the purpose of GT and LT. The GT, LT and NX options are mutually exclusive.
+//!
 //! Examples
-//! redis>  SET mykey "Hello"
+//! redis> SET mykey "Hello"
 //! "OK"
-//! redis>  EXISTS mykey
+//! redis> EXISTS mykey
 //! (integer) 1
-//! redis>  EXPIREAT mykey 1293840000
+//! redis> EXPIREAT mykey 1293840000
 //! (integer) 1
-//! redis>  EXISTS mykey
+//! redis> EXISTS mykey
 //! (integer) 0
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 0 if the timeout was not set; for example, the key doesn't exist, or the operation was skipped because of the provided arguments.
+//!     Integer reply: 1 if the timeout was set.
+//!
+//! History
+//!     Starting with Redis version 7.0.0: Added options: NX, XX, GT and LT.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExpireAt(const QString &key, const uint utcSec)
@@ -758,17 +1238,58 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisExpireAt(const QSt
 //! \param msec Время в мсек
 //! \return
 //!
+//! Redis command: PEXPIRE
+//!
+//! Syntax
+//!
+//! PEXPIRE key milliseconds [NX | XX | GT | LT]
+//!
+//! Available since:
+//!     2.6.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @write, @fast
+//!
 //! This command works exactly like EXPIRE but the time to live of the key is specified in milliseconds instead of seconds.
+//!
+//! Options
+//!
+//! The PEXPIRE command supports a set of options since Redis 7.0:
+//!
+//!     NX -- Set expiry only when the key has no expiry
+//!     XX -- Set expiry only when the key has an existing expiry
+//!     GT -- Set expiry only when the new expiry is greater than current one
+//!     LT -- Set expiry only when the new expiry is less than current one
+//!
+//! A non-volatile key is treated as an infinite TTL for the purpose of GT and LT. The GT, LT and NX options are mutually exclusive.
+//!
 //! Examples
-//! redis>  SET mykey "Hello"
+//! redis> SET mykey "Hello"
 //! "OK"
-//! redis>  PEXPIRE mykey 1500
+//! redis> PEXPIRE mykey 1500
 //! (integer) 1
-//! redis>  TTL mykey
+//! redis> TTL mykey
+//! (integer) 2
+//! redis> PTTL mykey
+//! (integer) 1499
+//! redis> PEXPIRE mykey 1000 XX
 //! (integer) 1
-//! redis>  PTTL mykey
-//! (integer) 1494
-//! redis>
+//! redis> TTL mykey
+//! (integer) 1
+//! redis> PEXPIRE mykey 1000 NX
+//! (integer) 0
+//! redis> TTL mykey
+//! (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 0if the timeout was not set. For example, if the key doesn't exist, or the operation skipped because of the provided arguments.
+//!     Integer reply: 1 if the timeout was set.
+//!
+//! History
+//!     Starting with Redis version 7.0.0: Added options: NX, XX, GT and LT.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPExpire(const QString &key, const uint msec)
@@ -785,17 +1306,50 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPExpire(const QStr
 //! \param utcMsec Время в формате utc (мсек)
 //! \return
 //!
+//! Redis command: PEXPIREAT
+//!
+//! Syntax
+//!
+//! PEXPIREAT key unix-time-milliseconds [NX | XX | GT | LT]
+//!
+//! Available since:
+//!     2.6.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @write, @fast
+//!
 //! PEXPIREAT has the same effect and semantic as EXPIREAT, but the Unix time at which the key will expire is specified in milliseconds instead of seconds.
+//!
+//! Options
+//!
+//! The PEXPIREAT command supports a set of options since Redis 7.0:
+//!
+//!     NX -- Set expiry only when the key has no expiry
+//!     XX -- Set expiry only when the key has an existing expiry
+//!     GT -- Set expiry only when the new expiry is greater than current one
+//!     LT -- Set expiry only when the new expiry is less than current one
+//!
+//! A non-volatile key is treated as an infinite TTL for the purpose of GT and LT. The GT, LT and NX options are mutually exclusive.
+//!
 //! Examples
-//! redis>  SET mykey "Hello"
+//! redis> SET mykey "Hello"
 //! "OK"
-//! redis>  PEXPIREAT mykey 1555555555005
+//! redis> PEXPIREAT mykey 1555555555005
 //! (integer) 1
-//! redis>  TTL mykey
-//! (integer) 47755408
-//! redis>  PTTL mykey
-//! (integer) 47755408215
-//! redis>
+//! redis> TTL mykey
+//! (integer) -2
+//! redis> PTTL mykey
+//! (integer) -2
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 1 if the timeout was set.
+//!     Integer reply: 0 if the timeout was not set. For example, if the key doesn't exist, or the operation was skipped due to the provided arguments.
+//!
+//! History
+//!     Starting with Redis version 7.0.0: Added options: NX, XX, GT and LT.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPExpireAt(const QString &key, const qint64 utcMsec)
@@ -811,19 +1365,38 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPExpireAt(const QS
 //! \param key Ключ
 //! \return
 //!
+//! Redis command: PERSIST
+//!
+//! Syntax
+//!
+//! PERSIST key
+//!
+//! Available since:
+//!     2.2.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @write, @fast
+//!
 //! Remove the existing timeout on key, turning the key from volatile (a key with an expire set) to persistent (a key that will never expire as no timeout is associated).
+//!
 //! Examples
-//! redis>  SET mykey "Hello"
+//! redis> SET mykey "Hello"
 //! "OK"
-//! redis>  EXPIRE mykey 10
+//! redis> EXPIRE mykey 10
 //! (integer) 1
-//! redis>  TTL mykey
+//! redis> TTL mykey
 //! (integer) 10
-//! redis>  PERSIST mykey
+//! redis> PERSIST mykey
 //! (integer) 1
-//! redis>  TTL mykey
+//! redis> TTL mykey
 //! (integer) -1
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 0 if key does not exist or does not have an associated timeout.
+//!     Integer reply: 1 if the timeout has been removed.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPersist(const QString &key)
@@ -839,14 +1412,48 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPersist(const QStr
 //! \param key Ключ
 //! \return
 //!
-//! Returns the remaining time to live of a key that has a timeout. This introspection capability allows a Redis client to check how many seconds a given key will continue
-//! to be part of the dataset.
+//! Redis command: TTL
+//!
+//! Syntax
+//!
+//! TTL key
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @read, @fast
+//!
+//! Returns the remaining time to live of a key that has a timeout. This introspection capability allows a Redis client
+//! to check how many seconds a given key will continue to be part of the dataset.
 //!
 //! In Redis 2.6 or older the command returns -1 if the key does not exist or if the key exist but has no associated expire.
 //!
 //! Starting with Redis 2.8 the return value in case of error changed:
-//! - The command returns -2 if the key does not exist.
-//! - The command returns -1 if the key exists but has no associated expire.
+//!
+//!     The command returns -2 if the key does not exist.
+//!     The command returns -1 if the key exists but has no associated expire.
+//!
+//! See also the PTTL command that returns the same information with milliseconds resolution (Only available in Redis 2.6 or greater).
+//!
+//! Examples
+//! redis> SET mykey "Hello"
+//! "OK"
+//! redis> EXPIRE mykey 10
+//! (integer) 1
+//! redis> TTL mykey
+//! (integer) 10
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: TTL in seconds.
+//!     Integer reply: -1 if the key exists but has no associated expiration.
+//!     Integer reply: -2 if the key does not exist.
+//!
+//! History
+//!     Starting with Redis version 2.8.0: Added the -2 reply.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisTtl(const QString &key)
@@ -862,14 +1469,46 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisTtl(const QString 
 //! \param key Ключ
 //! \return
 //!
-//! Like TTL this command returns the remaining time to live of a key that has an expire set, with the sole difference that TTL returns the amount of remaining time
-//! in seconds while PTTL returns it in milliseconds.
+//! Redis command: PTTL
+//!
+//! Syntax
+//!
+//! PTTL key
+//!
+//! Available since:
+//!     2.6.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @read, @fast
+//!
+//! Like TTL this command returns the remaining time to live of a key that has an expire set, with the sole difference that TTL returns
+//! the amount of remaining time in seconds while PTTL returns it in milliseconds.
 //!
 //! In Redis 2.6 or older the command returns -1 if the key does not exist or if the key exist but has no associated expire.
 //!
 //! Starting with Redis 2.8 the return value in case of error changed:
-//! - The command returns -2 if the key does not exist.
-//! - The command returns -1 if the key exists but has no associated expire.
+//!
+//!     The command returns -2 if the key does not exist.
+//!     The command returns -1 if the key exists but has no associated expire.
+//!
+//! Examples
+//! redis> SET mykey "Hello"
+//! "OK"
+//! redis> EXPIRE mykey 1
+//! (integer) 1
+//! redis> PTTL mykey
+//! (integer) 1000
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: TTL in milliseconds.
+//!     Integer reply: -1 if the key exists but has no associated expiration.
+//!     Integer reply: -2 if the key does not exist.
+//!
+//! History
+//!     Starting with Redis version 2.8.0: Added the -2 reply.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPTtl(const QString &key)
@@ -885,11 +1524,37 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisPTtl(const QString
 //! \param key Ключ
 //! \return
 //!
+//! Redis command: DECR
+//!
+//! Syntax
+//!
+//! DECR key
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @string, @fast
+//!
 //! Decrements the number stored at key by one. If the key does not exist, it is set to 0 before performing the operation.
 //! An error is returned if the key contains a value of the wrong type or contains a string that can not be represented as integer.
 //! This operation is limited to 64 bit signed integers.
 //!
-//! Return value: the value of key after the decrement
+//! See INCR for extra information on increment/decrement operations.
+//!
+//! Examples
+//! redis> SET mykey "10"
+//! "OK"
+//! redis> DECR mykey
+//! (integer) 9
+//! redis> SET mykey "234293482390480948029348230948"
+//! "OK"
+//! redis> DECR mykey
+//! (error) value is not an integer or out of range
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the value of the key after decrementing it.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDecr(const QString &key)
@@ -906,11 +1571,34 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDecr(const QString
 //! \param decr Значение
 //! \return
 //!
-//! Decrements the number stored at key by decrement. If the key does not exist, it is set to 0 before performing the operation.
-//! An error is returned if the key contains a value of the wrong type or contains a string that can not be represented as integer.
-//! This operation is limited to 64 bit signed integers.
+//! Redis command: DECRBY
 //!
-//! Return value: the value of key after the decrement
+//! Syntax
+//!
+//! DECRBY key decrement
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @string, @fast
+//!
+//! The DECRBY command reduces the value stored at the specified key by the specified decrement.
+//! If the key does not exist, it is initialized with a value of 0 before performing the operation.
+//! If the key's value is not of the correct type or cannot be represented as an integer, an error is returned.
+//! This operation is limited to 64-bit signed integers.
+//!
+//! See INCR for extra information on increment/decrement operations.
+//!
+//! Examples
+//! redis> SET mykey "10"
+//! "OK"
+//! redis> DECRBY mykey 3
+//! (integer) 7
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the value of the key after decrementing it.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDecrBy(const QString &key, const qint64 decr)
@@ -926,17 +1614,139 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDecrBy(const QStri
 //! \param key Ключ
 //! \return
 //!
+//! Redis command: INCR
+//!
+//! Syntax
+//!
+//! INCR key
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @string, @fast
+//!
 //! Increments the number stored at key by one. If the key does not exist, it is set to 0 before performing the operation.
 //! An error is returned if the key contains a value of the wrong type or contains a string that can not be represented as integer.
 //! This operation is limited to 64 bit signed integers.
 //!
 //! Note: this is a string operation because Redis does not have a dedicated integer type.
-//!       The string stored at the key is interpreted as a base-10 64 bit signed integer to execute the operation.
+//! The string stored at the key is interpreted as a base-10 64 bit signed integer to execute the operation.
 //!
 //! Redis stores integers in their integer representation, so for string values that actually hold an integer,
 //! there is no overhead for storing the string representation of the integer.
 //!
-//! Return value: the value of key after the increment
+//! Examples
+//! redis> SET mykey "10"
+//! "OK"
+//! redis> INCR mykey
+//! (integer) 11
+//! redis> GET mykey
+//! "11"
+//!
+//! Pattern: Counter
+//!
+//! The counter pattern is the most obvious thing you can do with Redis atomic increment operations.
+//! The idea is simply send an INCR command to Redis every time an operation occurs.
+//! For instance in a web application we may want to know how many page views this user did every day of the year.
+//!
+//! To do so the web application may simply increment a key every time the user performs a page view,
+//! creating the key name concatenating the User ID and a string representing the current date.
+//!
+//! This simple pattern can be extended in many ways:
+//!
+//!     It is possible to use INCR and EXPIRE together at every page view to have a counter counting only the latest N page views separated by less than the specified amount of seconds.
+//!     A client may use GETSET in order to atomically get the current counter value and reset it to zero.
+//!     Using other atomic increment/decrement commands like DECR or INCRBY it is possible to handle values that may get bigger or smaller depending on the operations performed by the user.
+//!     Imagine for instance the score of different users in an online game.
+//!
+//! Pattern: Rate limiter
+//!
+//! The rate limiter pattern is a special counter that is used to limit the rate at which an operation can be performed.
+//! The classical materialization of this pattern involves limiting the number of requests that can be performed against a public API.
+//!
+//! We provide two implementations of this pattern using INCR, where we assume that the problem to solve is limiting the number of API calls to a maximum of ten requests per second per IP address.
+//!
+//! Pattern: Rate limiter 1
+//!
+//! The more simple and direct implementation of this pattern is the following:
+//!
+//! FUNCTION LIMIT_API_CALL(ip)
+//! ts = CURRENT_UNIX_TIME()
+//! keyname = ip+":"+ts
+//! MULTI
+//!     INCR(keyname)
+//!     EXPIRE(keyname,10)
+//! EXEC
+//! current = RESPONSE_OF_INCR_WITHIN_MULTI
+//! IF current > 10 THEN
+//!     ERROR "too many requests per second"
+//! ELSE
+//!     PERFORM_API_CALL()
+//! END
+//!
+//! Basically we have a counter for every IP, for every different second. But these counters are always incremented setting an expire of 10 seconds
+//! so that they'll be removed by Redis automatically when the current second is a different one.
+//!
+//! Note the used of MULTI and EXEC in order to make sure that we'll both increment and set the expire at every API call.
+//!
+//! Pattern: Rate limiter 2
+//!
+//! An alternative implementation uses a single counter, but is a bit more complex to get it right without race conditions. We'll examine different variants.
+//!
+//! FUNCTION LIMIT_API_CALL(ip):
+//! current = GET(ip)
+//! IF current != NULL AND current > 10 THEN
+//!     ERROR "too many requests per second"
+//! ELSE
+//!     value = INCR(ip)
+//!     IF value == 1 THEN
+//!         EXPIRE(ip,1)
+//!     END
+//!     PERFORM_API_CALL()
+//! END
+//!
+//! The counter is created in a way that it only will survive one second, starting from the first request performed in the current second.
+//! If there are more than 10 requests in the same second the counter will reach a value greater than 10, otherwise it will expire and start again from 0.
+//!
+//! In the above code there is a race condition. If for some reason the client performs the INCR command but does not perform the EXPIRE the key will be leaked until we'll see the same IP address again.
+//!
+//! This can be fixed easily turning the INCR with optional EXPIRE into a Lua script that is send using the EVAL command (only available since Redis version 2.6).
+//!
+//! local current
+//! current = redis.call("incr",KEYS[1])
+//! if current == 1 then
+//!     redis.call("expire",KEYS[1],1)
+//! end
+//!
+//! There is a different way to fix this issue without using scripting, by using Redis lists instead of counters.
+//! The implementation is more complex and uses more advanced features but has the advantage of remembering the IP addresses of the clients currently performing an API call,
+//! that may be useful or not depending on the application.
+//!
+//! FUNCTION LIMIT_API_CALL(ip)
+//! current = LLEN(ip)
+//! IF current > 10 THEN
+//!     ERROR "too many requests per second"
+//! ELSE
+//!     IF EXISTS(ip) == FALSE
+//!         MULTI
+//!             RPUSH(ip,ip)
+//!             EXPIRE(ip,1)
+//!         EXEC
+//!     ELSE
+//!         RPUSHX(ip,ip)
+//!     END
+//!     PERFORM_API_CALL()
+//! END
+//!
+//! The RPUSHX command only pushes the element if the key already exists.
+//!
+//! Note that we have a race here, but it is not a problem: EXISTS may return false but the key may be created by another client before
+//! we create it inside the MULTI / EXEC block. However this race will just miss an API call under rare conditions, so the rate limiting will still work correctly.
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the value of the key after the increment.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncr(const QString &key)
@@ -953,11 +1763,33 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncr(const QString
 //! \param incr Значение
 //! \return
 //!
+//! Redis command: INCRBY
+//!
+//! Syntax
+//!
+//! INCRBY key increment
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @string, @fast
+//!
 //! Increments the number stored at key by increment. If the key does not exist, it is set to 0 before performing the operation.
 //! An error is returned if the key contains a value of the wrong type or contains a string that can not be represented as integer.
 //! This operation is limited to 64 bit signed integers.
 //!
-//! Return value: the value of key after the increment
+//! See INCR for extra information on increment/decrement operations.
+//!
+//! Examples
+//! redis> SET mykey "10"
+//! "OK"
+//! redis> INCRBY mykey 5
+//! (integer) 15
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the value of the key after the increment.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrBy(const QString &key, const qint64 incr)
@@ -974,12 +1806,25 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrBy(const QStri
 //! \param incr Значение
 //! \return
 //!
+//! Redis command: INCRBYFLOAT
+//!
+//! Syntax
+//!
+//! INCRBYFLOAT key increment
+//!
+//! Available since:
+//!     2.6.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @string, @fast
+//!
 //! Increment the string representing a floating point number stored at key by the specified increment.
 //! By using a negative increment value, the result is that the value stored at the key is decremented (by the obvious properties of addition).
 //! If the key does not exist, it is set to 0 before performing the operation. An error is returned if one of the following conditions occur:
 //!
-//! The key contains a value of the wrong type (not a string).
-//! The current key content or the specified increment are not parsable as a double precision floating point number.
+//!     The key contains a value of the wrong type (not a string).
+//!     The current key content or the specified increment are not parsable as a double precision floating point number.
 //!
 //! If the command is successful the new incremented value is stored as the new value of the key (replacing the old one), and returned to the caller as a string.
 //!
@@ -989,7 +1834,25 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrBy(const QStri
 //!
 //! The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.
 //!
-//! Return value: the value of key after the increment
+//! Examples
+//! redis> SET mykey 10.50
+//! "OK"
+//! redis> INCRBYFLOAT mykey 0.1
+//! "10.6"
+//! redis> INCRBYFLOAT mykey -5
+//! "5.6"
+//! redis> SET mykey 5.0e3
+//! "OK"
+//! redis> INCRBYFLOAT mykey 2.0e2
+//! "5200"
+//!
+//! Implementation details
+//!
+//! The command is always propagated in the replication link and the Append Only File as a SET operation,
+//! so that differences in the underlying floating point math implementation will not be sources of inconsistency.
+//!
+//! RESP2/RESP3 Reply
+//! Bulk string reply: the value of the key after the increment.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrByFloat(const QString &key, const float incr)
@@ -1006,10 +1869,37 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisIncrByFloat(const 
 //! \param newKey Новое имя ключа
 //! \return
 //!
-//! Renames key to newkey. It returns an error when key does not exist. If newkey already exists it is overwritten, when this happens RENAME executes an implicit DEL operation,
-//! so if the deleted key contains a very big value it may cause high latency even if RENAME itself is usually a constant-time operation.
+//! Redis command: RENAME
 //!
-//! Note: Before Redis 3.2.0, an error is returned if source and destination names are the same.
+//! Syntax
+//!
+//! RENAME key newkey
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @write, @slow
+//!
+//! Renames key to newkey. It returns an error when key does not exist. If newkey already exists it is overwritten,
+//! when this happens RENAME executes an implicit DEL operation, so if the deleted key contains a very big value it may cause high latency even if RENAME itself is usually a constant-time operation.
+//!
+//! In Cluster mode, both key and newkey must be in the same hash slot, meaning that in practice only keys that have the same hash tag can be reliably renamed in cluster.
+//!
+//! Examples
+//! redis> SET mykey "Hello"
+//! "OK"
+//! redis> RENAME mykey myotherkey
+//! "OK"
+//! redis> GET myotherkey
+//! "Hello"
+//!
+//! Behavior change history
+//!     >= 3.2.0: The command no longer returns an error when source and destination names are the same.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRename(const QString &key, const QString &newKey)
@@ -1029,9 +1919,41 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRename(const QStri
 //! \param newKey Новое имя ключа
 //! \return
 //!
+//! Redis command: RENAMENX
+//!
+//! Syntax
+//!
+//! RENAMENX key newkey
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @write, @fast
+//!
 //! Renames key to newkey if newkey does not yet exist. It returns an error when key does not exist.
 //!
-//! Note: Before Redis 3.2.0, an error is returned if source and destination names are the same.
+//! In Cluster mode, both key and newkey must be in the same hash slot, meaning that in practice only keys that have the same hash tag can be reliably renamed in cluster.
+//!
+//! Examples
+//! redis> SET mykey "Hello"
+//! "OK"
+//! redis> SET myotherkey "World"
+//! "OK"
+//! redis> RENAMENX mykey myotherkey
+//! (integer) 0
+//! redis> GET myotherkey
+//! "World"
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 1 if key was renamed to newkey.
+//!     Integer reply: 0 if newkey already exists.
+//!
+//! History
+//!     Starting with Redis version 3.2.0: The command no longer returns an error when source and destination names are the same.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRenameNx(const QString &key, const QString &newKey)
@@ -1050,8 +1972,37 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRenameNx(const QSt
 //! \param key Ключ
 //! \return
 //!
-//! Returns the string representation of the type of the value stored at key.
-//! The different types that can be returned are: string, list, set, zset and hash.
+//! Redis command: TYPE
+//!
+//! Syntax
+//!
+//! TYPE key
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @read, @fast
+//!
+//! Returns the string representation of the type of the value stored at key. The different types that can be returned are: string, list, set, zset, hash and stream.
+//!
+//! Examples
+//! redis> SET key1 "value"
+//! "OK"
+//! redis> LPUSH key2 "value"
+//! (integer) 1
+//! redis> SADD key3 "value"
+//! (integer) 1
+//! redis> TYPE key1
+//! "string"
+//! redis> TYPE key2
+//! "list"
+//! redis> TYPE key3
+//! "set"
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: the type of key, or none when key doesn't exist.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisType(const QString &key)
@@ -1067,9 +2018,33 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisType(const QString
 //! \param keyValue Список ключ-значение
 //! \return
 //!
-//! Sets the given keys to their respective values. MSET replaces existing values with new values, just as regular SET.
-//! See MSETNX if you don't want to overwrite existing values.
+//! Redis command: MSET
+//!
+//! Syntax
+//!
+//! MSET key value [key value ...]
+//!
+//! Available since:
+//!     1.0.1
+//! Time complexity:
+//!     O(N) where N is the number of keys to set.
+//! ACL categories:
+//!     @write, @string, @slow
+//!
+//! Sets the given keys to their respective values. MSET replaces existing values with new values, just as regular SET. See MSETNX if you don't want to overwrite existing values.
+//!
 //! MSET is atomic, so all given keys are set at once. It is not possible for clients to see that some of the keys were updated while others are unchanged.
+//!
+//! Examples
+//! redis> MSET key1 "Hello" key2 "World"
+//! "OK"
+//! redis> GET key1
+//! "Hello"
+//! redis> GET key2
+//! "World"
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: always OK because MSET can't fail.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSet(const QMap<QString, QString> &keyValue)
@@ -1097,11 +2072,40 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSet(const QMap<QS
 //! \param keyValue Список ключ-значение
 //! \return
 //!
+//! Redis command: MSETNX
+//!
+//! Syntax
+//!
+//! MSETNX key value [key value ...]
+//!
+//! Available since:
+//!     1.0.1
+//! Time complexity:
+//!     O(N) where N is the number of keys to set.
+//! ACL categories:
+//!     @write, @string, @slow
+//!
 //! Sets the given keys to their respective values. MSETNX will not perform any operation at all even if just a single key already exists.
-//! Because of this semantic MSETNX can be used in order to set different keys representing different fields of an unique logic object
-//! in a way that ensures that either all the fields or none at all are set.
+//!
+//! Because of this semantic MSETNX can be used in order to set different keys representing different fields of a unique logic object in a way that ensures that either all the fields or none at all are set.
 //!
 //! MSETNX is atomic, so all given keys are set at once. It is not possible for clients to see that some of the keys were updated while others are unchanged.
+//!
+//! Examples
+//! redis> MSETNX key1 "Hello" key2 "there"
+//! (integer) 1
+//! redis> MSETNX key2 "new" key3 "world"
+//! (integer) 0
+//! redis> MGET key1 key2 key3
+//! 1) "Hello"
+//! 2) "there"
+//! 3) (nil)
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 0 if no key was set (at least one key already existed).
+//!     Integer reply: 1 if all the keys were set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSetNx(const QMap<QString, QString> &keyValue)
@@ -1129,19 +2133,34 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMSetNx(const QMap<
 //! \param keyList Список ключей
 //! \return
 //!
+//! Redis command: MGET
+//!
+//! Syntax
+//!
+//! MGET key [key ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of keys to retrieve.
+//! ACL categories:
+//!     @read, @string, @fast
+//!
 //! Returns the values of all specified keys. For every key that does not hold a string value or does not exist, the special value nil is returned.
 //! Because of this, the operation never fails.
 //!
 //! Examples
-//! redis>  SET key1 "Hello"
+//! redis> SET key1 "Hello"
 //! "OK"
-//! redis>  SET key2 "World"
+//! redis> SET key2 "World"
 //! "OK"
-//! redis>  MGET key1 key2 nonexisting
+//! redis> MGET key1 key2 nonexisting
 //! 1) "Hello"
 //! 2) "World"
 //! 3) (nil)
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: a list of values at the specified keys.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMGet(const QStringList &keyList)
@@ -1162,9 +2181,28 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMGet(const QString
 //! \param dbIndex Индекс БД
 //! \return
 //!
+//! Redis command: MOVE
+//!
+//! Syntax
+//!
+//! MOVE key db
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @write, @fast
+//!
 //! Move key from the currently selected database (see SELECT) to the specified destination database.
 //! When key already exists in the destination database, or it does not exist in the source database, it does nothing.
 //! It is possible to use MOVE as a locking primitive because of this.
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 1 if key was moved.
+//!     Integer reply: 0 if key wasn't moved.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMove(const QString &key, const int dbIndex)
@@ -1183,27 +2221,50 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisMove(const QString
 //! \param key Ключ
 //! \return
 //!
-//! Для получения корректного значения пользуйтесь QtRedisReply::rawValue().
+//! Redis command: DUMP
+//!
+//! Syntax
+//!
+//! DUMP key
+//!
+//! Available since:
+//!     2.6.0
+//! Time complexity:
+//!     O(1) to access the key and additional O(N*M) to serialize it, where N is the number of Redis objects composing the value and M their average size.
+//!          For small string values the time complexity is thus O(1)+O(1*M) where M is small, so simply O(1).
+//! ACL categories:
+//!     @keyspace, @read, @slow
 //!
 //! Serialize the value stored at key in a Redis-specific format and return it to the user. The returned value can be synthesized back into a Redis key using the RESTORE command.
 //!
 //! The serialization format is opaque and non-standard, however it has a few semantic characteristics:
 //!
-//! - It contains a 64-bit checksum that is used to make sure errors will be detected. The RESTORE command makes sure to check the checksum before synthesizing a key using the serialized value.
-//! - Values are encoded in the same format used by RDB.
-//! - An RDB version is encoded inside the serialized value, so that different Redis versions with incompatible RDB formats will refuse to process the serialized value.
+//!     It contains a 64-bit checksum that is used to make sure errors will be detected. The RESTORE command makes sure to check the checksum before synthesizing a key using the serialized value.
+//!     Values are encoded in the same format used by RDB.
+//!     An RDB version is encoded inside the serialized value, so that different Redis versions with incompatible RDB formats will refuse to process the serialized value.
 //!
 //! The serialized value does NOT contain expire information. In order to capture the time to live of the current value the PTTL command should be used.
 //!
 //! If key does not exist a nil bulk reply is returned.
-//! Return value: the serialized value.
 //!
 //! Examples
-//! redis>  SET mykey 10
-//! "OK"
-//! redis>  DUMP mykey
-//! "\u0000\xC0\n\b\u0000ײ\xBB\xFA\xA7\xB7\xE9\x83"
-//! redis>
+//!
+//! > SET mykey 10
+//! OK
+//! > DUMP mykey
+//! "\x00\xc0\n\n\x00n\x9fWE\x0e\xaec\xbb"
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: The serialized value of the key.
+//!     Nil reply: the key does not exist.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the serialized value of the key.
+//!     Null reply: the key does not exist.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDump(const QString &key)
@@ -1225,11 +2286,48 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisDump(const QString
 //! \param index Индекс
 //! \return
 //!
+//! Redis command: LINDEX
+//!
+//! Syntax
+//!
+//! LINDEX key index
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of elements to traverse to get to the element at index. This makes asking for the first or the last element of the list O(1).
+//! ACL categories:
+//!     @read, @list, @slow
+//!
 //! Returns the element at index index in the list stored at key. The index is zero-based, so 0 means the first element,
 //! 1 the second element and so on. Negative indices can be used to designate elements starting at the tail of the list.
 //! Here, -1 means the last element, -2 means the penultimate and so forth.
 //!
 //! When the value at key is not a list, an error is returned.
+//!
+//! Examples
+//! redis> LPUSH mylist "World"
+//! (integer) 1
+//! redis> LPUSH mylist "Hello"
+//! (integer) 2
+//! redis> LINDEX mylist 0
+//! "Hello"
+//! redis> LINDEX mylist -1
+//! "World"
+//! redis> LINDEX mylist 3
+//! (nil)
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Nil reply: when index is out of range.
+//!     Bulk string reply: the requested element.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Null reply: when index is out of range.
+//!     Bulk string reply: the requested element.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLIndex(const QString &key, const int index)
@@ -1248,10 +2346,45 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLIndex(const QStri
 //! \param insertFlag Тип вставки (BEFORE|AFTER)
 //! \return
 //!
-//! Inserts value in the list stored at key either before or after the reference value pivot.
+//! Redis command: LINSERT
+//!
+//! Syntax
+//!
+//! LINSERT key <BEFORE | AFTER> pivot element
+//!
+//! Available since:
+//!     2.2.0
+//! Time complexity:
+//!     O(N) where N is the number of elements to traverse before seeing the value pivot.
+//!          This means that inserting somewhere on the left end on the list (head) can be considered O(1)
+//!          and inserting somewhere on the right end (tail) is O(N).
+//! ACL categories:
+//!     @write, @list, @slow
+//!
+//! Inserts element in the list stored at key either before or after the reference value pivot.
+//!
 //! When key does not exist, it is considered an empty list and no operation is performed.
+//!
 //! An error is returned when key exists but does not hold a list value.
-//! Return value: the length of the list after the insert operation, or -1 when the value pivot was not found.
+//!
+//! Examples
+//! redis> RPUSH mylist "Hello"
+//! (integer) 1
+//! redis> RPUSH mylist "World"
+//! (integer) 2
+//! redis> LINSERT mylist BEFORE "World" "There"
+//! (integer) 3
+//! redis> LRANGE mylist 0 -1
+//! 1) "Hello"
+//! 2) "There"
+//! 3) "World"
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: the list length after a successful insert operation.
+//!     Integer reply: 0 when the key doesn't exist.
+//!     Integer reply: -1 when the pivot wasn't found.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLInsert(const QString &key, const QString &pilot, const QString &value, const QString &insertFlag)
@@ -1273,9 +2406,32 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLInsert(const QStr
 //! \param key Ключ
 //! \return
 //!
+//! Redis command: LLEN
+//!
+//! Syntax
+//!
+//! LLEN key
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @read, @list, @fast
+//!
 //! Returns the length of the list stored at key. If key does not exist, it is interpreted as an empty list and 0 is returned.
 //! An error is returned when the value stored at key is not a list.
-//! Return value: the length of the list at key.
+//!
+//! Examples
+//! redis> LPUSH mylist "World"
+//! (integer) 1
+//! redis> LPUSH mylist "Hello"
+//! (integer) 2
+//! redis> LLEN mylist
+//! (integer) 2
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the length of the list.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLLen(const QString &key)
@@ -1291,8 +2447,52 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLLen(const QString
 //! \param key Ключ
 //! \return
 //!
-//! Removes and returns the first element of the list stored at key.
-//! Return value: the value of the first element, or nil when key does not exist.
+//! Redis command: LPOP
+//!
+//! Syntax
+//!
+//! LPOP key [count]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of elements returned
+//! ACL categories:
+//!     @write, @list, @fast
+//!
+//! Removes and returns the first elements of the list stored at key.
+//!
+//! By default, the command pops a single element from the beginning of the list.
+//! When provided with the optional count argument, the reply will consist of up to count elements, depending on the list's length.
+//!
+//! Examples
+//! redis> RPUSH mylist "one" "two" "three" "four" "five"
+//! (integer) 5
+//! redis> LPOP mylist
+//! "one"
+//! redis> LPOP mylist 2
+//! 1) "two"
+//! 2) "three"
+//! redis> LRANGE mylist 0 -1
+//! 1) "four"
+//! 2) "five"
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Nil reply: if the key does not exist.
+//!     Bulk string reply: when called without the count argument, the value of the first element.
+//!     Array reply: when called with the count argument, a list of popped elements.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Null reply: if the key does not exist.
+//!     Bulk string reply: when called without the count argument, the value of the first element.
+//!     Array reply: when called with the count argument, a list of popped elements.
+//!
+//! History
+//!     Starting with Redis version 6.2.0: Added the count argument.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPop(const QString &key)
@@ -1309,15 +2509,41 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPop(const QString
 //! \param valueList Значения
 //! \return
 //!
-//! Insert all the specified values at the head of the list stored at key. If key does not exist, it is created as empty list before performing the push operations.
+//! Redis command: LPUSH
+//!
+//! Syntax
+//!
+//! LPUSH key element [element ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1) for each element added, so O(N) to add N elements when the command is called with multiple arguments.
+//! ACL categories:
+//!     @write, @list, @fast
+//!
+//! Insert all the specified values at the head of the list stored at key.
+//! If key does not exist, it is created as empty list before performing the push operations.
 //! When key holds a value that is not a list, an error is returned.
 //!
 //! It is possible to push multiple elements using a single command call just specifying multiple arguments at the end of the command.
 //! Elements are inserted one after the other to the head of the list, from the leftmost element to the rightmost element.
 //! So for instance the command LPUSH mylist a b c will result into a list containing c as first element, b as second element and a as third element.
-//! Return value: the length of the list after the push operations.
 //!
-//! Redis >= 2.4: Accepts multiple value arguments. In Redis versions older than 2.4 it was possible to push a single value per command.
+//! Examples
+//! redis> LPUSH mylist "world"
+//! (integer) 1
+//! redis> LPUSH mylist "hello"
+//! (integer) 2
+//! redis> LRANGE mylist 0 -1
+//! 1) "hello"
+//! 2) "world"
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the length of the list after the push operation.
+//!
+//! History
+//!     Starting with Redis version 2.4.0: Accepts multiple element arguments.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPush(const QString &key, const QStringList &valueList)
@@ -1342,8 +2568,40 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPush(const QStrin
 //! \param value Значение
 //! \return
 //!
-//! Inserts value at the head of the list stored at key, only if key already exists and holds a list. In contrary to LPUSH, no operation will be performed when key does not yet exist.
-//! Return value: the length of the list after the push operation.
+//! Redis command: LPUSHX
+//!
+//! Syntax
+//!
+//! LPUSHX key element [element ...]
+//!
+//! Available since:
+//!     2.2.0
+//! Time complexity:
+//!     O(1) for each element added, so O(N) to add N elements when the command is called with multiple arguments.
+//! ACL categories:
+//!     @write, @list, @fast
+//!
+//! Inserts specified values at the head of the list stored at key, only if key already exists and holds a list.
+//! In contrary to LPUSH, no operation will be performed when key does not yet exist.
+//!
+//! Examples
+//! redis> LPUSH mylist "World"
+//! (integer) 1
+//! redis> LPUSHX mylist "Hello"
+//! (integer) 2
+//! redis> LPUSHX myotherlist "Hello"
+//! (integer) 0
+//! redis> LRANGE mylist 0 -1
+//! 1) "Hello"
+//! 2) "World"
+//! redis> LRANGE myotherlist 0 -1
+//! (empty array)
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the length of the list after the push operation.
+//!
+//! History
+//!     Starting with Redis version 4.0.0: Accepts multiple element arguments.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPushX(const QString &key, const QString &value)
@@ -1363,20 +2621,57 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLPushX(const QStri
 //! \param stop Конечный индекс
 //! \return
 //!
-//! Returns the specified elements of the list stored at key. The offsets start and stop are zero-based indexes, with 0 being the first element of the list (the head of the list),
-//! 1 being the next element and so on.
+//! Redis command: LRANGE
 //!
-//! These offsets can also be negative numbers indicating offsets starting at the end of the list. For example, -1 is the last element of the list, -2 the penultimate, and so on.
+//! Syntax
 //!
-//! Consistency with range functions in various programming languages:
+//! LRANGE key start stop
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(S+N) where S is the distance of start offset from HEAD for small lists, from nearest end (HEAD or TAIL) for large lists; and N is the number of elements in the specified range.
+//! ACL categories:
+//!     @read, @list, @slow
+//!
+//! Returns the specified elements of the list stored at key. The offsets start and stop are zero-based indexes,
+//! with 0 being the first element of the list (the head of the list), 1 being the next element and so on.
+//!
+//! These offsets can also be negative numbers indicating offsets starting at the end of the list.
+//! For example, -1 is the last element of the list, -2 the penultimate, and so on.
+//!
+//! Consistency with range functions in various programming languages
+//!
 //! Note that if you have a list of numbers from 0 to 100, LRANGE list 0 10 will return 11 elements, that is, the rightmost item is included.
 //! This may or may not be consistent with behavior of range-related functions in your programming language of choice (think Ruby's Range.new, Array#slice or Python's range() function).
 //!
-//! Out-of-range indexes:
+//! Out-of-range indexes
+//!
 //! Out of range indexes will not produce an error. If start is larger than the end of the list, an empty list is returned.
 //! If stop is larger than the actual end of the list, Redis will treat it like the last element of the list.
 //!
-//! Return value: list of elements in the specified range.
+//! Examples
+//! redis> RPUSH mylist "one"
+//! (integer) 1
+//! redis> RPUSH mylist "two"
+//! (integer) 2
+//! redis> RPUSH mylist "three"
+//! (integer) 3
+//! redis> LRANGE mylist 0 0
+//! 1) "one"
+//! redis> LRANGE mylist -3 2
+//! 1) "one"
+//! 2) "two"
+//! 3) "three"
+//! redis> LRANGE mylist -100 100
+//! 1) "one"
+//! 2) "two"
+//! 3) "three"
+//! redis> LRANGE mylist 5 10
+//! (empty array)
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: a list of elements in the specified range, or an empty array if the key doesn't exist.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRange(const QString &key, const int start, const int stop)
@@ -1394,15 +2689,46 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRange(const QStri
 //! \param count Индекс
 //! \return
 //!
-//! Removes the first count occurrences of elements equal to value from the list stored at key. The count argument influences the operation in the following ways:
-//! - count > 0: Remove elements equal to value moving from head to tail.
-//! - count < 0: Remove elements equal to value moving from tail to head.
-//! - count = 0: Remove all elements equal to value.
+//! Redis command: LREM
+//!
+//! Syntax
+//!
+//! LREM key count element
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N+M) where N is the length of the list and M is the number of elements removed.
+//! ACL categories:
+//!     @write, @list, @slow
+//!
+//! Removes the first count occurrences of elements equal to element from the list stored at key. The count argument influences the operation in the following ways:
+//!
+//!     count > 0: Remove elements equal to element moving from head to tail.
+//!     count < 0: Remove elements equal to element moving from tail to head.
+//!     count = 0: Remove all elements equal to element.
 //!
 //! For example, LREM list -2 "hello" will remove the last two occurrences of "hello" in the list stored at list.
 //!
 //! Note that non-existing keys are treated like empty lists, so when key does not exist, the command will always return 0.
-//! Return value: the number of removed elements.
+//!
+//! Examples
+//! redis> RPUSH mylist "hello"
+//! (integer) 1
+//! redis> RPUSH mylist "hello"
+//! (integer) 2
+//! redis> RPUSH mylist "foo"
+//! (integer) 3
+//! redis> RPUSH mylist "hello"
+//! (integer) 4
+//! redis> LREM mylist -2 "hello"
+//! (integer) 2
+//! redis> LRANGE mylist 0 -1
+//! 1) "hello"
+//! 2) "foo"
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of removed elements.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRem(const QString &key, const QString &value, const int count)
@@ -1422,6 +2748,42 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLRem(const QString
 //! \param index Индекс
 //! \return
 //!
+//! Redis command: LSET
+//!
+//! Syntax
+//!
+//! LSET key index element
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the length of the list. Setting either the first or the last element of the list is O(1).
+//! ACL categories:
+//!     @write, @list, @slow
+//!
+//! Sets the list element at index to element. For more information on the index argument, see LINDEX.
+//!
+//! An error is returned for out of range indexes.
+//!
+//! Examples
+//! redis> RPUSH mylist "one"
+//! (integer) 1
+//! redis> RPUSH mylist "two"
+//! (integer) 2
+//! redis> RPUSH mylist "three"
+//! (integer) 3
+//! redis> LSET mylist 0 "four"
+//! "OK"
+//! redis> LSET mylist -2 "five"
+//! "OK"
+//! redis> LRANGE mylist 0 -1
+//! 1) "four"
+//! 2) "five"
+//! 3) "three"
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
+//!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLSet(const QString &key, const QString &value, const int index)
 {
@@ -1440,37 +2802,53 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLSet(const QString
 //! \param stop Конец диапазона
 //! \return
 //!
-//! Trim an existing list so that it will contain only the specified range of elements specified. Both start and stop are zero-based indexes,
-//! where 0 is the first element of the list (the head), 1 the next element and so on.
+//! Redis command: LTRIM
+//!
+//! Syntax
+//!
+//! LTRIM key start stop
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of elements to be removed by the operation.
+//! ACL categories:
+//!     @write, @list, @slow
+//!
+//! Trim an existing list so that it will contain only the specified range of elements specified.
+//! Both start and stop are zero-based indexes, where 0 is the first element of the list (the head), 1 the next element and so on.
 //!
 //! For example: LTRIM foobar 0 2 will modify the list stored at foobar so that only the first three elements of the list will remain.
 //!
 //! start and end can also be negative numbers indicating offsets from the end of the list, where -1 is the last element of the list, -2 the penultimate element and so on.
 //!
-//! Out of range indexes will not produce an error: if start is larger than the end of the list, or start > end, the result will be an empty list (which causes key to be removed).
-//! If end is larger than the end of the list, Redis will treat it like the last element of the list.
+//! Out of range indexes will not produce an error: if start is larger than the end of the list, or start > end,
+//! the result will be an empty list (which causes key to be removed). If end is larger than the end of the list, Redis will treat it like the last element of the list.
 //!
 //! A common use of LTRIM is together with LPUSH / RPUSH. For example:
+//!
 //! LPUSH mylist someelement
 //! LTRIM mylist 0 99
 //!
 //! This pair of commands will push a new element on the list, while making sure that the list will not grow larger than 100 elements.
-//! This is very useful when using Redis to store logs for example. It is important to note that when used in this way LTRIM is an O(1) operation because in the average case
-//! just one element is removed from the tail of the list.
+//! This is very useful when using Redis to store logs for example. It is important to note that when used in this way LTRIM is an O(1) operation
+//! because in the average case just one element is removed from the tail of the list.
 //!
 //! Examples
-//! redis>  RPUSH mylist "one"
+//! redis> RPUSH mylist "one"
 //! (integer) 1
-//! redis>  RPUSH mylist "two"
+//! redis> RPUSH mylist "two"
 //! (integer) 2
-//! redis>  RPUSH mylist "three"
+//! redis> RPUSH mylist "three"
 //! (integer) 3
-//! redis>  LTRIM mylist 1 -1
+//! redis> LTRIM mylist 1 -1
 //! "OK"
-//! redis>  LRANGE mylist 0 -1
+//! redis> LRANGE mylist 0 -1
 //! 1) "two"
 //! 2) "three"
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLTrim(const QString &key, const int start, const int stop)
@@ -1486,7 +2864,52 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisLTrim(const QStrin
 //! \param key Ключ
 //! \return
 //!
-//! Removes and returns the last element of the list stored at key.
+//! Redis command: RPOP
+//!
+//! Syntax
+//!
+//! RPOP key [count]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of elements returned
+//! ACL categories:
+//!     @write, @list, @fast
+//!
+//! Removes and returns the last elements of the list stored at key.
+//!
+//! By default, the command pops a single element from the end of the list.
+//! When provided with the optional count argument, the reply will consist of up to count elements, depending on the list's length.
+//!
+//! Examples
+//! redis> RPUSH mylist "one" "two" "three" "four" "five"
+//! (integer) 5
+//! redis> RPOP mylist
+//! "five"
+//! redis> RPOP mylist 2
+//! 1) "four"
+//! 2) "three"
+//! redis> LRANGE mylist 0 -1
+//! 1) "one"
+//! 2) "two"
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Nil reply: if the key does not exist.
+//!     Bulk string reply: when called without the count argument, the value of the last element.
+//!     Array reply: when called with the count argument, a list of popped elements.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Null reply: if the key does not exist.
+//!     Bulk string reply: when called without the count argument, the value of the last element.
+//!     Array reply: when called with the count argument, a list of popped elements.
+//!
+//! History
+//!     Starting with Redis version 6.2.0: Added the count argument.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPop(const QString &key)
@@ -1503,6 +2926,23 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPop(const QString
 //! \param destKey Ключ-получатель
 //! \return
 //!
+//! Redis command: RPOPLPUSH (deprecated)
+//!
+//! As of Redis version 6.2.0, this command is regarded as deprecated.
+//!
+//! It can be replaced by LMOVE with the RIGHT and LEFT arguments when migrating or writing new code.
+//!
+//! Syntax
+//!
+//! RPOPLPUSH source destination
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @list, @slow
+//!
 //! Atomically returns and removes the last element (tail) of the list stored at source, and pushes the element at the first element (head) of the list stored at destination.
 //!
 //! For example: consider source holding the list a,b,c, and destination holding the list x,y,z. Executing RPOPLPUSH results in source holding a,b and destination holding c,x,y,z.
@@ -1510,7 +2950,61 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPop(const QString
 //! If source does not exist, the value nil is returned and no operation is performed. If source and destination are the same,
 //! the operation is equivalent to removing the last element from the list and pushing it as first element of the list, so it can be considered as a list rotation command.
 //!
-//! Return value: the element being popped and pushed.
+//! Examples
+//! redis> RPUSH mylist "one"
+//! (integer) 1
+//! redis> RPUSH mylist "two"
+//! (integer) 2
+//! redis> RPUSH mylist "three"
+//! (integer) 3
+//! redis> RPOPLPUSH mylist myotherlist
+//! "three"
+//! redis> LRANGE mylist 0 -1
+//! 1) "one"
+//! 2) "two"
+//! redis> LRANGE myotherlist 0 -1
+//! 1) "three"
+//!
+//! Pattern: Reliable queue
+//!
+//! Redis is often used as a messaging server to implement processing of background jobs or other kinds of messaging tasks.
+//! A simple form of queue is often obtained pushing values into a list in the producer side, and waiting for this values in the consumer side using RPOP (using polling),
+//! or BRPOP if the client is better served by a blocking operation.
+//!
+//! However in this context the obtained queue is not reliable as messages can be lost, for example in the case there is a network problem
+//! or if the consumer crashes just after the message is received but before it can be processed.
+//!
+//! RPOPLPUSH (or BRPOPLPUSH for the blocking variant) offers a way to avoid this problem: the consumer fetches the message and at the same time pushes it into a processing list.
+//! It will use the LREM command in order to remove the message from the processing list once the message has been processed.
+//!
+//! An additional client may monitor the processing list for items that remain there for too much time, pushing timed out items into the queue again if needed.
+//!
+//! Pattern: Circular list
+//!
+//! Using RPOPLPUSH with the same source and destination key, a client can visit all the elements of an N-elements list, one after the other,
+//! in O(N) without transferring the full list from the server to the client using a single LRANGE operation.
+//!
+//! The above pattern works even if one or both of the following conditions occur:
+//!
+//!     There are multiple clients rotating the list: they'll fetch different elements, until all the elements of the list are visited, and the process restarts.
+//!     Other clients are actively pushing new items at the end of the list.
+//!
+//! The above makes it very simple to implement a system where a set of items must be processed by N workers continuously as fast as possible.
+//! An example is a monitoring system that must check that a set of web sites are reachable, with the smallest delay possible, using a number of parallel workers.
+//!
+//! Note that this implementation of workers is trivially scalable and reliable, because even if a message is lost the item is still in the queue and will be processed at the next iteration.
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the element being popped and pushed.
+//!     Nil reply: if the source list is empty.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the element being popped and pushed.
+//!     Null reply: if the source list is empty.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPopLPush(const QString &sourceKey, const QString &destKey)
@@ -1530,6 +3024,19 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPopLPush(const QS
 //! \param valueList Значения
 //! \return
 //!
+//! Redis command: RPUSH
+//!
+//! Syntax
+//!
+//! RPUSH key element [element ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1) for each element added, so O(N) to add N elements when the command is called with multiple arguments.
+//! ACL categories:
+//!     @write, @list, @fast
+//!
 //! Insert all the specified values at the tail of the list stored at key. If key does not exist, it is created as empty list before performing the push operation.
 //! When key holds a value that is not a list, an error is returned.
 //!
@@ -1537,8 +3044,20 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPopLPush(const QS
 //! Elements are inserted one after the other to the tail of the list, from the leftmost element to the rightmost element.
 //! So for instance the command RPUSH mylist a b c will result into a list containing a as first element, b as second element and c as third element.
 //!
-//! Return value: the length of the list after the push operation.
-//! Redis >= 2.4: Accepts multiple value arguments. In Redis versions older than 2.4 it was possible to push a single value per command.
+//! Examples
+//! redis> RPUSH mylist "hello"
+//! (integer) 1
+//! redis> RPUSH mylist "world"
+//! (integer) 2
+//! redis> LRANGE mylist 0 -1
+//! 1) "hello"
+//! 2) "world"
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the length of the list after the push operation.
+//!
+//! History
+//!     Starting with Redis version 2.4.0: Accepts multiple element arguments.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPush(const QString &key, const QStringList &valueList)
@@ -1563,9 +3082,40 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPush(const QStrin
 //! \param value Значение
 //! \return
 //!
-//! Inserts value at the tail of the list stored at key, only if key already exists and holds a list.
+//! Redis command: RPUSHX
+//!
+//! Syntax
+//!
+//! RPUSHX key element [element ...]
+//!
+//! Available since:
+//!     2.2.0
+//! Time complexity:
+//!     O(1) for each element added, so O(N) to add N elements when the command is called with multiple arguments.
+//! ACL categories:
+//!     @write, @list, @fast
+//!
+//! Inserts specified values at the tail of the list stored at key, only if key already exists and holds a list.
 //! In contrary to RPUSH, no operation will be performed when key does not yet exist.
-//! Return value: the length of the list after the push operation.
+//!
+//! Examples
+//! redis> RPUSH mylist "Hello"
+//! (integer) 1
+//! redis> RPUSHX mylist "World"
+//! (integer) 2
+//! redis> RPUSHX myotherlist "World"
+//! (integer) 0
+//! redis> LRANGE mylist 0 -1
+//! 1) "Hello"
+//! 2) "World"
+//! redis> LRANGE myotherlist 0 -1
+//! (empty array)
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the length of the list after the push operation.
+//!
+//! History
+//!     Starting with Redis version 4.0.0: Accepts multiple element arguments.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPushX(const QString &key, const QString &value)
