@@ -28,21 +28,24 @@ QtRedisTransaction::~QtRedisTransaction()
 //!
 //! Redis command: WATCH
 //!
+//! Syntax
+//!
 //! WATCH key [key ...]
 //!
 //! Available since:
-//!     Redis Open Source 2.2.0
+//!     2.2.0
 //! Time complexity:
 //!     O(1) for every key.
 //! ACL categories:
 //!     @fast, @transaction
-//! Compatibility:
-//!     Redis Software and Redis Cloud compatibility
 //!
 //! Note:
 //! This command's behavior varies in clustered Redis environments. See the multi-key operations page for more information.
 //!
 //! Marks the given keys to be watched for conditional execution of a transaction.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
 //!
 bool QtRedisTransaction::watch(const QString &key)
 {
@@ -78,21 +81,24 @@ bool QtRedisTransaction::watch(const QString &key)
 //!
 //! Redis command: WATCH
 //!
+//! Syntax
+//!
 //! WATCH key [key ...]
 //!
 //! Available since:
-//!     Redis Open Source 2.2.0
+//!     2.2.0
 //! Time complexity:
 //!     O(1) for every key.
 //! ACL categories:
 //!     @fast, @transaction
-//! Compatibility:
-//!     Redis Software and Redis Cloud compatibility
 //!
 //! Note:
 //! This command's behavior varies in clustered Redis environments. See the multi-key operations page for more information.
 //!
 //! Marks the given keys to be watched for conditional execution of a transaction.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
 //!
 bool QtRedisTransaction::watch(const QStringList &keys)
 {
@@ -140,18 +146,23 @@ bool QtRedisTransaction::watch(const QStringList &keys)
 //!
 //! Redis command: UNWATCH
 //!
+//! Syntax
+//!
+//! UNWATCH
+//!
 //! Available since:
-//!     Redis Open Source 2.2.0
+//!     2.2.0
 //! Time complexity:
 //!     O(1)
 //! ACL categories:
 //!     @fast, @transaction
-//! Compatibility:
-//!     Redis Software and Redis Cloud compatibility
 //!
 //! Flushes all the previously watched keys for a transaction.
 //!
 //! If you call EXEC or DISCARD, there's no need to manually call UNWATCH.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
 //!
 bool QtRedisTransaction::unwatch()
 {
@@ -187,16 +198,19 @@ bool QtRedisTransaction::unwatch()
 //! If piped == false:
 //!     1. Execute transaction by command "EXEC"
 //!
+//!
 //! Redis command: EXEC
 //!
+//! Syntax
+//!
+//! EXEC
+//!
 //! Available since:
-//!     Redis Open Source 1.2.0
+//!     1.2.0
 //! Time complexity:
 //!     Depends on commands in the transaction
 //! ACL categories:
 //!     @slow, @transaction
-//! Compatibility:
-//!     Redis Software and Redis Cloud compatibility
 //!
 //! Note:
 //! This command's behavior varies in clustered Redis environments. See the multi-key operations page for more information.
@@ -204,6 +218,18 @@ bool QtRedisTransaction::unwatch()
 //! Executes all previously queued commands in a transaction and restores the connection state to normal.
 //!
 //! When using WATCH, EXEC will execute commands only if the watched keys were not modified, allowing for a check-and-set mechanism.
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Array reply: each element being the reply to each of the commands in the atomic transaction.
+//!     Nil reply: the transaction was aborted because a WATCHed key was touched.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Array reply: each element being the reply to each of the commands in the atomic transaction.
+//!     Null reply: the transaction was aborted because a WATCHed key was touched.
 //!
 QtRedisReply QtRedisTransaction::exec()
 {
@@ -365,6 +391,9 @@ bool QtRedisTransaction::isReplyQueued(const QtRedisReply &reply)
 //!
 //! Marks the start of a transaction block. Subsequent commands will be queued for atomic execution using EXEC.
 //!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
+//!
 bool QtRedisTransaction::openTransaction_unsafe()
 {
     if (_inTransaction)
@@ -411,6 +440,9 @@ bool QtRedisTransaction::openTransaction_unsafe()
 //! Flushes all previously queued commands in a transaction and restores the connection state to normal.
 //!
 //! If WATCH was used, DISCARD unwatches all keys watched by the connection.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
 //!
 bool QtRedisTransaction::discardTransaction_unsafe()
 {

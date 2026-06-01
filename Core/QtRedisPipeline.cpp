@@ -22,6 +22,8 @@ QtRedisPipeline::~QtRedisPipeline()
 //! \brief Отправить все команды одним пакетом
 //! \return
 //!
+//! Send all commands to Redis for execution.
+//!
 QtRedisReply QtRedisPipeline::exec()
 {
     QMutexLocker lock(&_mutex);
@@ -50,6 +52,8 @@ QtRedisReply QtRedisPipeline::exec()
 //!
 //! \brief Отправить все команды одним пакетом
 //! \return
+//!
+//! Send all commands to Redis for execution.
 //!
 //! Note: This is a wrapper over function QtRedisPipeline::exec()
 //!

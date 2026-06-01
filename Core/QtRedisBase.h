@@ -3141,12 +3141,38 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisRPushX(const QStri
 //!
 //! Если одно или несколько значений уже есть в наборе, то они не добавляются.
 //!
+//! Redis command: SADD
+//!
+//! Syntax
+//!
+//! SADD key member [member ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1) for each element added, so O(N) to add N elements when the command is called with multiple arguments.
+//! ACL categories:
+//!     @write, @set, @fast
+//!
 //! Add the specified members to the set stored at key. Specified members that are already a member of this set are ignored.
 //! If key does not exist, a new set is created before adding the specified members.
 //!
 //! An error is returned when the value stored at key is not a set.
-//! Return value: the number of elements that were added to the set, not including all the elements already present into the set.
-//! Redis >= 2.4: Accepts multiple member arguments. Redis versions before 2.4 are only able to add a single member per call.
+//!
+//! Examples
+//! redis> SADD myset "Hello" "World"
+//! (integer) 2
+//! redis> SADD myset "World"
+//! (integer) 0
+//! redis> SMEMBERS myset
+//! 1) "Hello"
+//! 2) "World"
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of elements that were added to the set, not including all the elements already present in the set.
+//!
+//! History
+//!     Starting with Redis version 2.4.0: Accepts multiple member arguments.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSAdd(const QString &key, const QStringList &memberList)
@@ -3170,8 +3196,34 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSAdd(const QString
 //! \param key Ключ
 //! \return
 //!
+//! Redis command: SCARD
+//!
+//! Syntax
+//!
+//! SCARD key
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @read, @set, @fast
+//!
 //! Returns the set cardinality (number of elements) of the set stored at key.
-//! Return value: the cardinality (number of elements) of the set, or 0 if key does not exist.
+//!
+//! Examples
+//! redis> SADD myset "Hello"
+//! (integer) 1
+//! redis> SADD myset "World"
+//! (integer) 1
+//! redis> SCARD myset
+//! (integer) 2
+//!
+//! RESP2 Reply
+//! Integer reply: the cardinality (number of elements) of the set, or 0 if the key does not exist.
+//!
+//! RESP3 Reply
+//! Integer reply: The cardinality (number of elements) of the set, or 0 if the key does not exist.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSCard(const QString &key)
@@ -3187,15 +3239,52 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSCard(const QStrin
 //! \param keyList Список ключей наборов
 //! \return
 //!
+//! Redis command: SDIFF
+//!
+//! Syntax
+//!
+//! SDIFF key [key ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the total number of elements in all given sets.
+//! ACL categories:
+//!     @read, @set, @slow
+//!
 //! Returns the members of the set resulting from the difference between the first set and all the successive sets.
 //!
 //! For example:
+//!
 //! key1 = {a,b,c,d}
 //! key2 = {c}
 //! key3 = {a,c,e}
 //! SDIFF key1 key2 key3 = {b,d}
 //!
 //! Keys that do not exist are considered to be empty sets.
+//!
+//! Examples
+//! redis> SADD key1 "a"
+//! (integer) 1
+//! redis> SADD key1 "b"
+//! (integer) 1
+//! redis> SADD key1 "c"
+//! (integer) 1
+//! redis> SADD key2 "c"
+//! (integer) 1
+//! redis> SADD key2 "d"
+//! (integer) 1
+//! redis> SADD key2 "e"
+//! (integer) 1
+//! redis> SDIFF key1 key2
+//! 1) "a"
+//! 2) "b"
+//!
+//! RESP2 Reply
+//! Array reply: a list with members of the resulting set.
+//!
+//! RESP3 Reply
+//! Set reply: a set with the members of the resulting set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSDiff(const QStringList &keyList)
@@ -3216,10 +3305,44 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSDiff(const QStrin
 //! \param keyList Список ключей наборов
 //! \return
 //!
+//! Redis command: SDIFFSTORE
+//!
+//! Syntax
+//!
+//! SDIFFSTORE destination key [key ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the total number of elements in all given sets.
+//! ACL categories:
+//!     @write, @set, @slow
+//!
 //! This command is equal to SDIFF, but instead of returning the resulting set, it is stored in destination.
 //!
 //! If destination already exists, it is overwritten.
-//! Return value: the number of elements in the resulting set.
+//!
+//! Examples
+//! redis> SADD key1 "a"
+//! (integer) 1
+//! redis> SADD key1 "b"
+//! (integer) 1
+//! redis> SADD key1 "c"
+//! (integer) 1
+//! redis> SADD key2 "c"
+//! (integer) 1
+//! redis> SADD key2 "d"
+//! (integer) 1
+//! redis> SADD key2 "e"
+//! (integer) 1
+//! redis> SDIFFSTORE key key1 key2
+//! (integer) 2
+//! redis> SMEMBERS key
+//! 1) "a"
+//! 2) "b"
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of elements in the resulting set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSDiffStore(const QString &dest, const QStringList &keyList)
@@ -3242,16 +3365,52 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSDiffStore(const Q
 //! \param keyList Список ключей наборов
 //! \return
 //!
+//! Redis command: SINTER
+//!
+//! Syntax
+//!
+//! SINTER key [key ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N*M) worst case where N is the cardinality of the smallest set and M is the number of sets.
+//! ACL categories:
+//!     @read, @set, @slow
+//!
 //! Returns the members of the set resulting from the intersection of all the given sets.
 //!
 //! For example:
+//!
 //! key1 = {a,b,c,d}
 //! key2 = {c}
 //! key3 = {a,c,e}
 //! SINTER key1 key2 key3 = {c}
 //!
-//! Keys that do not exist are considered to be empty sets. With one of the keys being an empty set, the resulting set is also empty
-//! (since set intersection with an empty set always results in an empty set).
+//! Keys that do not exist are considered to be empty sets. With one of the keys being an empty set,
+//! the resulting set is also empty (since set intersection with an empty set always results in an empty set).
+//!
+//! Examples
+//! redis> SADD key1 "a"
+//! (integer) 1
+//! redis> SADD key1 "b"
+//! (integer) 1
+//! redis> SADD key1 "c"
+//! (integer) 1
+//! redis> SADD key2 "c"
+//! (integer) 1
+//! redis> SADD key2 "d"
+//! (integer) 1
+//! redis> SADD key2 "e"
+//! (integer) 1
+//! redis> SINTER key1 key2
+//! 1) "c"
+//!
+//! RESP2 Reply
+//! Array reply: an array with the members of the resulting set.
+//!
+//! RESP3 Reply
+//! Set reply: a set with the members of the resulting set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSInter(const QStringList &keyList)
@@ -3272,10 +3431,46 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSInter(const QStri
 //! \param keyList Список ключей наборов
 //! \return
 //!
+//! Redis command: SINTERSTORE
+//!
+//! Syntax
+//!
+//! SINTERSTORE destination key [key ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N*M) worst case where N is the cardinality of the smallest set and M is the number of sets.
+//! ACL categories:
+//!     @write, @set, @slow
+//!
 //! This command is equal to SINTER, but instead of returning the resulting set, it is stored in destination.
 //!
 //! If destination already exists, it is overwritten.
-//! Return value: the number of elements in the resulting set.
+//!
+//! Examples
+//! redis> SADD key1 "a"
+//! (integer) 1
+//! redis> SADD key1 "b"
+//! (integer) 1
+//! redis> SADD key1 "c"
+//! (integer) 1
+//! redis> SADD key2 "c"
+//! (integer) 1
+//! redis> SADD key2 "d"
+//! (integer) 1
+//! redis> SADD key2 "e"
+//! (integer) 1
+//! redis> SINTERSTORE key key1 key2
+//! (integer) 1
+//! redis> SMEMBERS key
+//! 1) "c"
+//!
+//! RESP2 Reply
+//! Integer reply: the number of elements in the resulting set.
+//!
+//! RESP3 Reply
+//! Integer reply: the number of elements in the result set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSInterStore(const QString &dest, const QStringList &keyList)
@@ -3299,6 +3494,35 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSInterStore(const 
 //! \param member Значение
 //! \return
 //!
+//! Redis command: SISMEMBER
+//!
+//! Syntax
+//!
+//! SISMEMBER key member
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @read, @set, @fast
+//!
+//! Returns if member is a member of the set stored at key.
+//!
+//! Examples
+//! redis> SADD myset "one"
+//! (integer) 1
+//! redis> SISMEMBER myset "one"
+//! (integer) 1
+//! redis> SISMEMBER myset "two"
+//! (integer) 0
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 0 if the element is not a member of the set, or when the key does not exist.
+//!     Integer reply: 1 if the element is a member of the set.
+//!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSIsMember(const QString &key, const QString &member)
 {
@@ -3314,6 +3538,38 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSIsMember(const QS
 //! \brief Получить список всех элементов набора
 //! \param key Ключ набора
 //! \return
+//!
+//! Redis command: SMEMBERS
+//!
+//! Syntax
+//!
+//! SMEMBERS key
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the set cardinality.
+//! ACL categories:
+//!     @read, @set, @slow
+//!
+//! Returns all the members of the set value stored at key.
+//!
+//! This has the same effect as running SINTER with one argument key.
+//!
+//! Examples
+//! redis> SADD myset "Hello"
+//! (integer) 1
+//! redis> SADD myset "World"
+//! (integer) 1
+//! redis> SMEMBERS myset
+//! 1) "Hello"
+//! 2) "World"
+//!
+//! RESP2 Reply
+//! Array reply: an array with all the members of the set.
+//!
+//! RESP3 Reply
+//! Set reply: a set with all the members of the set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMembers(const QString &key)
@@ -3331,6 +3587,19 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMembers(const QSt
 //! \param member Значение
 //! \return
 //!
+//! Redis command: SMOVE
+//!
+//! Syntax
+//!
+//! SMOVE source destination member
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @write, @set, @fast
+//!
 //! Move member from the set at source to the set at destination. This operation is atomic.
 //! In every given moment the element will appear to be a member of source or destination for other clients.
 //!
@@ -3339,6 +3608,27 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMembers(const QSt
 //! When the specified element already exists in the destination set, it is only removed from the source set.
 //!
 //! An error is returned if source or destination does not hold a set value.
+//!
+//! Examples
+//! redis> SADD myset "one"
+//! (integer) 1
+//! redis> SADD myset "two"
+//! (integer) 1
+//! redis> SADD myotherset "three"
+//! (integer) 1
+//! redis> SMOVE myset myotherset "two"
+//! (integer) 1
+//! redis> SMEMBERS myset
+//! 1) "one"
+//! redis> SMEMBERS myotherset
+//! 1) "three"
+//! 2) "two"
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Integer reply: 1 if the element is moved.
+//!     Integer reply: 0 if the element is not a member of source and no operation was performed.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMove(const QString &sourceKey, const QString &destKey, const QString &member)
@@ -3360,36 +3650,70 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSMove(const QStrin
 //! \param count Количество элементов
 //! \return
 //!
-//! Removes and returns one or more random elements from the set value store at key.
+//! Redis command: SPOP
+//!
+//! Syntax
+//!
+//! SPOP key [count]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     Without the count argument O(1), otherwise O(N) where N is the value of the passed count.
+//! ACL categories:
+//!     @write, @set, @fast
+//!
+//! Removes and returns one or more random members from the set value store at key.
 //!
 //! This operation is similar to SRANDMEMBER, that returns one or more random elements from a set but does not remove it.
 //!
-//! The count argument is available since version 3.2.
-//! Return value: the removed element, or nil when key does not exist.
+//! By default, the command pops a single member from the set. When provided with the optional count argument,
+//! the reply will consist of up to count members, depending on the set's cardinality.
 //!
 //! Examples
-//! redis>  SADD myset "one"
+//! redis> SADD myset "one"
 //! (integer) 1
-//! redis>  SADD myset "two"
+//! redis> SADD myset "two"
 //! (integer) 1
-//! redis>  SADD myset "three"
+//! redis> SADD myset "three"
 //! (integer) 1
-//! redis>  SPOP myset
+//! redis> SPOP myset
 //! "three"
-//! redis>  SMEMBERS myset
-//! 1) "two"
-//! 2) "one"
-//! redis>  SADD myset "four"
-//! (integer) 1
-//! redis>  SADD myset "five"
-//! (integer) 1
-//! redis>  SPOP myset 3
-//! 1) "four"
+//! redis> SMEMBERS myset
+//! 1) "one"
 //! 2) "two"
-//! 3) "one"
-//! redis>  SMEMBERS myset
-//! 1) "five"
-//! redis>
+//! redis> SADD myset "four"
+//! (integer) 1
+//! redis> SADD myset "five"
+//! (integer) 1
+//! redis> SPOP myset 3
+//! 1) "one"
+//! 2) "two"
+//! 3) "five"
+//! redis> SMEMBERS myset
+//! 1) "four"
+//!
+//! Distribution of returned elements
+//!
+//! Note that this command is not suitable when you need a guaranteed uniform distribution of the returned elements.
+//! For more information about the algorithms used for SPOP, look up both the Knuth sampling and Floyd sampling algorithms.
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Nil reply: if the key does not exist.
+//!     Bulk string reply: when called without the count argument, the removed member.
+//!     Array reply: when called with the count argument, a list of the removed members.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Null reply: if the key does not exist.
+//!     Bulk string reply: when called without the count argument, the removed member.
+//!     Array reply: when called with the count argument, a list of the removed members.
+//!
+//! History
+//!     Starting with Redis version 3.2.0: Added the count argument.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSPop(const QString &key, const uint count)
@@ -3411,33 +3735,83 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSPop(const QString
 //! \param count Количество элементов
 //! \return
 //!
+//! Redis command: SRANDMEMBER
+//!
+//! Syntax
+//!
+//! SRANDMEMBER key [count]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     Without the count argument O(1), otherwise O(N) where N is the absolute value of the passed count.
+//! ACL categories:
+//!     @read, @set, @slow
+//!
 //! When called with just the key argument, return a random element from the set value stored at key.
 //!
-//! Starting from Redis version 2.6, when called with the additional count argument, return an array of count distinct elements if count is positive.
-//! If called with a negative count the behavior changes and the command is allowed to return the same element multiple times.
-//! In this case the number of returned elements is the absolute value of the specified count.
+//! If the provided count argument is positive, return an array of distinct elements.
+//! The array's length is either count or the set's cardinality (SCARD), whichever is lower.
 //!
-//! When called with just the key argument, the operation is similar to SPOP, however while SPOP also removes the randomly selected element from the set,
-//! SRANDMEMBER will just return a random element without altering the original set in any way.
-//! Return value:
-//! - String reply: without the additional count argument the command returns a Bulk Reply with the randomly selected element, or nil when key does not exist.
-//! - Array reply: when the additional count argument is passed the command returns an array of elements, or an empty array when key does not exist.
+//! If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times.
+//! In this case, the number of returned elements is the absolute value of the specified count.
 //!
 //! Examples
-//! redis>  SADD myset one two three
+//! redis> SADD myset one two three
 //! (integer) 3
-//! redis>  SRANDMEMBER myset
+//! redis> SRANDMEMBER myset
 //! "two"
-//! redis>  SRANDMEMBER myset 2
-//! 1) "two"
-//! 2) "one"
-//! redis>  SRANDMEMBER myset -5
+//! redis> SRANDMEMBER myset 2
 //! 1) "two"
 //! 2) "three"
-//! 3) "two"
+//! redis> SRANDMEMBER myset -5
+//! 1) "two"
+//! 2) "three"
+//! 3) "one"
 //! 4) "three"
-//! 5) "three"
-//! redis>
+//! 5) "two"
+//!
+//! Specification of the behavior when count is passed
+//!
+//! When the count argument is a positive value this command behaves as follows:
+//!
+//!     No repeated elements are returned.
+//!     If count is bigger than the set's cardinality, the command will only return the whole set without additional elements.
+//!     The order of elements in the reply is not truly random, so it is up to the client to shuffle them if needed.
+//!
+//! When the count is a negative value, the behavior changes as follows:
+//!
+//!     Repeating elements are possible.
+//!     Exactly count elements, or an empty array if the set is empty (non-existing key), are always returned.
+//!     The order of elements in the reply is truly random.
+//!
+//! Distribution of returned elements
+//!
+//! Note: this section is relevant only for Redis 5 or below, as Redis 6 implements a fairer algorithm.
+//!
+//! The distribution of the returned elements is far from perfect when the number of elements in the set is small,
+//! this is due to the fact that we used an approximated random element function that does not really guarantees good distribution.
+//!
+//! The algorithm used, that is implemented inside dict.c, samples the hash table buckets to find a non-empty one.
+//! Once a non empty bucket is found, since we use chaining in our hash table implementation, the number of elements inside the bucket is checked and a random element is selected.
+//!
+//! This means that if you have two non-empty buckets in the entire hash table, and one has three elements while one has just one,
+//! the element that is alone in its bucket will be returned with much higher probability.
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: without the additional count argument, the command returns a randomly selected member, or a Nil reply when key doesn't exist.
+//!     Array reply: when the optional count argument is passed, the command returns an array of members, or an empty array when key doesn't exist.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: without the additional count argument, the command returns a randomly selected member, or a Null reply when key doesn't exist.
+//!     Array reply: when the optional count argument is passed, the command returns an array of members, or an empty array when key doesn't exist.
+//!
+//! History
+//!     Starting with Redis version 2.6.0: Added the optional count argument.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRandMember(const QString &key, const int count)
@@ -3457,12 +3831,47 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRandMember(const 
 //! \param memberList Список элементов
 //! \return
 //!
+//! Redis command: SREM
+//!
+//! Syntax
+//!
+//! SREM key member [member ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of members to be removed.
+//! ACL categories:
+//!     @write, @set, @fast
+//!
 //! Remove the specified members from the set stored at key. Specified members that are not a member of this set are ignored.
 //! If key does not exist, it is treated as an empty set and this command returns 0.
 //!
 //! An error is returned when the value stored at key is not a set.
-//! Return value: the number of members that were removed from the set, not including non existing members.
-//! Redis >= 2.4: Accepts multiple member arguments. Redis versions older than 2.4 can only remove a set member per call.
+//!
+//! Examples
+//! redis> SADD myset "one"
+//! (integer) 1
+//! redis> SADD myset "two"
+//! (integer) 1
+//! redis> SADD myset "three"
+//! (integer) 1
+//! redis> SREM myset "one"
+//! (integer) 1
+//! redis> SREM myset "four"
+//! (integer) 0
+//! redis> SMEMBERS myset
+//! 1) "two"
+//! 2) "three"
+//!
+//! RESP2 Reply
+//! Integer reply: the number of members that were removed from the set, not including non existing members.
+//!
+//! RESP3 Reply
+//! Integer reply: Number of members that were removed from the set, not including non existing members.
+//!
+//! History
+//!     Starting with Redis version 2.4.0: Accepts multiple member arguments.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRem(const QString &key, const QStringList &memberList)
@@ -3486,15 +3895,55 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSRem(const QString
 //! \param keyList Список ключей наборов
 //! \return
 //!
+//! Redis command: SUNION
+//!
+//! Syntax
+//!
+//! SUNION key [key ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the total number of elements in all given sets.
+//! ACL categories:
+//!     @read, @set, @slow
+//!
 //! Returns the members of the set resulting from the union of all the given sets.
 //!
 //! For example:
+//!
 //! key1 = {a,b,c,d}
 //! key2 = {c}
 //! key3 = {a,c,e}
 //! SUNION key1 key2 key3 = {a,b,c,d,e}
 //!
 //! Keys that do not exist are considered to be empty sets.
+//!
+//! Examples
+//! redis> SADD key1 "a"
+//! (integer) 1
+//! redis> SADD key1 "b"
+//! (integer) 1
+//! redis> SADD key1 "c"
+//! (integer) 1
+//! redis> SADD key2 "c"
+//! (integer) 1
+//! redis> SADD key2 "d"
+//! (integer) 1
+//! redis> SADD key2 "e"
+//! (integer) 1
+//! redis> SUNION key1 key2
+//! 1) "a"
+//! 2) "c"
+//! 3) "b"
+//! 4) "d"
+//! 5) "e"
+//!
+//! RESP2 Reply
+//! Array reply: a list with members of the resulting set.
+//!
+//! RESP3 Reply
+//! Set reply: a set with the members of the resulting set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSUnion(const QStringList &keyList)
@@ -3515,9 +3964,50 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSUnion(const QStri
 //! \param keyList Список ключей наборов
 //! \return
 //!
+//! Redis command: SUNIONSTORE
+//!
+//! Syntax
+//!
+//! SUNIONSTORE destination key [key ...]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the total number of elements in all given sets.
+//! ACL categories:
+//!     @write, @set, @slow
+//!
 //! This command is equal to SUNION, but instead of returning the resulting set, it is stored in destination.
+//!
 //! If destination already exists, it is overwritten.
-//! Return value: the number of elements in the resulting set.
+//!
+//! Examples
+//! redis> SADD key1 "a"
+//! (integer) 1
+//! redis> SADD key1 "b"
+//! (integer) 1
+//! redis> SADD key1 "c"
+//! (integer) 1
+//! redis> SADD key2 "c"
+//! (integer) 1
+//! redis> SADD key2 "d"
+//! (integer) 1
+//! redis> SADD key2 "e"
+//! (integer) 1
+//! redis> SUNIONSTORE key key1 key2
+//! (integer) 5
+//! redis> SMEMBERS key
+//! 1) "a"
+//! 2) "b"
+//! 3) "c"
+//! 4) "d"
+//! 5) "e"
+//!
+//! RESP2 Reply
+//! Integer reply: the number of elements in the resulting set.
+//!
+//! RESP3 Reply
+//! Integer reply: Number of the elements in the resulting set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSUnionStore(const QString &dest, const QStringList &keyList)
@@ -3549,49 +4039,112 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisSUnionStore(const 
 //! \param incrFlag Флаг инкремента
 //! \return
 //!
-//! Adds all the specified members with the specified scores to the sorted set stored at key. It is possible to specify multiple score / member pairs.
-//! If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
+//! Redis command: ZADD
 //!
-//! If key does not exist, a new sorted set with the specified members as sole members is created, like if the sorted set was empty. If the key exists but does not hold a sorted set,
-//! an error is returned.
+//! Syntax
+//!
+//! ZADD key [NX | XX] [GT | LT] [CH] [INCR] score member [score member
+//!   ...]
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(log(N)) for each item added, where N is the number of elements in the sorted set.
+//! ACL categories:
+//!     @write, @sortedset, @fast
+//!
+//! Adds all the specified members with the specified scores to the sorted set stored at key.
+//! It is possible to specify multiple score / member pairs. If a specified member is already a member of the sorted set,
+//! the score is updated and the element reinserted at the right position to ensure the correct ordering.
+//!
+//! If key does not exist, a new sorted set with the specified members as sole members is created, like if the sorted set was empty.
+//! If the key exists but does not hold a sorted set, an error is returned.
 //!
 //! The score values should be the string representation of a double precision floating point number. +inf and -inf values are valid values as well.
 //!
-//! ZADD options (Redis 3.0.2 or greater):
+//! ZADD options
+//!
 //! ZADD supports a list of options, specified after the name of the key and before the first score argument. Options are:
-//! - XX: Only update elements that already exist. Never add elements.
-//! - NX: Don't update already existing elements. Always add new elements.
-//! - CH: Modify the return value from the number of new elements added, to the total number of elements changed (CH is an abbreviation of changed). Changed elements are new elements added and elements already existing for which the score was updated. So elements specified in the command line having the same score as they had in the past are not counted. Note: normally the return value of ZADD only counts the number of new elements added.
-//! - INCR: When this option is specified ZADD acts like ZINCRBY. Only one score-element pair can be specified in this mode.
 //!
-//! Range of integer scores that can be expressed precisely:
+//!     XX: Only update elements that already exist. Don't add new elements.
+//!     NX: Only add new elements. Don't update already existing elements.
+//!     LT: Only update existing elements if the new score is less than the current score. This flag doesn't prevent adding new elements.
+//!     GT: Only update existing elements if the new score is greater than the current score. This flag doesn't prevent adding new elements.
+//!     CH: Modify the return value from the number of new elements added, to the total number of elements changed (CH is an abbreviation of changed).
+//!         Changed elements are new elements added and elements already existing for which the score was updated.
+//!         So elements specified in the command line having the same score as they had in the past are not counted.
+//!         Note: normally the return value of ZADD only counts the number of new elements added.
+//!     INCR: When this option is specified ZADD acts like ZINCRBY. Only one score-element pair can be specified in this mode.
+//!
+//! Note: The GT, LT and NX options are mutually exclusive.
+//!
+//!
+//! Range of integer scores that can be expressed precisely
+//!
 //! Redis sorted sets use a double 64-bit floating point number to represent the score. In all the architectures we support, this is represented as an IEEE 754 floating point number,
-//! that is able to represent precisely integer numbers between -(2^53) and +(2^53) included. In more practical terms,
-//! all the integers between -9007199254740992 and 9007199254740992 are perfectly representable. Larger integers, or fractions, are internally represented in exponential form,
-//! so it is possible that you get only an approximation of the decimal number, or of the very big integer, that you set as score.
+//! that is able to represent precisely integer numbers between -(2^53) and +(2^53) included. In more practical terms, all the integers between -9007199254740992 and 9007199254740992 are perfectly representable.
+//! Larger integers, or fractions, are internally represented in exponential form, so it is possible that you get only an approximation of the decimal number, or of the very big integer, that you set as score.
 //!
-//! Sorted sets 101:
+//!
+//! Sorted sets 101
+//!
 //! Sorted sets are sorted by their score in an ascending way. The same element only exists a single time, no repeated elements are permitted.
 //! The score can be modified both by ZADD that will update the element score, and as a side effect, its position on the sorted set,
 //! and by ZINCRBY that can be used in order to update the score relatively to its previous value.
 //!
 //! The current score of an element can be retrieved using the ZSCORE command, that can also be used to verify if an element already exists or not.
+//!
 //! For an introduction to sorted sets, see the data types page on sorted sets.
 //!
-//! Elements with the same score:
+//!
+//! Elements with the same score
+//!
 //! While the same element can't be repeated in a sorted set since every element is unique, it is possible to add multiple different elements having the same score.
 //! When multiple elements have the same score, they are ordered lexicographically (they are still ordered by score as a first key, however, locally,
 //! all the elements with the same score are relatively ordered lexicographically).
 //!
 //! The lexicographic ordering used is binary, it compares strings as array of bytes.
+//!
 //! If the user inserts all the elements in a sorted set with the same score (for example 0), all the elements of the sorted set are sorted lexicographically,
 //! and range queries on elements are possible using the command ZRANGEBYLEX (Note: it is also possible to query sorted sets by range of scores using ZRANGEBYSCORE).
 //!
-//! Return value:
-//! - The number of elements added to the sorted sets, not including elements already existing for which the score was updated.
-//! - If the INCR option is specified, the return value will be Bulk string reply: the new score of member (a double precision floating point number), represented as string.
+//! Examples
+//! redis> ZADD myzset 1 "one"
+//! (integer) 1
+//! redis> ZADD myzset 1 "uno"
+//! (integer) 1
+//! redis> ZADD myzset 2 "two" 3 "three"
+//! (integer) 2
+//! redis> ZRANGE myzset 0 -1 WITHSCORES
+//! 1) "one"
+//! 2) "1"
+//! 3) "uno"
+//! 4) "1"
+//! 5) "two"
+//! 6) "2"
+//! 7) "three"
+//! 8) "3"
 //!
-//! Redis >= 2.4: Accepts multiple elements. In Redis versions older than 2.4 it was possible to add or update a single member per call.
+//! RESP2 Reply
+//!
+//! Any of the following:
+//!     Nil reply: if the operation was aborted because of a conflict with one of the XX/NX/LT/GT options.
+//!     Integer reply: the number of new members when the CH option is not used.
+//!     Integer reply: the number of new or updated members when the CH option is used.
+//!     Bulk string reply: the updated score of the member when the INCR option is used.
+//!
+//! RESP3 Reply
+//!
+//! Any of the following:
+//!     Null reply: if the operation was aborted because of a conflict with one of the XX/NX/LT/GT options.
+//!     Integer reply: the number of new members when the CH option is not used.
+//!     Integer reply: the number of new or updated members when the CH option is used.
+//!     Double reply: the updated score of the member when the INCR option is used.
+//!
+//! History
+//!     Starting with Redis version 2.4.0: Accepts multiple elements.
+//!     Starting with Redis version 3.0.2: Added the XX, NX, CH and INCR options.
+//!     Starting with Redis version 6.2.0: Added the GT and LT options.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZAdd(const QString &key, const QMultiMap<QString, QString> scoreMember, const QString &updFlag, const bool chFlag, const bool incrFlag)
@@ -3629,6 +4182,32 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZAdd(const QString
 //! \param key Ключ
 //! \return
 //!
+//! Redis command: ZCARD
+//!
+//! Syntax
+//!
+//! ZCARD key
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @read, @sortedset, @fast
+//!
+//! Returns the sorted set cardinality (number of elements) of the sorted set stored at key.
+//!
+//! Examples
+//! redis> ZADD myzset 1 "one"
+//! (integer) 1
+//! redis> ZADD myzset 2 "two"
+//! (integer) 1
+//! redis> ZCARD myzset
+//! (integer) 2
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the cardinality (number of members) of the sorted set, or 0 if the key doesn't exist.
+//!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZCard(const QString &key)
 {
@@ -3645,22 +4224,40 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZCard(const QStrin
 //! \param max Макс.
 //! \return
 //!
+//! Redis command: ZCOUNT
+//!
+//! Syntax
+//!
+//! ZCOUNT key min max
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(log(N)) with N being the number of elements in the sorted set.
+//! ACL categories:
+//!     @read, @sortedset, @fast
+//!
 //! Returns the number of elements in the sorted set at key with a score between min and max.
 //!
-//! Exclusive intervals and infinity:
-//! min and max can be -inf and +inf, so that you are not required to know the highest or lowest score in the sorted set to get all elements from or up to a certain score.
-//! By default, the interval specified by min and max is closed (inclusive). It is possible to specify an open interval (exclusive) by prefixing the score with the character (.
+//! The min and max arguments have the same semantic as described for ZRANGEBYSCORE.
 //!
-//! For example:
+//! Note: the command has a complexity of just O(log(N)) because it uses elements ranks (see ZRANK) to get an idea of the range.
+//! Because of this there is no need to do a work proportional to the size of the range.
 //!
-//! ZRANGEBYSCORE zset (1 5
-//! Will return all elements with 1 < score <= 5 while:
+//! Examples
+//! redis> ZADD myzset 1 "one"
+//! (integer) 1
+//! redis> ZADD myzset 2 "two"
+//! (integer) 1
+//! redis> ZADD myzset 3 "three"
+//! (integer) 1
+//! redis> ZCOUNT myzset -inf +inf
+//! (integer) 3
+//! redis> ZCOUNT myzset (1 3
+//! (integer) 2
 //!
-//! ZRANGEBYSCORE zset (5 (10
-//! Will return all the elements with 5 < score < 10 (5 and 10 excluded).
-//!
-//! Note: the command has a complexity of just O(log(N)) because it uses elements ranks (see ZRANK) to get an idea of the range. Because of this there is no need to do a work proportional to the size of the range.
-//! Return value: the number of elements in the specified score range.
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of members in the specified score range.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZCount(const QString &key, const QVariant &min, const QVariant &max)
@@ -3702,12 +4299,46 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZCount(const QStri
 //! \param incr Инкремент
 //! \return
 //!
-//! Increments the score of member in the sorted set stored at key by increment. If member does not exist in the sorted set, it is added with increment as its score (as if its previous score was 0.0). If key does not exist, a new sorted set with the specified member as its sole member is created.
+//! Redis command: ZINCRBY
+//!
+//! Syntax
+//!
+//! ZINCRBY key increment member
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(log(N)) where N is the number of elements in the sorted set.
+//! ACL categories:
+//!     @write, @sortedset, @fast
+//!
+//! Increments the score of member in the sorted set stored at key by increment. If member does not exist in the sorted set,
+//! it is added with increment as its score (as if its previous score was 0.0).
+//! If key does not exist, a new sorted set with the specified member as its sole member is created.
 //!
 //! An error is returned when key exists but does not hold a sorted set.
 //!
-//! The score value should be the string representation of a numeric value, and accepts double precision floating point numbers. It is possible to provide a negative value to decrement the score.
-//! Return value: the new score of member (a double precision floating point number), represented as string.
+//! The score value should be the string representation of a numeric value, and accepts double precision floating point numbers.
+//! It is possible to provide a negative value to decrement the score.
+//!
+//! Examples
+//! redis> ZADD myzset 1 "one"
+//! (integer) 1
+//! redis> ZADD myzset 2 "two"
+//! (integer) 1
+//! redis> ZINCRBY myzset 2 "one"
+//! "3"
+//! redis> ZRANGE myzset 0 -1 WITHSCORES
+//! 1) "two"
+//! 2) "2"
+//! 3) "one"
+//! 4) "3"
+//!
+//! RESP2 Reply
+//! Bulk string reply: the new score of member as a double precision floating point number.
+//!
+//! RESP3 Reply
+//! Double reply: the new score of member.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZIncrBy(const QString &key, const QString &member, const qint64 incr)
@@ -3728,37 +4359,52 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZIncrBy(const QStr
 //! \param aggregateFlag Флаг агрегации (SUM|MIN|MAX)
 //! \return
 //!
+//! Redis command: ZINTERSTORE
+//!
+//! Syntax
+//!
+//! ZINTERSTORE destination numkeys key [key ...] [WEIGHTS weight
+//!   [weight ...]] [AGGREGATE <SUM | MIN | MAX>]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N*K)+O(M*log(M)) worst case with N being the smallest input sorted set, K being the number of input sorted sets and M being the number of elements in the resulting sorted set.
+//! ACL categories:
+//!     @write, @sortedset, @slow
+//!
 //! Computes the intersection of numkeys sorted sets given by the specified keys, and stores the result in destination.
 //! It is mandatory to provide the number of input keys (numkeys) before passing the input keys and the other (optional) arguments.
 //!
 //! By default, the resulting score of an element is the sum of its scores in the sorted sets where it exists.
-//! Because intersection requires an element to be a member of every given sorted set, this results in the score of every element in the resulting sorted set to be equal
-//! to the number of input sorted sets.
+//! Because intersection requires an element to be a member of every given sorted set,
+//! this results in the score of every element in the resulting sorted set to be equal to the number of input sorted sets.
 //!
 //! For a description of the WEIGHTS and AGGREGATE options, see ZUNIONSTORE.
 //!
 //! If destination already exists, it is overwritten.
-//! Return value: the number of elements in the resulting sorted set at destination.
 //!
 //! Examples
-//! redis>  ZADD zset1 1 "one"
+//! redis> ZADD zset1 1 "one"
 //! (integer) 1
-//! redis>  ZADD zset1 2 "two"
+//! redis> ZADD zset1 2 "two"
 //! (integer) 1
-//! redis>  ZADD zset2 1 "one"
+//! redis> ZADD zset2 1 "one"
 //! (integer) 1
-//! redis>  ZADD zset2 2 "two"
+//! redis> ZADD zset2 2 "two"
 //! (integer) 1
-//! redis>  ZADD zset2 3 "three"
+//! redis> ZADD zset2 3 "three"
 //! (integer) 1
-//! redis>  ZINTERSTORE out 2 zset1 zset2 WEIGHTS 2 3
+//! redis> ZINTERSTORE out 2 zset1 zset2 WEIGHTS 2 3
 //! (integer) 2
-//! redis>  ZRANGE out 0 -1 WITHSCORES
+//! redis> ZRANGE out 0 -1 WITHSCORES
 //! 1) "one"
 //! 2) "5"
 //! 3) "two"
 //! 4) "10"
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of members in the resulting sorted set at the destination.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZInterStore(const QString &destKey, const QStringList &keyList, const QList<int> &weightList, const QString &aggregateFlag)
@@ -3807,16 +4453,39 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZInterStore(const 
 //! \param max Макс
 //! \return
 //!
-//! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns the number of elements
-//! in the sorted set at key with a value between min and max.
+//! Redis command: ZLEXCOUNT
 //!
-//! Exclusive intervals and infinity:
-//! min and max can be -inf and +inf, so that you are not required to know the highest or lowest score in the sorted set to get all elements from or up to a certain score.
-//! By default, the interval specified by min and max is closed (inclusive). It is possible to specify an open interval (exclusive) by prefixing the score with the character (.
+//! Syntax
+//!
+//! ZLEXCOUNT key min max
+//!
+//! Available since:
+//!     2.8.9
+//! Time complexity:
+//!     O(log(N)) with N being the number of elements in the sorted set.
+//! ACL categories:
+//!     @read, @sortedset, @fast
+//!
+//! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering,
+//! this command returns the number of elements in the sorted set at key with a value between min and max.
+//!
+//! The min and max arguments have the same meaning as described for ZRANGEBYLEX.
 //!
 //! Note: the command has a complexity of just O(log(N)) because it uses elements ranks (see ZRANK) to get an idea of the range.
 //! Because of this there is no need to do a work proportional to the size of the range.
-//! Return value: the number of elements in the specified score range.
+//!
+//! Examples
+//! redis> ZADD myzset 0 a 0 b 0 c 0 d 0 e
+//! (integer) 5
+//! redis> ZADD myzset 0 f 0 g
+//! (integer) 2
+//! redis> ZLEXCOUNT myzset - +
+//! (integer) 7
+//! redis> ZLEXCOUNT myzset [b [f
+//! (integer) 5
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of members in the specified score range.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZLexCount(const QString &key, const QString &min, const QString &max)
@@ -3849,23 +4518,42 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZLexCount(const QS
 //! \param withScores Если true - вернуть количество элементов вместе с элементами
 //! \return
 //!
-//! Returns the specified range of elements in the sorted set stored at key. The elements are considered to be ordered from the lowest to the highest score.
-//! Lexicographical order is used for elements with equal score.
+//! Redis command: ZREMRANGEBYRANK
 //!
-//! See ZREVRANGE when you need the elements ordered from highest to lowest score (and descending lexicographical order for elements with equal score).
+//! Syntax
 //!
-//! Both start and stop are zero-based indexes, where 0 is the first element, 1 is the next element and so on.
-//! They can also be negative numbers indicating offsets from the end of the sorted set, with -1 being the last element of the sorted set, -2 the penultimate element and so on.
+//! ZREMRANGEBYRANK key start stop
 //!
-//! start and stop are inclusive ranges, so for example ZRANGE myzset 0 1 will return both the first and the second element of the sorted set.
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements removed by the operation.
+//! ACL categories:
+//!     @write, @sortedset, @slow
 //!
-//! Out of range indexes will not produce an error. If start is larger than the largest index in the sorted set, or start > stop, an empty list is returned.
-//! If stop is larger than the end of the sorted set Redis will treat it like it is the last element of the sorted set.
+//! Removes all elements in the sorted set stored at key with rank between start and stop.
+//! Both start and stop are 0 -based indexes with 0 being the element with the lowest score.
+//! These indexes can be negative numbers, where they indicate offsets starting at the element with the highest score.
+//! For example: -1 is the element with the highest score, -2 the element with the second highest score and so forth.
 //!
-//! It is possible to pass the WITHSCORES option in order to return the scores of the elements together with the elements.
-//! The returned list will contain value1,score1,...,valueN,scoreN instead of value1,...,valueN.
-//! Client libraries are free to return a more appropriate data type (suggestion: an array with (value, score) arrays/tuples).
-//! Return value: list of elements in the specified range (optionally with their scores, in case the WITHSCORES option is given).
+//! Examples
+//! redis> ZADD myzset 1 "one"
+//! (integer) 1
+//! redis> ZADD myzset 2 "two"
+//! (integer) 1
+//! redis> ZADD myzset 3 "three"
+//! (integer) 1
+//! redis> ZREMRANGEBYRANK myzset 0 1
+//! (integer) 2
+//! redis> ZRANGE myzset 0 -1 WITHSCORES
+//! 1) "three"
+//! 2) "3"
+//!
+//! RESP2 Reply
+//! Integer reply: the number of members removed.
+//!
+//! RESP3 Reply
+//! Integer reply: Number of members removed.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRange(const QString &key, const int start, const int stop, const bool withScores)
@@ -3889,8 +4577,26 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRange(const QStri
 //! \param count Количество
 //! \return
 //!
-//! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns all the elements
-//! in the sorted set at key with a value between min and max.
+//! Redis command: ZRANGEBYLEX (deprecated)
+//!
+//! As of Redis version 6.2.0, this command is regarded as deprecated.
+//!
+//! It can be replaced by ZRANGE with the BYLEX argument when migrating or writing new code.
+//!
+//! Syntax
+//!
+//! ZRANGEBYLEX key min max [LIMIT offset count]
+//!
+//! Available since:
+//!     2.8.9
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements being returned.
+//!                 If M is constant (e.g. always asking for the first 10 elements with LIMIT), you can consider it O(log(N)).
+//! ACL categories:
+//!     @read, @sortedset, @slow
+//!
+//! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering,
+//! this command returns all the elements in the sorted set at key with a value between min and max.
 //!
 //! If the elements in the sorted set have different scores, the returned elements are unspecified.
 //!
@@ -3898,49 +4604,55 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRange(const QStri
 //! Longer strings are considered greater than shorter strings if the common part is identical.
 //!
 //! The optional LIMIT argument can be used to only get a range of the matching elements (similar to SELECT LIMIT offset, count in SQL).
-//! Keep in mind that if offset is large, the sorted set needs to be traversed for offset elements before getting to the elements to return, which can add up to O(N) time complexity.
+//! A negative count returns all elements from the offset. Keep in mind that if offset is large,
+//! the sorted set needs to be traversed for offset elements before getting to the elements to return, which can add up to O(N) time complexity.
 //!
-//! How to specify intervals:
+//! How to specify intervals
+//!
 //! Valid start and stop must start with ( or [, in order to specify if the range item is respectively exclusive or inclusive.
 //! The special values of + or - for start and stop have the special meaning or positively infinite and negatively infinite strings,
 //! so for instance the command ZRANGEBYLEX myzset - + is guaranteed to return all the elements in the sorted set, if all the elements have the same score.
 //!
-//! Details on strings comparison:
-//! Strings are compared as binary array of bytes. Because of how the ASCII character set is specified, this means that usually this also have the effect
-//! of comparing normal ASCII characters in an obvious dictionary way. However this is not true if non plain ASCII strings are used (for example utf8 strings).
+//! Details on strings comparison
 //!
-//! However the user can apply a transformation to the encoded string so that the first part of the element inserted in the sorted set will compare as the user requires
-//! for the specific application. For example if I want to add strings that will be compared in a case-insensitive way, but I still want to retrieve the real case when querying,
-//! I can add strings in the following way:
+//! Strings are compared as binary array of bytes. Because of how the ASCII character set is specified,
+//! this means that usually this also have the effect of comparing normal ASCII characters in an obvious dictionary way.
+//! However this is not true if non plain ASCII strings are used (for example utf8 strings).
+//!
+//! However the user can apply a transformation to the encoded string so that the first part of the element inserted
+//! in the sorted set will compare as the user requires for the specific application.
+//! For example if I want to add strings that will be compared in a case-insensitive way,
+//! but I still want to retrieve the real case when querying, I can add strings in the following way:
 //!
 //! ZADD autocomplete 0 foo:Foo 0 bar:BAR 0 zap:zap
 //!
-//! Because of the first normalized part in every element (before the colon character), we are forcing a given comparison, however after the range is queries using ZRANGEBYLEX
-//! the application can display to the user the second part of the string, after the colon.
+//! Because of the first normalized part in every element (before the colon character), we are forcing a given comparison,
+//! however after the range is queries using ZRANGEBYLEX the application can display to the user the second part of the string, after the colon.
 //!
-//! The binary nature of the comparison allows to use sorted sets as a general purpose index, for example the first part of the element can be a 64 bit big endian number:
-//! since big endian numbers have the most significant bytes in the initial positions, the binary comparison will match the numerical comparison of the numbers.
-//! This can be used in order to implement range queries on 64 bit values. As in the example below, after the first 8 bytes we can store the value of the element we are actually indexing.
-//!
-//! Return value: list of elements in the specified score range.
+//! The binary nature of the comparison allows to use sorted sets as a general purpose index, for example
+//! the first part of the element can be a 64 bit big endian number: since big endian numbers have the most significant bytes in the initial positions,
+//! the binary comparison will match the numerical comparison of the numbers. This can be used in order to implement range queries on 64 bit values.
+//! As in the example below, after the first 8 bytes we can store the value of the element we are actually indexing.
 //!
 //! Examples
-//! redis>  ZADD myzset 0 a 0 b 0 c 0 d 0 e 0 f 0 g
+//! redis> ZADD myzset 0 a 0 b 0 c 0 d 0 e 0 f 0 g
 //! (integer) 7
-//! redis>  ZRANGEBYLEX myzset - [c
+//! redis> ZRANGEBYLEX myzset - [c
 //! 1) "a"
 //! 2) "b"
 //! 3) "c"
-//! redis>  ZRANGEBYLEX myzset - (c
+//! redis> ZRANGEBYLEX myzset - (c
 //! 1) "a"
 //! 2) "b"
-//! redis>  ZRANGEBYLEX myzset [aaa (g
+//! redis> ZRANGEBYLEX myzset [aaa (g
 //! 1) "b"
 //! 2) "c"
 //! 3) "d"
 //! 4) "e"
 //! 5) "f"
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: a list of elements in the specified score range.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRangeByLex(const QString &key, const QString &min, const QString &max, const int offset, const int count)
@@ -3979,49 +4691,107 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRangeByLex(const 
 //! \param count Количество
 //! \return
 //!
+//! Redis command: ZRANGEBYSCORE (deprecated)
+//!
+//! As of Redis version 6.2.0, this command is regarded as deprecated.
+//!
+//! It can be replaced by ZRANGE with the BYSCORE argument when migrating or writing new code.
+//!
+//! Syntax
+//!
+//! ZRANGEBYSCORE key min max [WITHSCORES] [LIMIT offset count]
+//!
+//! Available since:
+//!     1.0.5
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements being returned.
+//!                 If M is constant (e.g. always asking for the first 10 elements with LIMIT), you can consider it O(log(N)).
+//! ACL categories:
+//!     @read, @sortedset, @slow
+//!
 //! Returns all the elements in the sorted set at key with a score between min and max (including elements with score equal to min or max).
 //! The elements are considered to be ordered from low to high scores.
 //!
-//! The elements having the same score are returned in lexicographical order (this follows from a property of the sorted set implementation in Redis and does not involve further computation).
+//! The elements having the same score are returned in lexicographical order (this follows from a property of the sorted
+//! set implementation in Redis and does not involve further computation).
 //!
 //! The optional LIMIT argument can be used to only get a range of the matching elements (similar to SELECT LIMIT offset, count in SQL).
-//! Keep in mind that if offset is large, the sorted set needs to be traversed for offset elements before getting to the elements to return, which can add up to O(N) time complexity.
+//! A negative count returns all elements from the offset. Keep in mind that if offset is large, the sorted set needs
+//! to be traversed for offset elements before getting to the elements to return, which can add up to O(N) time complexity.
 //!
 //! The optional WITHSCORES argument makes the command return both the element and its score, instead of the element alone. This option is available since Redis 2.0.
 //!
-//! Exclusive intervals and infinity:
+//! Exclusive intervals and infinity
+//!
 //! min and max can be -inf and +inf, so that you are not required to know the highest or lowest score in the sorted set to get all elements from or up to a certain score.
 //!
-//! By default, the interval specified by min and max is closed (inclusive). It is possible to specify an open interval (exclusive) by prefixing the score with the character (.
-//! For example:
+//! By default, the interval specified by min and max is closed (inclusive). It is possible to specify an open interval (exclusive) by prefixing the score with the character (. For example:
 //!
 //! ZRANGEBYSCORE zset (1 5
+//!
 //! Will return all elements with 1 < score <= 5 while:
 //!
 //! ZRANGEBYSCORE zset (5 (10
+//!
 //! Will return all the elements with 5 < score < 10 (5 and 10 excluded).
 //!
-//! Return value: list of elements in the specified score range (optionally with their scores).
-//!
 //! Examples
-//! redis>  ZADD myzset 1 "one"
+//! redis> ZADD myzset 1 "one"
 //! (integer) 1
-//! redis>  ZADD myzset 2 "two"
+//! redis> ZADD myzset 2 "two"
 //! (integer) 1
-//! redis>  ZADD myzset 3 "three"
+//! redis> ZADD myzset 3 "three"
 //! (integer) 1
-//! redis>  ZRANGEBYSCORE myzset -inf +inf
+//! redis> ZRANGEBYSCORE myzset -inf +inf
 //! 1) "one"
 //! 2) "two"
 //! 3) "three"
-//! redis>  ZRANGEBYSCORE myzset 1 2
+//! redis> ZRANGEBYSCORE myzset 1 2
 //! 1) "one"
 //! 2) "two"
-//! redis>  ZRANGEBYSCORE myzset (1 2
+//! redis> ZRANGEBYSCORE myzset (1 2
 //! 1) "two"
-//! redis>  ZRANGEBYSCORE myzset (1 (2
-//! (empty list or set)
-//! redis>
+//! redis> ZRANGEBYSCORE myzset (1 (2
+//! (empty array)
+//!
+//! Pattern: weighted random selection of an element
+//!
+//! Normally ZRANGEBYSCORE is simply used in order to get range of items where the score is the indexed integer key, however it is possible to do less obvious things with the command.
+//!
+//! For example a common problem when implementing Markov chains and other algorithms is to select an element at random from a set,
+//! but different elements may have different weights that change how likely it is they are picked.
+//!
+//! This is how we use this command in order to mount such an algorithm:
+//!
+//! Imagine you have elements A, B and C with weights 1, 2 and 3. You compute the sum of the weights, which is 1+2+3 = 6
+//!
+//! At this point you add all the elements into a sorted set using this algorithm:
+//!
+//! SUM = ELEMENTS.TOTAL_WEIGHT // 6 in this case.
+//! SCORE = 0
+//! FOREACH ELE in ELEMENTS
+//!     SCORE += ELE.weight / SUM
+//!     ZADD KEY SCORE ELE
+//! END
+//!
+//! This means that you set:
+//!
+//! A to score 0.16
+//! B to score .5
+//! C to score 1
+//!
+//! Since this involves approximations, in order to avoid C is set to, like, 0.998 instead of 1,
+//! we just modify the above algorithm to make sure the last score is 1 (left as an exercise for the reader...).
+//!
+//! At this point, each time you want to get a weighted random element, just compute a random number between 0 and 1 (which is like calling rand() in most languages), so you can just do:
+//!
+//! RANDOM_ELE = ZRANGEBYSCORE key RAND() +inf LIMIT 0 1
+//!
+//! RESP2/RESP3 Reply
+//!     Array reply: a list of the members with, optionally, their scores in the specified score range.
+//!
+//! History
+//!     Starting with Redis version 2.0.0: Added the WITHSCORES modifier.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRangeByScore(const QString &key, const QString &min, const QString &max, const bool withScores, const int offset, const int count)
@@ -4058,26 +4828,59 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRangeByScore(cons
 //! \param member Значение
 //! \return
 //!
+//! Redis command: ZRANK
+//!
+//! Syntax
+//!
+//! ZRANK key member [WITHSCORE]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(log(N))
+//! ACL categories:
+//!     @read, @sortedset, @fast
+//!
 //! Returns the rank of member in the sorted set stored at key, with the scores ordered from low to high.
 //! The rank (or index) is 0-based, which means that the member with the lowest score has rank 0.
 //!
+//! The optional WITHSCORE argument supplements the command's reply with the score of the element returned.
+//!
 //! Use ZREVRANK to get the rank of an element with the scores ordered from high to low.
-//! Return value:
-//! - If member exists in the sorted set, Integer reply: the rank of member.
-//! - If member does not exist in the sorted set or key does not exist, Bulk string reply: nil.
 //!
 //! Examples
-//! redis>  ZADD myzset 1 "one"
+//! redis> ZADD myzset 1 "one"
 //! (integer) 1
-//! redis>  ZADD myzset 2 "two"
+//! redis> ZADD myzset 2 "two"
 //! (integer) 1
-//! redis>  ZADD myzset 3 "three"
+//! redis> ZADD myzset 3 "three"
 //! (integer) 1
-//! redis>  ZRANK myzset "three"
+//! redis> ZRANK myzset "three"
 //! (integer) 2
-//! redis>  ZRANK myzset "four"
+//! redis> ZRANK myzset "four"
 //! (nil)
-//! redis>
+//! redis> ZRANK myzset "three" WITHSCORE
+//! 1) (integer) 2
+//! 2) "3"
+//! redis> ZRANK myzset "four" WITHSCORE
+//! (nil)
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Nil reply: if the key does not exist or the member does not exist in the sorted set.
+//!     Integer reply: the rank of the member when WITHSCORE is not used.
+//!     Array reply: the rank and score of the member when WITHSCORE is used.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Null reply: if the key does not exist or the member does not exist in the sorted set.
+//!     Integer reply: the rank of the member when WITHSCORE is not used.
+//!     Array reply: the rank and score of the member when WITHSCORE is used.
+//!
+//! History
+//!     Starting with Redis version 7.2.0: Added the optional WITHSCORE argument.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRank(const QString &key, const QString &member)
@@ -4096,11 +4899,43 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRank(const QStrin
 //! \param members Значения
 //! \return
 //!
+//! Redis command: ZREM
+//!
+//! Syntax
+//!
+//! ZREM key member [member ...]
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(M*log(N)) with N being the number of elements in the sorted set and M the number of elements to be removed.
+//! ACL categories:
+//!     @write, @sortedset, @fast
+//!
 //! Removes the specified members from the sorted set stored at key. Non existing members are ignored.
 //!
 //! An error is returned when key exists and does not hold a sorted set.
-//! Return value: the number of members removed from the sorted set, not including non existing members.
-//! Redis >= 2.4: Accepts multiple elements. In Redis versions older than 2.4 it was possible to remove a single member per call.
+//!
+//! Examples
+//! redis> ZADD myzset 1 "one"
+//! (integer) 1
+//! redis> ZADD myzset 2 "two"
+//! (integer) 1
+//! redis> ZADD myzset 3 "three"
+//! (integer) 1
+//! redis> ZREM myzset "two"
+//! (integer) 1
+//! redis> ZRANGE myzset 0 -1 WITHSCORES
+//! 1) "one"
+//! 2) "1"
+//! 3) "three"
+//! 4) "3"
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of members removed from the sorted set, not including non-existing members.
+//!
+//! History
+//!     Starting with Redis version 2.4.0: Accepts multiple elements.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRem(const QString &key, const QStringList &members)
@@ -4126,20 +4961,31 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRem(const QString
 //! \param max Макс
 //! \return
 //!
+//! Redis command: ZREMRANGEBYLEX
+//!
+//! Syntax
+//!
+//! ZREMRANGEBYLEX key min max
+//!
+//! Available since:
+//!     2.8.9
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements removed by the operation.
+//! ACL categories:
+//!     @write, @sortedset, @slow
+//!
 //! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering,
 //! this command removes all elements in the sorted set stored at key between the lexicographical range specified by min and max.
 //!
-//! The meaning of min and max are the same of the ZRANGEBYLEX command. Similarly, this command actually returns the same elements that ZRANGEBYLEX would return
-//! if called with the same min and max arguments.
-//!
-//! Return value: the number of elements removed.
+//! The meaning of min and max are the same of the ZRANGEBYLEX command. Similarly,
+//! this command actually removes the same elements that ZRANGEBYLEX would return if called with the same min and max arguments.
 //!
 //! Examples
-//! redis>  ZADD myzset 0 aaaa 0 b 0 c 0 d 0 e
+//! redis> ZADD myzset 0 aaaa 0 b 0 c 0 d 0 e
 //! (integer) 5
-//! redis>  ZADD myzset 0 foo 0 zap 0 zip 0 ALPHA 0 alpha
+//! redis> ZADD myzset 0 foo 0 zap 0 zip 0 ALPHA 0 alpha
 //! (integer) 5
-//! redis>  ZRANGE myzset 0 -1
+//! redis> ZRANGE myzset 0 -1
 //! 1) "ALPHA"
 //! 2) "aaaa"
 //! 3) "alpha"
@@ -4150,14 +4996,19 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRem(const QString
 //! 8) "foo"
 //! 9) "zap"
 //! 10) "zip"
-//! redis>  ZREMRANGEBYLEX myzset [alpha [omega
+//! redis> ZREMRANGEBYLEX myzset [alpha [omega
 //! (integer) 6
-//! redis>  ZRANGE myzset 0 -1
+//! redis> ZRANGE myzset 0 -1
 //! 1) "ALPHA"
 //! 2) "aaaa"
 //! 3) "zap"
 //! 4) "zip"
-//! redis>
+//!
+//! RESP2 Reply
+//! Integer reply: the number of members removed.
+//!
+//! RESP3 Reply
+//! Integer reply: Number of members removed.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByLex(const QString &key, const QString &min, const QString &max)
@@ -4189,26 +5040,42 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByLex(con
 //! \param stop Конечный индекс
 //! \return
 //!
+//! Redis command: ZREMRANGEBYRANK
+//!
+//! Syntax
+//!
+//! ZREMRANGEBYRANK key start stop
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements removed by the operation.
+//! ACL categories:
+//!     @write, @sortedset, @slow
+//!
 //! Removes all elements in the sorted set stored at key with rank between start and stop.
 //! Both start and stop are 0 -based indexes with 0 being the element with the lowest score.
 //! These indexes can be negative numbers, where they indicate offsets starting at the element with the highest score.
 //! For example: -1 is the element with the highest score, -2 the element with the second highest score and so forth.
 //!
-//! Return value: the number of elements removed.
-//!
 //! Examples
-//! redis>  ZADD myzset 1 "one"
+//! redis> ZADD myzset 1 "one"
 //! (integer) 1
-//! redis>  ZADD myzset 2 "two"
+//! redis> ZADD myzset 2 "two"
 //! (integer) 1
-//! redis>  ZADD myzset 3 "three"
+//! redis> ZADD myzset 3 "three"
 //! (integer) 1
-//! redis>  ZREMRANGEBYRANK myzset 0 1
+//! redis> ZREMRANGEBYRANK myzset 0 1
 //! (integer) 2
-//! redis>  ZRANGE myzset 0 -1 WITHSCORES
+//! redis> ZRANGE myzset 0 -1 WITHSCORES
 //! 1) "three"
 //! 2) "3"
-//! redis>
+//!
+//! RESP2 Reply
+//! Integer reply: the number of members removed.
+//!
+//! RESP3 Reply
+//! Integer reply: Number of members removed.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByRank(const QString &key, const int start, const int stop)
@@ -4226,26 +5093,41 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByRank(co
 //! \param max Макс
 //! \return
 //!
+//! Redis command: ZREMRANGEBYSCORE
+//!
+//! Syntax
+//!
+//! ZREMRANGEBYSCORE key min max
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements removed by the operation.
+//! ACL categories:
+//!     @write, @sortedset, @slow
+//!
 //! Removes all elements in the sorted set stored at key with a score between min and max (inclusive).
 //!
-//! Since version 2.1.6, min and max can be exclusive, following the syntax of ZRANGEBYSCORE.
-//! Return value: the number of elements removed.
-//!
 //! Examples
-//! redis>  ZADD myzset 1 "one"
+//! redis> ZADD myzset 1 "one"
 //! (integer) 1
-//! redis>  ZADD myzset 2 "two"
+//! redis> ZADD myzset 2 "two"
 //! (integer) 1
-//! redis>  ZADD myzset 3 "three"
+//! redis> ZADD myzset 3 "three"
 //! (integer) 1
-//! redis>  ZREMRANGEBYSCORE myzset -inf (2
+//! redis> ZREMRANGEBYSCORE myzset -inf (2
 //! (integer) 1
-//! redis>  ZRANGE myzset 0 -1 WITHSCORES
+//! redis> ZRANGE myzset 0 -1 WITHSCORES
 //! 1) "two"
 //! 2) "2"
 //! 3) "three"
 //! 4) "3"
-//! redis>
+//!
+//! RESP2 Reply
+//! Integer reply: the number of members removed.
+//!
+//! RESP3 Reply
+//! Integer reply: Number of members removed.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByScore(const QString &key, const QString &min, const QString &max)
@@ -4278,29 +5160,48 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRemRangeByScore(c
 //! \param withScores
 //! \return
 //!
-//! Returns the specified range of elements in the sorted set stored at key. The elements are considered to be ordered from the highest to the lowest score.
+//! Redis command: ZREVRANGE (deprecated)
+//!
+//! As of Redis version 6.2.0, this command is regarded as deprecated.
+//!
+//! It can be replaced by ZRANGE with the REV argument when migrating or writing new code.
+//!
+//! Syntax
+//!
+//! ZREVRANGE key start stop [WITHSCORES]
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements returned.
+//! ACL categories:
+//!     @read, @sortedset, @slow
+//!
+//! Returns the specified range of elements in the sorted set stored at key.
+//! The elements are considered to be ordered from the highest to the lowest score.
 //! Descending lexicographical order is used for elements with equal score.
 //!
 //! Apart from the reversed ordering, ZREVRANGE is similar to ZRANGE.
-//! Return value: list of elements in the specified range (optionally with their scores).
 //!
 //! Examples
-//! redis>  ZADD myzset 1 "one"
+//! redis> ZADD myzset 1 "one"
 //! (integer) 1
-//! redis>  ZADD myzset 2 "two"
+//! redis> ZADD myzset 2 "two"
 //! (integer) 1
-//! redis>  ZADD myzset 3 "three"
+//! redis> ZADD myzset 3 "three"
 //! (integer) 1
-//! redis>  ZREVRANGE myzset 0 -1
+//! redis> ZREVRANGE myzset 0 -1
 //! 1) "three"
 //! 2) "two"
 //! 3) "one"
-//! redis>  ZREVRANGE myzset 2 3
+//! redis> ZREVRANGE myzset 2 3
 //! 1) "one"
-//! redis>  ZREVRANGE myzset -2 -1
+//! redis> ZREVRANGE myzset -2 -1
 //! 1) "two"
 //! 2) "one"
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//!     Array reply: a list of members in the specified range, optionally with their scores if WITHSCORE was used.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRange(const QString &key, const int start, const int stop, const bool withScores)
@@ -4324,29 +5225,51 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRange(const QS
 //! \param count Количество
 //! \return
 //!
+//! Redis command: ZREVRANGEBYLEX (deprecated)
+//!
+//! As of Redis version 6.2.0, this command is regarded as deprecated.
+//!
+//! It can be replaced by ZRANGE with the REV and BYLEX arguments when migrating or writing new code.
+//!
+//! Syntax
+//!
+//! ZREVRANGEBYLEX key max min [LIMIT offset count]
+//!
+//! Available since:
+//!     2.8.9
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements being returned.
+//!                 If M is constant (e.g. always asking for the first 10 elements with LIMIT), you can consider it O(log(N)).
+//! ACL categories:
+//!     @read, @sortedset, @slow
+//!
 //! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering,
 //! this command returns all the elements in the sorted set at key with a value between max and min.
 //!
 //! Apart from the reversed ordering, ZREVRANGEBYLEX is similar to ZRANGEBYLEX.
-//! Return value: list of elements in the specified score range.
 //!
 //! Examples
-//! redis>  ZADD myzset 0 a 0 b 0 c 0 d 0 e 0 f 0 g
+//! redis> ZADD myzset 0 a 0 b 0 c 0 d 0 e 0 f 0 g
 //! (integer) 7
-//! redis>  ZREVRANGEBYLEX myzset [c -
+//! redis> ZREVRANGEBYLEX myzset [c -
 //! 1) "c"
 //! 2) "b"
 //! 3) "a"
-//! redis>  ZREVRANGEBYLEX myzset (c -
+//! redis> ZREVRANGEBYLEX myzset (c -
 //! 1) "b"
 //! 2) "a"
-//! redis>  ZREVRANGEBYLEX myzset (g [aaa
+//! redis> ZREVRANGEBYLEX myzset (g [aaa
 //! 1) "f"
 //! 2) "e"
 //! 3) "d"
 //! 4) "c"
 //! 5) "b"
-//! redis>
+//!
+//! RESP2 Reply
+//! Array reply: a list of members in the specified score range.
+//!
+//! RESP3 Reply
+//! Array reply: List of the elements in the specified score range.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByLex(const QString &key, const QString &max, const QString &min, const int offset, const int count)
@@ -4385,34 +5308,55 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByLex(con
 //! \param count Количество
 //! \return
 //!
-//! Returns all the elements in the sorted set at key with a score between max and min (including elements with score equal to max or min). In contrary to the default ordering of sorted sets, for this command the elements are considered to be ordered from high to low scores.
+//! Redis command: ZREVRANGEBYSCORE (deprecated)
+//!
+//! As of Redis version 6.2.0, this command is regarded as deprecated.
+//!
+//! It can be replaced by ZRANGE with the REV and BYSCORE arguments when migrating or writing new code.
+//!
+//! Syntax
+//!
+//! ZREVRANGEBYSCORE key max min [WITHSCORES] [LIMIT offset count]
+//!
+//! Available since:
+//!     2.2.0
+//! Time complexity:
+//!     O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements being returned.
+//!                 If M is constant (e.g. always asking for the first 10 elements with LIMIT), you can consider it O(log(N)).
+//! ACL categories:
+//!     @read, @sortedset, @slow
+//!
+//! Returns all the elements in the sorted set at key with a score between max and min (including elements with score equal to max or min).
+//! In contrary to the default ordering of sorted sets, for this command the elements are considered to be ordered from high to low scores.
 //!
 //! The elements having the same score are returned in reverse lexicographical order.
 //!
 //! Apart from the reversed ordering, ZREVRANGEBYSCORE is similar to ZRANGEBYSCORE.
-//! Return value
-//!
-//! Array reply: list of elements in the specified score range (optionally with their scores).
 //!
 //! Examples
-//! redis>  ZADD myzset 1 "one"
+//! redis> ZADD myzset 1 "one"
 //! (integer) 1
-//! redis>  ZADD myzset 2 "two"
+//! redis> ZADD myzset 2 "two"
 //! (integer) 1
-//! redis>  ZADD myzset 3 "three"
+//! redis> ZADD myzset 3 "three"
 //! (integer) 1
-//! redis>  ZREVRANGEBYSCORE myzset +inf -inf
+//! redis> ZREVRANGEBYSCORE myzset +inf -inf
 //! 1) "three"
 //! 2) "two"
 //! 3) "one"
-//! redis>  ZREVRANGEBYSCORE myzset 2 1
+//! redis> ZREVRANGEBYSCORE myzset 2 1
 //! 1) "two"
 //! 2) "one"
-//! redis>  ZREVRANGEBYSCORE myzset 2 (1
+//! redis> ZREVRANGEBYSCORE myzset 2 (1
 //! 1) "two"
-//! redis>  ZREVRANGEBYSCORE myzset (2 (1
-//! (empty list or set)
-//! redis>
+//! redis> ZREVRANGEBYSCORE myzset (2 (1
+//! (empty array)
+//!
+//! RESP2/RESP3 Reply
+//!     Array reply: a list of the members and, optionally, their scores in the specified score range.
+//!
+//! History
+//!     Starting with Redis version 2.1.6: min and max can be exclusive.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByScore(const QString &key, const QString &max, const QString &min, const bool withScores, const int offset, const int count)
@@ -4449,26 +5393,59 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRangeByScore(c
 //! \param member Значение
 //! \return
 //!
+//! Redis command: ZREVRANK
+//!
+//! Syntax
+//!
+//! ZREVRANK key member [WITHSCORE]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(log(N))
+//! ACL categories:
+//!     @read, @sortedset, @fast
+//!
 //! Returns the rank of member in the sorted set stored at key, with the scores ordered from high to low.
 //! The rank (or index) is 0-based, which means that the member with the highest score has rank 0.
 //!
+//! The optional WITHSCORE argument supplements the command's reply with the score of the element returned.
+//!
 //! Use ZRANK to get the rank of an element with the scores ordered from low to high.
-//! Return value:
-//! - If member exists in the sorted set, Integer reply: the rank of member.
-//! - If member does not exist in the sorted set or key does not exist, Bulk string reply: nil.
 //!
 //! Examples
-//! redis>  ZADD myzset 1 "one"
+//! redis> ZADD myzset 1 "one"
 //! (integer) 1
-//! redis>  ZADD myzset 2 "two"
+//! redis> ZADD myzset 2 "two"
 //! (integer) 1
-//! redis>  ZADD myzset 3 "three"
+//! redis> ZADD myzset 3 "three"
 //! (integer) 1
-//! redis>  ZREVRANK myzset "one"
+//! redis> ZREVRANK myzset "one"
 //! (integer) 2
-//! redis>  ZREVRANK myzset "four"
+//! redis> ZREVRANK myzset "four"
 //! (nil)
-//! redis>
+//! redis> ZREVRANK myzset "three" WITHSCORE
+//! 1) (integer) 0
+//! 2) "3"
+//! redis> ZREVRANK myzset "four" WITHSCORE
+//! (nil)
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Nil reply: if the key does not exist or the member does not exist in the sorted set.
+//!     Integer reply: The rank of the member when WITHSCORE is not used.
+//!     Array reply: The rank and score of the member when WITHSCORE is used.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Null reply: if the key does not exist or the member does not exist in the sorted set.
+//!     Integer reply: The rank of the member when WITHSCORE is not used.
+//!     Array reply: The rank and score of the member when WITHSCORE is used.
+//!
+//! History
+//!     Starting with Redis version 7.2.0: Added the optional WITHSCORE argument.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRank(const QString &key, const QString &member)
@@ -4487,17 +5464,40 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZRevRank(const QSt
 //! \param member Значение
 //! \return
 //!
+//! Redis command: ZSCORE
+//!
+//! Syntax
+//!
+//! ZSCORE key member
+//!
+//! Available since:
+//!     1.2.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @read, @sortedset, @fast
+//!
 //! Returns the score of member in the sorted set at key.
 //!
 //! If member does not exist in the sorted set, or key does not exist, nil is returned.
-//! Return value: the score of member (a double precision floating point number), represented as string.
 //!
 //! Examples
-//! redis>  ZADD myzset 1 "one"
+//! redis> ZADD myzset 1 "one"
 //! (integer) 1
-//! redis>  ZSCORE myzset "one"
+//! redis> ZSCORE myzset "one"
 //! "1"
-//! redis>
+//!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the score of the member (a double-precision floating point number), represented as a string.
+//!     Nil reply: if member does not exist in the sorted set, or the key does not exist.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Double reply: the score of the member (a double-precision floating point number).
+//!     Nil reply: if member does not exist in the sorted set, or the key does not exist.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZScore(const QString &key, const QString &member)
@@ -4518,6 +5518,20 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZScore(const QStri
 //! \param aggregateFlag Флаг агрегации (SUM|MIN|MAX)
 //! \return
 //!
+//! Redis command: ZUNIONSTORE
+//!
+//! Syntax
+//!
+//! ZUNIONSTORE destination numkeys key [key ...] [WEIGHTS weight
+//!   [weight ...]] [AGGREGATE <SUM | MIN | MAX>]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N)+O(M log(M)) with N being the sum of the sizes of the input sorted sets, and M being the number of elements in the resulting sorted set.
+//! ACL categories:
+//!     @write, @sortedset, @slow
+//!
 //! Computes the union of numkeys sorted sets given by the specified keys, and stores the result in destination.
 //! It is mandatory to provide the number of input keys (numkeys) before passing the input keys and the other (optional) arguments.
 //!
@@ -4533,29 +5547,29 @@ __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZScore(const QStri
 //!
 //! If destination already exists, it is overwritten.
 //!
-//! Return value: the number of elements in the resulting sorted set at destination.
-//!
 //! Examples
-//! redis>  ZADD zset1 1 "one"
+//! redis> ZADD zset1 1 "one"
 //! (integer) 1
-//! redis>  ZADD zset1 2 "two"
+//! redis> ZADD zset1 2 "two"
 //! (integer) 1
-//! redis>  ZADD zset2 1 "one"
+//! redis> ZADD zset2 1 "one"
 //! (integer) 1
-//! redis>  ZADD zset2 2 "two"
+//! redis> ZADD zset2 2 "two"
 //! (integer) 1
-//! redis>  ZADD zset2 3 "three"
+//! redis> ZADD zset2 3 "three"
 //! (integer) 1
-//! redis>  ZUNIONSTORE out 2 zset1 zset2 WEIGHTS 2 3
+//! redis> ZUNIONSTORE out 2 zset1 zset2 WEIGHTS 2 3
 //! (integer) 3
-//! redis>  ZRANGE out 0 -1 WITHSCORES
+//! redis> ZRANGE out 0 -1 WITHSCORES
 //! 1) "one"
 //! 2) "5"
 //! 3) "three"
 //! 4) "9"
 //! 5) "two"
 //! 6) "10"
-//! redis>
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of elements in the resulting sorted set.
 //!
 template<typename __CLIENT_IMPL, typename __RESULT_IMPL>
 __RESULT_IMPL QtRedisBase<__CLIENT_IMPL, __RESULT_IMPL>::redisZUnionStore(const QString &destKey, const QStringList &keyList, const QList<int> &weightList, const QString &aggregateFlag)
