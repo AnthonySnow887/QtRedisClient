@@ -50,7 +50,7 @@ public:
 
     // NOTE: not tested!
     bool redisConnectEncrypted(const QString &host,
-                               const int port,
+                               const int port = 6379,
                                const int timeOutMsec = -1,
                                const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
 

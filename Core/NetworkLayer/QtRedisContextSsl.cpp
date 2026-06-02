@@ -1,5 +1,8 @@
 #include "QtRedisContextSsl.h"
 #include "QtRedisParser.h"
+#include <QSslConfiguration>
+#include <QSslKey>
+#include <QFile>
 
 //!
 //! \brief Конструктор класса
@@ -48,22 +51,41 @@ bool QtRedisContextSsl::connectToServer(const int msecs)
         qCritical() << "[QtRedisContextSsl][connectToServer] SSL not supported!";
         return false;
     }
-//    _socket->setSslConfiguration(QSslConfiguration::defaultConfiguration());
+    QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
+    sslConfig.setProtocol(QSsl::TlsV1_3OrLater);
 
-//    QList<QSslCertificate> trustedCas = conf.sslCaCertificates();
-//    if (!trustedCas.empty()) {
-//        m_socket->addCaCertificates(trustedCas);
-//    }
+    // 1. Загружаем КЛИЕНТСКИЙ СЕРТИФИКАТ (client.crt)
+    QFile certFile("/home/user/Projects/QtRedisClient/testRedis/redis-cli.crt");
+    if (certFile.open(QIODevice::ReadOnly)) {
+        QSslCertificate clientCert(&certFile, QSsl::Pem);
+        sslConfig.setLocalCertificate(clientCert);
+        certFile.close();
+    } else {
+        qDebug() << "Не удалось открыть файл сертификата клиента!";
+        return false;
+    }
 
-//    QString privateKey = conf.sslPrivateKeyPath();
-//    if (!privateKey.isEmpty()) {
-//        m_socket->setPrivateKey(privateKey);
-//    }
+    // 2. Загружаем КЛИЕНТСКИЙ ЗАКРЫТЫЙ КЛЮЧ (client.key)
+    QFile keyFile("/home/user/Projects/QtRedisClient/testRedis/redis-cli.key");
+    if (keyFile.open(QIODevice::ReadOnly)) {
+        // Укажите QSsl::Rsa или QSsl::Ec в зависимости от типа вашего ключа.
+        // Если ключ запаролен, передайте пароль вторым аргументом.
+        QSslKey clientKey(&keyFile, QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey);
+        sslConfig.setPrivateKey(clientKey);
+        keyFile.close();
+    } else {
+        qDebug() << "Не удалось открыть файл ключа клиента!";
+    }
 
-//    QString localCert = conf.sslLocalCertPath();
-//    if (!localCert.isEmpty()) {
-//        m_socket->setLocalCertificate(localCert);
-//    }
+    // 3. (Опционально) Добавляем корневой сертификат (ca.crt), чтобы доверять серверу
+    sslConfig.setPeerVerifyMode(QSslSocket::VerifyPeer);
+    QList<QSslCertificate> caCerts = QSslCertificate::fromPath("/home/user/Projects/QtRedisClient/testRedis/ca.crt");
+    sslConfig.setCaCertificates(caCerts);
+
+    // Если сертификаты самоподписанные и проверка сервера не нужна:
+    sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+
+    _socket->setSslConfiguration(sslConfig);
 
     int buffMsecs = 30 * 1000;
     if (msecs > 0)
