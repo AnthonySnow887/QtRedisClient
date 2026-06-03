@@ -93,7 +93,9 @@ bool QtRedisClient::redisConnect(const QString &host,
     }
     if (_transporter
         && _transporter->host() == host
-        && _transporter->port() == port)
+        && _transporter->port() == port
+        && _transporter->type() == QtRedisTransporter::Type::Tcp
+        && _transporter->isConnected())
         return true;
 
     if (!_transporter) {
@@ -138,6 +140,7 @@ bool QtRedisClient::redisConnect(const QString &host,
 //!
 bool QtRedisClient::redisConnectEncrypted(const QString &host,
                                           const int port,
+                                          const QSslConfiguration sslConfig,
                                           const int timeOutMsec,
                                           const QtRedisTransporter::ChannelMode contextChannelMode)
 {
@@ -149,7 +152,9 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
     if (_transporter
         && _transporter->host() == host
         && _transporter->port() == port
-        && _transporter->type() == QtRedisTransporter::Type::Ssl)
+        && _transporter->sslConfig() == sslConfig
+        && _transporter->type() == QtRedisTransporter::Type::Ssl
+        && _transporter->isConnected())
         return true;
 
     if (!_transporter) {
@@ -177,6 +182,7 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
         this->setLastError_safe(error);
         return false;
     }
+    _transporter->setSslConfig(sslConfig);
     const bool isOk = _transporter->connectToServer(error, timeOutMsec);
     if (!isOk)
         this->setLastError_safe(error);
@@ -203,7 +209,8 @@ bool QtRedisClient::redisConnectUnix(const QString &sockPath,
     }
     if (_transporter
         && _transporter->host() == sockPath
-        && _transporter->type() == QtRedisTransporter::Type::Unix)
+        && _transporter->type() == QtRedisTransporter::Type::Unix
+        && _transporter->isConnected())
         return true;
 
     if (!_transporter) {

@@ -4,8 +4,7 @@
 #include <QObject>
 #include <QMutex>
 #include <QString>
-#include <QStringList>
-#include <QVariantList>
+#include <QList>
 
 #include "QtRedisContext.h"
 #include "../QtRedisCommand.h"
@@ -49,6 +48,9 @@ public:
     int port() const;
     int currentDbIndex() const;
 
+    void setSslConfig(const QSslConfiguration &sslConfig);
+    QSslConfiguration sslConfig() const;
+
     bool initTransporter(const Type &type,
                          const QString &host,
                          const int port,
@@ -56,7 +58,7 @@ public:
 
     void clearTransporter();
 
-    bool connectToServer(QString &error,const int timeoutMSec = 0);
+    bool connectToServer(QString &error, const int timeoutMSec = 0);
     bool reconnectToServer(QString &error, const int timeoutMSec = 0);
     bool subscribeToServer(QString &error, const int timeoutMSec = 0);
     void unsubscribeFromServer();

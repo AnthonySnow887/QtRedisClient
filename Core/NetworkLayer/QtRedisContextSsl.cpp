@@ -1,8 +1,5 @@
 #include "QtRedisContextSsl.h"
 #include "QtRedisParser.h"
-#include <QSslConfiguration>
-#include <QSslKey>
-#include <QFile>
 
 //!
 //! \brief Конструктор класса
@@ -12,6 +9,7 @@
 QtRedisContextSsl::QtRedisContextSsl(const QString &host, const uint port)
     : QtRedisContext(host, port)
     , _socket(new QSslSocket(this))
+    , _sslConfig(QSslConfiguration::defaultConfiguration())
 {
     _socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
     connect(_socket, &QSslSocket::connected, this, &QtRedisContext::connected);
@@ -32,67 +30,63 @@ QtRedisContextSsl::~QtRedisContextSsl()
 }
 
 //!
+//! \brief Задать SSL Config
+//! \param sslConfig SSL Config
+//!
+void QtRedisContextSsl::setSslConfig(const QSslConfiguration &sslConfig)
+{
+    _sslConfig = sslConfig;
+}
+
+//!
+//! \brief Получить установленный ранее SSL Config
+//! \return
+//!
+QSslConfiguration QtRedisContextSsl::sslConfig() const
+{
+    return _sslConfig;
+}
+
+//!
 //! \brief Подключиться к серверу
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextSsl::connectToServer(const int msecs)
+bool QtRedisContextSsl::connectToServer(const int msecs, QString &error)
 {
     QMutexLocker lock(&_mutex);
-    if (!_socket)
+    error.clear();
+    if (!_socket) {
+        error = QString("Invalid socket object (is nullptr)!");
         return false;
+    }
     if (_socket && _socket->isOpen())
         return true;
-    if (_host.isEmpty() || _port == 0)
+    if (_host.isEmpty() || _port == 0) {
+        error = QString("Invalid host or port!");
         return false;
+    }
 
     // check ssl
     if (!QSslSocket::supportsSsl()) {
-        qCritical() << "[QtRedisContextSsl][connectToServer] SSL not supported!";
-        return false;
-    }
-    QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
-    sslConfig.setProtocol(QSsl::TlsV1_3OrLater);
-
-    // 1. Загружаем КЛИЕНТСКИЙ СЕРТИФИКАТ (client.crt)
-    QFile certFile("/home/user/Projects/QtRedisClient/testRedis/redis-cli.crt");
-    if (certFile.open(QIODevice::ReadOnly)) {
-        QSslCertificate clientCert(&certFile, QSsl::Pem);
-        sslConfig.setLocalCertificate(clientCert);
-        certFile.close();
-    } else {
-        qDebug() << "Не удалось открыть файл сертификата клиента!";
+        error = QString("SSL not supported!");
         return false;
     }
 
-    // 2. Загружаем КЛИЕНТСКИЙ ЗАКРЫТЫЙ КЛЮЧ (client.key)
-    QFile keyFile("/home/user/Projects/QtRedisClient/testRedis/redis-cli.key");
-    if (keyFile.open(QIODevice::ReadOnly)) {
-        // Укажите QSsl::Rsa или QSsl::Ec в зависимости от типа вашего ключа.
-        // Если ключ запаролен, передайте пароль вторым аргументом.
-        QSslKey clientKey(&keyFile, QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey);
-        sslConfig.setPrivateKey(clientKey);
-        keyFile.close();
-    } else {
-        qDebug() << "Не удалось открыть файл ключа клиента!";
-    }
-
-    // 3. (Опционально) Добавляем корневой сертификат (ca.crt), чтобы доверять серверу
-    sslConfig.setPeerVerifyMode(QSslSocket::VerifyPeer);
-    QList<QSslCertificate> caCerts = QSslCertificate::fromPath("/home/user/Projects/QtRedisClient/testRedis/ca.crt");
-    sslConfig.setCaCertificates(caCerts);
-
-    // Если сертификаты самоподписанные и проверка сервера не нужна:
-    sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
-
-    _socket->setSslConfiguration(sslConfig);
+    // set ssl configuration
+    _socket->setSslConfiguration(_sslConfig);
 
     int buffMsecs = 30 * 1000;
     if (msecs > 0)
         buffMsecs = msecs;
 
     _socket->connectToHostEncrypted(_host, _port);
-    return _socket->waitForEncrypted(buffMsecs);
+    const bool isConnected = _socket->waitForEncrypted(buffMsecs);
+    if (!isConnected) {
+        const QString socketErr = _socket->errorString();
+        error = !socketErr.isEmpty() ? socketErr : "QSslSocket: waitForEncrypted failed!";
+    }
+    return isConnected;
 }
 
 //!
@@ -100,16 +94,19 @@ bool QtRedisContextSsl::connectToServer(const int msecs)
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextSsl::reconnectToServer(const int msecs)
+bool QtRedisContextSsl::reconnectToServer(const int msecs, QString &error)
 {
     QMutexLocker lock(&_mutex);
-    if (!_socket)
+    error.clear();
+    if (!_socket) {
+        error = QString("Invalid socket object (is nullptr)!");
         return false;
+    }
 
     _socket->abort();
     _socket->close();
     lock.unlock();
-    return this->connectToServer(msecs);
+    return this->connectToServer(msecs, error);
 }
 
 //!

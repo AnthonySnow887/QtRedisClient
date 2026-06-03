@@ -2,8 +2,6 @@
 #define QTREDISPARSER_H
 
 #include <QByteArray>
-#include <QStringList>
-#include <QVariantList>
 
 #include "../QtRedisReply.h"
 #include "../QtRedisCommand.h"

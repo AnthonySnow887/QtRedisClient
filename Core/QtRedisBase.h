@@ -6,6 +6,8 @@
 #include <QString>
 #include <QByteArray>
 #include <QVariant>
+#include <QList>
+#include <QStringList>
 #include <QMutex>
 
 #include "QtRedisCommand.h"

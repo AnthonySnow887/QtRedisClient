@@ -98,6 +98,33 @@ int QtRedisTransporter::currentDbIndex() const
 }
 
 //!
+//! \brief Задать SSL Конфигурацию
+//! \param sslConfig SSL Конфигурация
+//!
+void QtRedisTransporter::setSslConfig(const QSslConfiguration &sslConfig)
+{
+    QMutexLocker lock(&_mutex);
+    if (!_context)
+        return;
+
+    _context->setSslConfig(sslConfig);
+
+}
+
+//!
+//! \brief Получить установленную ранее SSL Конфигурацию
+//! \return
+//!
+QSslConfiguration QtRedisTransporter::sslConfig() const
+{
+    QMutexLocker lock(&_mutex);
+    if (!_context)
+        return QSslConfiguration();
+
+    return _context->sslConfig();
+}
+
+//!
 //! \brief Выполнить инициализацию
 //! \param type Тип
 //! \param host Хост
@@ -150,6 +177,7 @@ void QtRedisTransporter::clearTransporter()
 
 //!
 //! \brief Подключиться к серверу
+//! \param error Сообщение об ошибке
 //! \param timeoutMSec Время ожидания мсек
 //! \return
 //!
@@ -167,11 +195,12 @@ bool QtRedisTransporter::connectToServer(QString &error, const int timeoutMSec)
         _timeoutMSec = timeoutMSec;
 
     _context->setCurrentDbIndex(0); // clear db index
-    return _context->connectToServer(_timeoutMSec);
+    return _context->connectToServer(_timeoutMSec, error);
 }
 
 //!
 //! \brief Переподключиться к серверу (все соединения)
+//! \param error Сообщение об ошибке
 //! \param timeoutMSec Время ожидания мсек
 //! \return
 //!
@@ -188,16 +217,17 @@ bool QtRedisTransporter::reconnectToServer(QString &error, const int timeoutMSec
         _timeoutMSec = timeoutMSec;
 
     _context->setCurrentDbIndex(0); // clear db index
-    bool isOk = _context->reconnectToServer(_timeoutMSec);
+    bool isOk = _context->reconnectToServer(_timeoutMSec, error);
     if (_contextSub) {
         _contextSub->setCurrentDbIndex(0); // clear db index
-        isOk = _contextSub->reconnectToServer(_timeoutMSec);
+        isOk = _contextSub->reconnectToServer(_timeoutMSec, error);
     }
     return isOk;
 }
 
 //!
 //! \brief Подключить к серверу в режиме ожидания входящих сообщений
+//! \param error Сообщение об ошибке
 //! \param timeoutMSec Время ожидания мсек
 //! \return
 //!
@@ -228,6 +258,8 @@ bool QtRedisTransporter::subscribeToServer(QString &error, const int timeoutMSec
                         this, &QtRedisTransporter::onReadyReadSub,
                         Qt::QueuedConnection);
             }
+            if (_type == Type::Ssl)
+                _contextSub->setSslConfig(_context->sslConfig());
             context = _contextSub;
             break;
         }
@@ -245,7 +277,7 @@ bool QtRedisTransporter::subscribeToServer(QString &error, const int timeoutMSec
         _timeoutMSec = timeoutMSec;
 
     context->setCurrentDbIndex(0); // clear db index
-    return context->connectToServer(_timeoutMSec);
+    return context->connectToServer(_timeoutMSec, error);
 }
 
 //!
@@ -304,6 +336,8 @@ bool QtRedisTransporter::isSubscribed() const
 //!
 //! \brief Отправить команду и получить ответ от сервера (с разбором первого сообщения)
 //! \param command Команда и ее аргументы
+//! \param error Сообщение об ошибке
+//! \param ok Состояние об ошибке
 //! \return
 //!
 QtRedisReply QtRedisTransporter::sendCommand(const QtRedisCommand &command, QString &error, bool *ok)
@@ -320,6 +354,13 @@ QtRedisReply QtRedisTransporter::sendCommand(const QtRedisCommand &command, QStr
     return this->sendContextCommand(_context, command, error, ok);
 }
 
+//!
+//! \brief Отправить команду и получить ответ от сервера (с разбором первого сообщения)
+//! \param commands Список команд и их аргументы
+//! \param error Сообщение об ошибке
+//! \param ok Состояние об ошибке
+//! \return
+//!
 QtRedisReply QtRedisTransporter::sendCommands(const QList<QtRedisCommand> &commands, QString &error, bool *ok)
 {
     QMutexLocker lock(&_mutex);
@@ -337,6 +378,8 @@ QtRedisReply QtRedisTransporter::sendCommands(const QList<QtRedisCommand> &comma
 //!
 //! \brief Отправить команду по работе с каналами и получить ответ от сервера (с разбором первого сообщения)
 //! \param command Команда и ее аргументы
+//! \param error Сообщение об ошибке
+//! \param ok Состояние об ошибке
 //! \return
 //!
 QtRedisReply QtRedisTransporter::sendChannelCommand(const QtRedisCommand &command, QString &error, bool *ok)

@@ -4,7 +4,6 @@
 #include <QString>
 #include <QStringList>
 #include <QMap>
-#include <QMultiMap>
 #include <QVariant>
 #include <QVector>
 #include <QMutex>
@@ -48,9 +47,9 @@ public:
                       const int timeOutMsec = -1,
                       const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
 
-    // NOTE: not tested!
     bool redisConnectEncrypted(const QString &host,
                                const int port = 6379,
+                               const QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration(),
                                const int timeOutMsec = -1,
                                const QtRedisTransporter::ChannelMode contextChannelMode = QtRedisTransporter::ChannelMode::CurrentConnection);
 

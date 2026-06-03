@@ -1,11 +1,13 @@
 #ifndef QTREDISREPLY_H
 #define QTREDISREPLY_H
 
+#include <utility>
 #include <QByteArray>
 #include <QString>
 #include <QVector>
+#include <QList>
+#include <QStringList>
 #include <QDebug>
-#include <utility>
 
 //!
 //! \file QtRedisReply.h

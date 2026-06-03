@@ -32,22 +32,32 @@ QtRedisContextUnix::~QtRedisContextUnix()
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextUnix::connectToServer(const int msecs)
+bool QtRedisContextUnix::connectToServer(const int msecs, QString &error)
 {
     QMutexLocker lock(&_mutex);
-    if (!_socket)
+    error.clear();
+    if (!_socket) {
+        error = QString("Invalid socket object (is nullptr)!");
         return false;
+    }
     if (_socket && _socket->isOpen())
         return true;
-    if (_host.isEmpty())
+    if (_host.isEmpty()) {
+        error = QString("Invalid host (empty)!");
         return false;
+    }
 
     int buffMsecs = 30 * 1000;
     if (msecs > 0)
         buffMsecs = msecs;
 
     _socket->connectToServer(_host);
-    return _socket->waitForConnected(buffMsecs);
+    const bool isConnected = _socket->waitForConnected(buffMsecs);
+    if (!isConnected) {
+        const QString socketErr = _socket->errorString();
+        error = !socketErr.isEmpty() ? socketErr : "QLocalSocket: waitForConnected failed!";
+    }
+    return isConnected;
 }
 
 //!
@@ -55,16 +65,19 @@ bool QtRedisContextUnix::connectToServer(const int msecs)
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextUnix::reconnectToServer(const int msecs)
+bool QtRedisContextUnix::reconnectToServer(const int msecs, QString &error)
 {
     QMutexLocker lock(&_mutex);
-    if (!_socket)
+    error.clear();
+    if (!_socket) {
+        error = QString("Invalid socket object (is nullptr)!");
         return false;
+    }
 
     _socket->abort();
     _socket->close();
     lock.unlock();
-    return this->connectToServer(msecs);
+    return this->connectToServer(msecs, error);
 }
 
 //!

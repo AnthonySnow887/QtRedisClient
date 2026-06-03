@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QMutex>
-#include <QStringList>
 #include <QtNetwork/QTcpSocket>
 
 #include "QtRedisContext.h"
@@ -22,8 +21,8 @@ public:
     explicit QtRedisContextTcp(const QString &host, const uint port);
     ~QtRedisContextTcp();
 
-    bool connectToServer(const int msecs = 30000) final;
-    bool reconnectToServer(const int msecs = 30000) final;
+    bool connectToServer(const int msecs, QString &error) final;
+    bool reconnectToServer(const int msecs, QString &error) final;
     void disconnectFromServer() final;
     bool isConnected() final;
 
