@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QMutex>
-#include <QStringList>
 #include <QtNetwork/QSslSocket>
 
 #include "QtRedisContext.h"
@@ -20,10 +19,14 @@ class QtRedisContextSsl : public QtRedisContext
 
 public:
     explicit QtRedisContextSsl(const QString &host, const uint port);
-    virtual ~QtRedisContextSsl();
+    ~QtRedisContextSsl();
 
-    bool connectToServer(const int msecs = 30000) final;
-    bool reconnectToServer(const int msecs = 30000) final;
+
+    void setSslConfig(const QSslConfiguration &sslConfig) final;
+    QSslConfiguration sslConfig() const final;
+
+    bool connectToServer(const int msecs, QString &error) final;
+    bool reconnectToServer(const int msecs, QString &error) final;
     void disconnectFromServer() final;
     bool isConnected() final;
 
@@ -36,6 +39,7 @@ public:
 
 protected:
     QSslSocket     *_socket {nullptr};  //!< SSL-сокет
+    QSslConfiguration _sslConfig;       //!< SSL конфигурация
     mutable QMutex  _mutex;             //!< мьютекс
 };
 

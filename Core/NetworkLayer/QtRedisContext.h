@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QUuid>
+#include <QSslConfiguration>
 
 //!
 //! \file QtRedisContext.h
@@ -70,18 +71,35 @@ public:
     void setCurrentDbIndex(const int index) { _currentDbIndex = index; }
 
     //!
-    //! \brief Подключиться к серверу
-    //! \param msecs Время ожидания мсек
+    //! \brief Задать SSL Config
+    //! \param sslConfig SSL Config
+    //!
+    virtual void setSslConfig(const QSslConfiguration &sslConfig) {
+        Q_UNUSED(sslConfig)
+    }
+
+    //!
+    //! \brief Получить установленный ранее SSL Config
     //! \return
     //!
-    virtual bool connectToServer(const int msecs = 30000) = 0;
+    virtual QSslConfiguration sslConfig() const {
+        return QSslConfiguration();
+    }
+
+    //!
+    //! \brief Подключиться к серверу
+    //! \param msecs Время ожидания мсек
+    //! \param error Сообщение об ошибке
+    //! \return
+    //!
+    virtual bool connectToServer(const int msecs, QString &error) = 0;
 
     //!
     //! \brief Переподключиться к серверу
     //! \param msecs Время ожидания мсек
     //! \return
     //!
-    virtual bool reconnectToServer(const int msecs = 30000) = 0;
+    virtual bool reconnectToServer(const int msecs, QString &error) = 0;
 
     //!
     //! \brief Отключиться от сервера

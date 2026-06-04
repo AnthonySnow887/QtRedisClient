@@ -98,6 +98,33 @@ int QtRedisTransporter::currentDbIndex() const
 }
 
 //!
+//! \brief Задать SSL Конфигурацию
+//! \param sslConfig SSL Конфигурация
+//!
+void QtRedisTransporter::setSslConfig(const QSslConfiguration &sslConfig)
+{
+    QMutexLocker lock(&_mutex);
+    if (!_context)
+        return;
+
+    _context->setSslConfig(sslConfig);
+
+}
+
+//!
+//! \brief Получить установленную ранее SSL Конфигурацию
+//! \return
+//!
+QSslConfiguration QtRedisTransporter::sslConfig() const
+{
+    QMutexLocker lock(&_mutex);
+    if (!_context)
+        return QSslConfiguration();
+
+    return _context->sslConfig();
+}
+
+//!
 //! \brief Выполнить инициализацию
 //! \param type Тип
 //! \param host Хост
@@ -106,11 +133,13 @@ int QtRedisTransporter::currentDbIndex() const
 //!
 bool QtRedisTransporter::initTransporter(const Type &type,
                                          const QString &host,
-                                         const int port)
+                                         const int port,
+                                         QString &error)
 {
     QMutexLocker lock(&_mutex);
+    error.clear();
     if (_context) {
-        qCritical() << "[QtRedisTransporter][initTransporter] Already initialyzed!";
+        error = QString("Init transporter failed (already initialyzed)!");
         return false;
     }
     _context = this->makeContext_unsafe(type, host, port);
@@ -148,14 +177,16 @@ void QtRedisTransporter::clearTransporter()
 
 //!
 //! \brief Подключиться к серверу
+//! \param error Сообщение об ошибке
 //! \param timeoutMSec Время ожидания мсек
 //! \return
 //!
-bool QtRedisTransporter::connectToServer(const int timeoutMSec)
+bool QtRedisTransporter::connectToServer(QString &error, const int timeoutMSec)
 {
     QMutexLocker lock(&_mutex);
+    error.clear();
     if (!_context) {
-        qCritical() << "[QtRedisTransporter][connectToServer] Is not initialyzed!";
+        error = QString("QtRedisTransporter is not initialyzed!");
         lock.unlock();
         return false;
     }
@@ -164,19 +195,21 @@ bool QtRedisTransporter::connectToServer(const int timeoutMSec)
         _timeoutMSec = timeoutMSec;
 
     _context->setCurrentDbIndex(0); // clear db index
-    return _context->connectToServer(_timeoutMSec);
+    return _context->connectToServer(_timeoutMSec, error);
 }
 
 //!
 //! \brief Переподключиться к серверу (все соединения)
+//! \param error Сообщение об ошибке
 //! \param timeoutMSec Время ожидания мсек
 //! \return
 //!
-bool QtRedisTransporter::reconnectToServer(const int timeoutMSec)
+bool QtRedisTransporter::reconnectToServer(QString &error, const int timeoutMSec)
 {
     QMutexLocker lock(&_mutex);
+    error.clear();
     if (!_context) {
-        qCritical() << "[QtRedisTransporter][reconnectToServer] Is not initialyzed!";
+        error = QString("QtRedisTransporter is not initialyzed!");
         return false;
     }
     if (timeoutMSec > 0
@@ -184,24 +217,26 @@ bool QtRedisTransporter::reconnectToServer(const int timeoutMSec)
         _timeoutMSec = timeoutMSec;
 
     _context->setCurrentDbIndex(0); // clear db index
-    bool isOk = _context->reconnectToServer(_timeoutMSec);
+    bool isOk = _context->reconnectToServer(_timeoutMSec, error);
     if (_contextSub) {
         _contextSub->setCurrentDbIndex(0); // clear db index
-        isOk = _contextSub->reconnectToServer(_timeoutMSec);
+        isOk = _contextSub->reconnectToServer(_timeoutMSec, error);
     }
     return isOk;
 }
 
 //!
 //! \brief Подключить к серверу в режиме ожидания входящих сообщений
+//! \param error Сообщение об ошибке
 //! \param timeoutMSec Время ожидания мсек
 //! \return
 //!
-bool QtRedisTransporter::subscribeToServer(const int timeoutMSec)
+bool QtRedisTransporter::subscribeToServer(QString &error, const int timeoutMSec)
 {
     QMutexLocker lock(&_mutex);
+    error.clear();
     if (!_context) {
-        qCritical() << "[QtRedisTransporter][subscribeToServer] Is not initialyzed!";
+        error = QString("QtRedisTransporter is not initialyzed!");
         return false;
     }
     QtRedisContext *context = nullptr;
@@ -223,6 +258,8 @@ bool QtRedisTransporter::subscribeToServer(const int timeoutMSec)
                         this, &QtRedisTransporter::onReadyReadSub,
                         Qt::QueuedConnection);
             }
+            if (_type == Type::Ssl)
+                _contextSub->setSslConfig(_context->sslConfig());
             context = _contextSub;
             break;
         }
@@ -230,7 +267,7 @@ bool QtRedisTransporter::subscribeToServer(const int timeoutMSec)
             break;
     }
     if (!context) {
-        qCritical() << "[QtRedisTransporter][subscribeToServer] Not found context!";
+        error = QString("Not found context!");
         return false;
     }
     if (context->isConnected())
@@ -240,7 +277,7 @@ bool QtRedisTransporter::subscribeToServer(const int timeoutMSec)
         _timeoutMSec = timeoutMSec;
 
     context->setCurrentDbIndex(0); // clear db index
-    return context->connectToServer(_timeoutMSec);
+    return context->connectToServer(_timeoutMSec, error);
 }
 
 //!
@@ -261,10 +298,8 @@ void QtRedisTransporter::unsubscribeFromServer()
 void QtRedisTransporter::disconnectFromServer()
 {
     QMutexLocker lock(&_mutex);
-    if (!_context) {
-        qCritical() << "[QtRedisTransporter][disconnectFromServer] Is not initialyzed!";
+    if (!_context)
         return;
-    }
     _context->disconnectFromServer();
     _context->setCurrentDbIndex(0); // clear db index
     if (_contextSub) {
@@ -280,10 +315,8 @@ void QtRedisTransporter::disconnectFromServer()
 bool QtRedisTransporter::isConnected() const
 {
     QMutexLocker lock(&_mutex);
-    if (!_context) {
-//        qCritical() << "[QtRedisTransporter][isConnected] Is not initialyzed!";
+    if (!_context)
         return false;
-    }
     return _context->isConnected();
 }
 
@@ -295,103 +328,73 @@ bool QtRedisTransporter::isSubscribed() const
 {
     QMutexLocker lock(&_mutex);
     QtRedisContext *context = this->channelContext_unsafe();
-    if (!context) {
-//        qCritical() << "[QtRedisTransporter][isSubscribed] Not found context!";
+    if (!context)
         return false;
-    }
     return context->isConnected();
 }
 
 //!
 //! \brief Отправить команду и получить ответ от сервера (с разбором первого сообщения)
 //! \param command Команда и ее аргументы
+//! \param error Сообщение об ошибке
+//! \param ok Состояние об ошибке
 //! \return
 //!
-QtRedisReply QtRedisTransporter::sendCommand(const QStringList &command)
+QtRedisReply QtRedisTransporter::sendCommand(const QtRedisCommand &command, QString &error, bool *ok)
 {
     QMutexLocker lock(&_mutex);
+    // clear err & ok
+    error.clear();
+    if (ok)
+        *ok = false;
     if (!_context) {
-        qCritical() << "[QtRedisTransporter][sendCommand] Is not initialyzed!";
+        error = QString("Send command failed (context is not initialyzed)!");
         return QtRedisReply();
     }
-    return this->sendContextCommand(_context, command);
+    return this->sendContextCommand(_context, command, error, ok);
 }
 
 //!
 //! \brief Отправить команду и получить ответ от сервера (с разбором первого сообщения)
-//! \param command Команда и ее аргументы
+//! \param commands Список команд и их аргументы
+//! \param error Сообщение об ошибке
+//! \param ok Состояние об ошибке
 //! \return
 //!
-QtRedisReply QtRedisTransporter::sendCommand(const QVariantList &command)
+QtRedisReply QtRedisTransporter::sendCommands(const QList<QtRedisCommand> &commands, QString &error, bool *ok)
 {
     QMutexLocker lock(&_mutex);
+    // clear err & ok
+    error.clear();
+    if (ok)
+        *ok = false;
     if (!_context) {
-        qCritical() << "[QtRedisTransporter][sendCommand] Is not initialyzed!";
+        error = QString("Send commands failed (context is not initialyzed)!");
         return QtRedisReply();
     }
-    return this->sendContextCommand(_context, command);
-}
-
-//!
-//! \brief Отправить команду и получить ответ от сервера (с разбором всех сообщений)
-//! \param command Команда и ее аргументы
-//! \return
-//!
-QList<QtRedisReply> QtRedisTransporter::sendCommand_lst(const QStringList &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (!_context) {
-        qCritical() << "[QtRedisTransporter][sendCommand_lst] Is not initialyzed!";
-        return QList<QtRedisReply>();
-    }
-    return this->sendContextCommand_lst(_context, command);
-}
-
-//!
-//! \brief Отправить команду и получить ответ от сервера (с разбором всех сообщений)
-//! \param command Команда и ее аргументы
-//! \return
-//!
-QList<QtRedisReply> QtRedisTransporter::sendCommand_lst(const QVariantList &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (!_context) {
-        qCritical() << "[QtRedisTransporter][sendCommand_lst] Is not initialyzed!";
-        return QList<QtRedisReply>();
-    }
-    return this->sendContextCommand_lst(_context, command);
+    return this->sendContextCommands(_context, commands, error, ok);
 }
 
 //!
 //! \brief Отправить команду по работе с каналами и получить ответ от сервера (с разбором первого сообщения)
 //! \param command Команда и ее аргументы
+//! \param error Сообщение об ошибке
+//! \param ok Состояние об ошибке
 //! \return
 //!
-QtRedisReply QtRedisTransporter::sendChannelCommand(const QStringList &command)
+QtRedisReply QtRedisTransporter::sendChannelCommand(const QtRedisCommand &command, QString &error, bool *ok)
 {
     QMutexLocker lock(&_mutex);
+    // clear err & ok
+    error.clear();
+    if (ok)
+        *ok = false;
     QtRedisContext *context = this->channelContext_unsafe();
     if (!context) {
-        qCritical() << "[QtRedisTransporter][sendChannelCommand] Is not subscribed!";
+        error = QString("Send shannel command failed (context is not initialyzed)!");
         return QtRedisReply();
     }
-    return this->sendContextCommand(context, command);
-}
-
-//!
-//! \brief Отправить команду по работе с каналами и получить ответ от сервера (с разбором всех сообщений)
-//! \param command Команда и ее аргументы
-//! \return
-//!
-QList<QtRedisReply> QtRedisTransporter::sendChannelCommand_lst(const QStringList &command)
-{
-    QMutexLocker lock(&_mutex);
-    QtRedisContext *context = this->channelContext_unsafe();
-    if (!context) {
-        qCritical() << "[QtRedisTransporter][sendChannelCommand_lst] Is not subscribed!";
-        return QList<QtRedisReply>();
-    }
-    return this->sendContextCommand_lst(context, command);
+    return this->sendContextCommand(context, command, error, ok);
 }
 
 //!
@@ -438,84 +441,125 @@ QtRedisContext *QtRedisTransporter::channelContext_unsafe() const
     return nullptr;
 }
 
-QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QStringList &command)
+QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QtRedisCommand &command, QString &error, bool *ok)
 {
-    const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
-    if (reply.isEmpty())
-        return QtRedisReply();
-    return reply[0];
-}
+    // clear err & ok
+    error.clear();
+    if (ok)
+        *ok = false;
 
-QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, const QVariantList &command)
-{
-    const QList<QtRedisReply> reply = this->sendContextCommand_lst(context, command);
-    if (reply.isEmpty())
-        return QtRedisReply();
-    return reply[0];
-}
-
-QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *context, const QStringList &command)
-{
     if (!context) {
-        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Is not initialyzed!";
-        return QList<QtRedisReply>();
+        error = QString("QtRedisTransporter is not initialyzed!");
+        return QtRedisReply();
     }
-    if (command.isEmpty()) {
-        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Command is Empty!";
-        return QList<QtRedisReply>();
+    if (!command.isValid()) {
+        error = QString("Command is Invalid!");
+        return QtRedisReply();
     }
+    const bool isSelectDb = this->isCommandSelect(command);
     context->writeRawData(QtRedisParser::createRawData(command));
-    if (!context->waitForReadyRead())
-        return QList<QtRedisReply>();
+    if (!context->waitForReadyRead()) {
+        error = QString("Context waitForReadyRead failed!");
+        return QtRedisReply();
+    }
 
-    QList<QtRedisReply> reply;
+    QtRedisReply reply;
     QByteArray replyData;
     while (true) {
         replyData += context->readRawData();
         if (!replyData.isEmpty()) {
             bool isOk = false;
-            reply = QtRedisParser::parseRawDataList(replyData, &isOk);
+            reply = QtRedisParser::parseRawData(replyData, error, &isOk);
             if (isOk)
                 break;
         }
-        if (!context->waitForReadyRead())
-            return QList<QtRedisReply>();
+        if (!context->waitForReadyRead()) {
+            error = QString("Context waitForReadyRead failed!");
+            return QtRedisReply();
+        }
     }
-    for (const QtRedisReply &r : qAsConst(reply))
-        this->checkCommandResult(context, command, r);
+    if (ok)
+        *ok = true;
+
+    if (isSelectDb && !reply.isArrayValueEmpty())
+        this->checkCommandResult(context, command, reply.arrayValueFirst_ref());
+    if (reply.arrayValueSize() == 1)
+        return reply.arrayValueFirst();
+
     return reply;
 }
 
-QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *context, const QVariantList &command)
+QtRedisReply QtRedisTransporter::sendContextCommands(QtRedisContext *context, const QList<QtRedisCommand> &commands, QString &error, bool *ok)
 {
-    if (!context) {
-        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Is not initialyzed!";
-        return QList<QtRedisReply>();
-    }
-    if (command.isEmpty()) {
-        qCritical() << "[QtRedisTransporter][sendContextCommand_lst] Command is Empty!";
-        return QList<QtRedisReply>();
-    }
-    context->writeRawData(QtRedisParser::createRawData(command));
-    if (!context->waitForReadyRead())
-        return QList<QtRedisReply>();
+    // clear err & ok
+    error.clear();
+    if (ok)
+        *ok = false;
 
-    QList<QtRedisReply> reply;
+    if (!context) {
+        error = QString("QtRedisTransporter is not initialyzed!");
+        return QtRedisReply();
+    }
+    if (commands.isEmpty()) {
+        error = QString("Commands is Empty!");
+        return QtRedisReply();
+    }
+    // create data
+    int index = 0;
+    int selectDbCommandIndex = -1;
+    QByteArray data;
+    for (const QtRedisCommand &cmd : commands) {
+        if (!cmd.isValid()) {
+            error = QString("Invalid command in commands list!");
+            return QtRedisReply();
+        }
+        if (this->isCommandSelect(cmd))
+            selectDbCommandIndex = index;
+
+        data += QtRedisParser::createRawData(cmd);
+        index++;
+    }
+    // send
+    context->writeRawData(data);
+    if (!context->waitForReadyRead())
+        return QtRedisReply();
+
+    QtRedisReply reply;
     QByteArray replyData;
     while (true) {
         replyData += context->readRawData();
         if (!replyData.isEmpty()) {
             bool isOk = false;
-            reply = QtRedisParser::parseRawDataList(replyData, &isOk);
-            if (isOk)
+            reply = QtRedisParser::parseRawData(replyData, error, &isOk);
+            if (isOk && commands.size() == reply.arrayValueSize())
                 break;
         }
         if (!context->waitForReadyRead())
-            return QList<QtRedisReply>();
+            return QtRedisReply();
     }
-    for (const QtRedisReply &r : qAsConst(reply))
-        this->checkCommandResult(context, command, r);
+    if (commands.size() != reply.arrayValueSize()) {
+        error = QString("Invalid reply size (command-list-size != reply-list-size)!");
+        return QtRedisReply();
+    }
+    if (selectDbCommandIndex != -1)
+        this->checkCommandResult(context, commands.at(selectDbCommandIndex), reply.arrayValueAt(selectDbCommandIndex));
+
+    if (ok)
+        *ok = true;
+
+    if (reply.arrayValueSize() == 1)
+        return reply.arrayValueFirst();
     return reply;
+}
+
+bool QtRedisTransporter::isCommandSelect(const QtRedisCommand &command) const
+{
+    if (!command.isValid())
+        return false;
+
+    // check select db
+    return (command.size() == 2 && command.command() == QString("SELECT"));
+
 }
 
 //!
@@ -526,39 +570,17 @@ QList<QtRedisReply> QtRedisTransporter::sendContextCommand_lst(QtRedisContext *c
 //! Данный метод нужен для проверки системных команд (смена текущей БД и пр.)
 //! и отслеживания их результата.
 //!
-void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QStringList &command, const QtRedisReply &reply)
+void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QtRedisCommand &command, const QtRedisReply &reply)
 {
-    if (command.isEmpty())
+    if (!command.isValid())
         return;
 
     // check select db
     if (command.size() == 2
-        && command[0].toUpper() == QString("SELECT")
+        && command.command() == QString("SELECT")
         && reply.type() == QtRedisReply::ReplyType::Status
         && reply.strValue() == QString("OK")) {
-        context->setCurrentDbIndex(command[1].toInt());
-    }
-}
-
-//!
-//! \brief Проверка команды и ее результата
-//! \param command Команда
-//! \param reply Результат
-//!
-//! Данный метод нужен для проверки системных команд (смена текущей БД и пр.)
-//! и отслеживания их результата.
-//!
-void QtRedisTransporter::checkCommandResult(QtRedisContext *context, const QVariantList &command, const QtRedisReply &reply)
-{
-    if (command.isEmpty())
-        return;
-
-    // check select db
-    if (command.size() == 2
-        && command[0].toString().toUpper() == QString("SELECT")
-        && reply.type() == QtRedisReply::ReplyType::Status
-        && reply.strValue() == QString("OK")) {
-        context->setCurrentDbIndex(command[1].toInt());
+        context->setCurrentDbIndex(command.commandArgv().constFirst().toInt());
     }
 }
 
@@ -585,7 +607,7 @@ void QtRedisTransporter::onDisconnected()
 }
 
 //!
-//! \brief Слот чтения входящих сооющений от сервера Redis
+//! \brief Слот чтения входящих сообщений от сервера Redis
 //!
 void QtRedisTransporter::onReadyReadSub()
 {
@@ -604,24 +626,25 @@ void QtRedisTransporter::onReadyReadSub()
     if (replyData.isEmpty())
         return;
 //    qDebug() << "===>" << replyData;
+    QString error;
     bool isOk = false;
-    const QList<QtRedisReply> replyList = QtRedisParser::parseRawDataList(replyData, &isOk);
+    const QtRedisReply replyList = QtRedisParser::parseRawData(replyData, error, &isOk);
     if (!isOk)
         return;
-    for (const QtRedisReply &reply : replyList) {
+    for (const QtRedisReply &reply : replyList.arrayValue_ref()) {
         if (reply.type() == QtRedisReply::ReplyType::Array
             && reply.arrayValueSize() == 3
-            && reply.arrayValue()[0].strValue() == "message")
-            emit this->incomingChannelMessage(reply.arrayValue()[1].strValue(), reply.arrayValue()[2]);
+            && reply.arrayValue().at(0).strValue() == "message")
+            emit this->incomingChannelMessage(reply.arrayValue().at(1).strValue(), reply.arrayValue().at(2));
 
         else if (reply.type() == QtRedisReply::ReplyType::Array
                  && reply.arrayValueSize() == 3
-                 && reply.arrayValue()[0].strValue() == "smessage")
-            emit this->incomingChannelShardMessage(reply.arrayValue()[1].strValue(), reply.arrayValue()[2]);
+                 && reply.arrayValue().at(0).strValue() == "smessage")
+            emit this->incomingChannelShardMessage(reply.arrayValue().at(1).strValue(), reply.arrayValue().at(2));
 
         else if (reply.type() == QtRedisReply::ReplyType::Array
                  && reply.arrayValueSize() == 4
-                 && reply.arrayValue()[0].strValue() == "pmessage")
-            emit this->incomingChannelPatternMessage(reply.arrayValue()[1].strValue(), reply.arrayValue()[2].strValue(), reply.arrayValue()[3]);
+                 && reply.arrayValue().at(0).strValue() == "pmessage")
+            emit this->incomingChannelPatternMessage(reply.arrayValue().at(1).strValue(), reply.arrayValue().at(2).strValue(), reply.arrayValue().at(3));
     }
 }

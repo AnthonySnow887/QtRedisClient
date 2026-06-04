@@ -1,26 +1,24 @@
-#include "QtRedisContextTcp.h"
+#include "QtRedisContextUnix.h"
 #include "QtRedisParser.h"
-
-#include <QtNetwork/QHostAddress>
 
 //!
 //! \brief Конструктор класса
-//! \param host Хост
+//! \param host IP-адрес
 //! \param port Порт
 //!
-QtRedisContextTcp::QtRedisContextTcp(const QString &host, const uint port)
-    : QtRedisContext(host, port)
-    , _socket(new QTcpSocket(this))
+QtRedisContextUnix::QtRedisContextUnix(const QString &sockPath)
+    : QtRedisContext(sockPath, -1)
+    , _socket(new QLocalSocket(this))
 {
-    connect(_socket, &QTcpSocket::connected, this, &QtRedisContext::connected);
-    connect(_socket, &QTcpSocket::disconnected, this, &QtRedisContext::disconnected);
-    connect(_socket, &QTcpSocket::readyRead, this, &QtRedisContext::readyRead);
+    connect(_socket, &QLocalSocket::connected, this, &QtRedisContext::connected);
+    connect(_socket, &QLocalSocket::disconnected, this, &QtRedisContext::disconnected);
+    connect(_socket, &QLocalSocket::readyRead, this, &QtRedisContext::readyRead);
 }
 
 //!
 //! \brief Деструктор класса
 //!
-QtRedisContextTcp::~QtRedisContextTcp()
+QtRedisContextUnix::~QtRedisContextUnix()
 {
     if (_socket) {
         this->disconnectFromServer();
@@ -34,22 +32,32 @@ QtRedisContextTcp::~QtRedisContextTcp()
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextTcp::connectToServer(const int msecs)
+bool QtRedisContextUnix::connectToServer(const int msecs, QString &error)
 {
     QMutexLocker lock(&_mutex);
-    if (!_socket)
+    error.clear();
+    if (!_socket) {
+        error = QString("Invalid socket object (is nullptr)!");
         return false;
+    }
     if (_socket && _socket->isOpen())
         return true;
-    if (_host.isEmpty() || _port == 0)
+    if (_host.isEmpty()) {
+        error = QString("Invalid host (empty)!");
         return false;
+    }
 
     int buffMsecs = 30 * 1000;
     if (msecs > 0)
         buffMsecs = msecs;
 
-    _socket->connectToHost(QHostAddress(_host), _port);
-    return _socket->waitForConnected(buffMsecs);
+    _socket->connectToServer(_host);
+    const bool isConnected = _socket->waitForConnected(buffMsecs);
+    if (!isConnected) {
+        const QString socketErr = _socket->errorString();
+        error = !socketErr.isEmpty() ? socketErr : "QLocalSocket: waitForConnected failed!";
+    }
+    return isConnected;
 }
 
 //!
@@ -57,22 +65,25 @@ bool QtRedisContextTcp::connectToServer(const int msecs)
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextTcp::reconnectToServer(const int msecs)
+bool QtRedisContextUnix::reconnectToServer(const int msecs, QString &error)
 {
     QMutexLocker lock(&_mutex);
-    if (!_socket)
+    error.clear();
+    if (!_socket) {
+        error = QString("Invalid socket object (is nullptr)!");
         return false;
+    }
 
     _socket->abort();
     _socket->close();
     lock.unlock();
-    return this->connectToServer(msecs);
+    return this->connectToServer(msecs, error);
 }
 
 //!
 //! \brief Отключиться от сервера
 //!
-void QtRedisContextTcp::disconnectFromServer()
+void QtRedisContextUnix::disconnectFromServer()
 {
     QMutexLocker lock(&_mutex);
     if (_socket) {
@@ -85,12 +96,12 @@ void QtRedisContextTcp::disconnectFromServer()
 //! \brief Подключен ли к серверу
 //! \return
 //!
-bool QtRedisContextTcp::isConnected()
+bool QtRedisContextUnix::isConnected()
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
         return false;
-    if (_socket->state() == QAbstractSocket::ConnectedState)
+    if (_socket->state() == QLocalSocket::ConnectedState)
         return true;
 
     return false;
@@ -100,7 +111,7 @@ bool QtRedisContextTcp::isConnected()
 //! \brief Доступны ли данные для чтения
 //! \return
 //!
-bool QtRedisContextTcp::canReadRawData() const
+bool QtRedisContextUnix::canReadRawData() const
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -115,7 +126,7 @@ bool QtRedisContextTcp::canReadRawData() const
 //! \brief Количество байт, доступных для чтения
 //! \return
 //!
-qint64 QtRedisContextTcp::bytesAvailable() const
+qint64 QtRedisContextUnix::bytesAvailable() const
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -129,7 +140,7 @@ qint64 QtRedisContextTcp::bytesAvailable() const
 //! \param data Данные
 //! \return
 //!
-qint64 QtRedisContextTcp::writeRawData(const QByteArray &data)
+qint64 QtRedisContextUnix::writeRawData(const QByteArray &data)
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -154,7 +165,7 @@ qint64 QtRedisContextTcp::writeRawData(const QByteArray &data)
 //! \brief Прочитать данные
 //! \return
 //!
-QByteArray QtRedisContextTcp::readRawData()
+QByteArray QtRedisContextUnix::readRawData()
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -168,7 +179,7 @@ QByteArray QtRedisContextTcp::readRawData()
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextTcp::waitForReadyRead(const int msecs)
+bool QtRedisContextUnix::waitForReadyRead(const int msecs)
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)

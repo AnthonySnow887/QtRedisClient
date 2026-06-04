@@ -1,49 +1,28 @@
 #include "QtRedisClient.h"
-#include <QDebug>
+
+//!
+//! \brief Конструктор класса
+//!
+QtRedisClient::QtRedisClient()
+    : QObject()
+    , QtRedisBase<QtRedisClient, QtRedisReply>()
+{
+}
 
 //!
 //! \brief Деструктор класса
 //!
-QtRedisClient::QtRedisClient()
-    : QObject()
-{
-}
-
 QtRedisClient::~QtRedisClient()
 {
-    _lastError.clear();
-    if (_transporter)
-        delete _transporter;
 }
 
+//!
+//! \brief Версия библиотеки
+//! \return
+//!
 QString QtRedisClient::libraryVersion()
 {
     return QT_REDIS_CLIENT_VERSION_STR;
-}
-
-
-// ------------------------------------------------------------------------
-// -- ERRORS FUNCTIONS ----------------------------------------------------
-// ------------------------------------------------------------------------
-
-//!
-//! \brief Задана ли ошибка
-//! \return
-//!
-bool QtRedisClient::hasLastError() const
-{
-    QMutexLocker lock(&_mutexErr);
-    return !_lastError.isEmpty();
-}
-
-//!
-//! \brief Последняя ошибка
-//! \return
-//!
-QString QtRedisClient::lastError() const
-{
-    QMutexLocker lock(&_mutexErr);
-    return _lastError;
 }
 
 
@@ -100,7 +79,7 @@ bool QtRedisClient::redisIsConnected()
 //! \param timeOutMsec Время ожидания в мсек
 //! \return
 //!
-//! Данный метод сипользует протокол TCP.
+//! Данный метод использует протокол TCP.
 //!
 bool QtRedisClient::redisConnect(const QString &host,
                                  const int port,
@@ -114,31 +93,40 @@ bool QtRedisClient::redisConnect(const QString &host,
     }
     if (_transporter
         && _transporter->host() == host
-        && _transporter->port() == port)
+        && _transporter->port() == port
+        && _transporter->type() == QtRedisTransporter::Type::Tcp
+        && _transporter->isConnected())
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter(contextChannelMode);
-        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+        _transporter = std::make_shared<QtRedisTransporter>(contextChannelMode);
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextConnected,
                          this, &QtRedisClient::contextConnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextDisconnected,
                          this, &QtRedisClient::contextDisconnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelShardMessage,
                          this, &QtRedisClient::incomingChannelShardMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelPatternMessage,
                          this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
         _transporter->clearTransporter();
     }
-    _transporter->initTransporter(QtRedisTransporter::Type::Tcp, host, port);
-    return _transporter->connectToServer(timeOutMsec);
+    QString error;
+    if (!_transporter->initTransporter(QtRedisTransporter::Type::Tcp, host, port, error)) {
+        this->setLastError_safe(error);
+        return false;
+    }
+    const bool isOk = _transporter->connectToServer(error, timeOutMsec);
+    if (!isOk)
+        this->setLastError_safe(error);
+    return isOk;
 }
 
 //!
@@ -148,10 +136,11 @@ bool QtRedisClient::redisConnect(const QString &host,
 //! \param timeOutMsec Время ожидания в мсек
 //! \return
 //!
-//! Данный метод сипользует протокол TCP-SSL.
+//! Данный метод использует протокол TCP-SSL.
 //!
 bool QtRedisClient::redisConnectEncrypted(const QString &host,
                                           const int port,
+                                          const QSslConfiguration sslConfig,
                                           const int timeOutMsec,
                                           const QtRedisTransporter::ChannelMode contextChannelMode)
 {
@@ -163,31 +152,41 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
     if (_transporter
         && _transporter->host() == host
         && _transporter->port() == port
-        && _transporter->type() == QtRedisTransporter::Type::Ssl)
+        && _transporter->sslConfig() == sslConfig
+        && _transporter->type() == QtRedisTransporter::Type::Ssl
+        && _transporter->isConnected())
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter(contextChannelMode);
-        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+        _transporter = std::make_shared<QtRedisTransporter>(contextChannelMode);
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextConnected,
                          this, &QtRedisClient::contextConnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextDisconnected,
                          this, &QtRedisClient::contextDisconnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelShardMessage,
                          this, &QtRedisClient::incomingChannelShardMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelPatternMessage,
                          this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
         _transporter->clearTransporter();
     }
-    _transporter->initTransporter(QtRedisTransporter::Type::Ssl, host, port);
-    return _transporter->connectToServer(timeOutMsec);
+    QString error;
+    if (!_transporter->initTransporter(QtRedisTransporter::Type::Ssl, host, port, error)) {
+        this->setLastError_safe(error);
+        return false;
+    }
+    _transporter->setSslConfig(sslConfig);
+    const bool isOk = _transporter->connectToServer(error, timeOutMsec);
+    if (!isOk)
+        this->setLastError_safe(error);
+    return isOk;
 }
 
 #if defined(Q_OS_LINUX)
@@ -197,7 +196,7 @@ bool QtRedisClient::redisConnectEncrypted(const QString &host,
 //! \param timeOutMsec Время ожидания в мсек
 //! \return
 //!
-//! Данный метод сипользует UNIX-sockets.
+//! Данный метод использует UNIX-sockets.
 //!
 bool QtRedisClient::redisConnectUnix(const QString &sockPath,
                                      const int timeOutMsec,
@@ -210,31 +209,39 @@ bool QtRedisClient::redisConnectUnix(const QString &sockPath,
     }
     if (_transporter
         && _transporter->host() == sockPath
-        && _transporter->type() == QtRedisTransporter::Type::Unix)
+        && _transporter->type() == QtRedisTransporter::Type::Unix
+        && _transporter->isConnected())
         return true;
 
     if (!_transporter) {
-        _transporter = new QtRedisTransporter(contextChannelMode);
-        QObject::connect(_transporter, &QtRedisTransporter::contextConnected,
+        _transporter = std::make_shared<QtRedisTransporter>(contextChannelMode);
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextConnected,
                          this, &QtRedisClient::contextConnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::contextDisconnected,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::contextDisconnected,
                          this, &QtRedisClient::contextDisconnected,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelMessage,
                          this, &QtRedisClient::incomingChannelMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelShardMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelShardMessage,
                          this, &QtRedisClient::incomingChannelShardMessage,
                          Qt::QueuedConnection);
-        QObject::connect(_transporter, &QtRedisTransporter::incomingChannelPatternMessage,
+        QObject::connect(_transporter.get(), &QtRedisTransporter::incomingChannelPatternMessage,
                          this, &QtRedisClient::incomingChannelPatternMessage,
                          Qt::QueuedConnection);
     } else {
         _transporter->clearTransporter();
     }
-    _transporter->initTransporter(QtRedisTransporter::Type::Unix, sockPath, -1);
-    return _transporter->connectToServer(timeOutMsec);
+    QString error;
+    if (!_transporter->initTransporter(QtRedisTransporter::Type::Unix, sockPath, -1, error)) {
+        this->setLastError_safe(error);
+        return false;
+    }
+    const bool isOk = _transporter->connectToServer(error, timeOutMsec);
+    if (!isOk)
+        this->setLastError_safe(error);
+    return isOk;
 }
 #endif
 
@@ -250,7 +257,11 @@ bool QtRedisClient::redisReconnect(const int timeOutMsec)
         this->setLastError_safe("QtRedisTransporter is NULL!");
         return false;
     }
-    return _transporter->reconnectToServer(timeOutMsec);
+    QString error;
+    const bool isOk = _transporter->reconnectToServer(error, timeOutMsec);
+    if (!isOk)
+        this->setLastError_safe(error);
+    return isOk;
 }
 
 //!
@@ -267,296 +278,6 @@ void QtRedisClient::redisDisconnect()
 
 
 // ------------------------------------------------------------------------
-// -- BASE COMMANDS -------------------------------------------------------
-// ------------------------------------------------------------------------
-
-//!
-//! \brief Выпонить команду
-//! \param command Команда
-//! \return
-//!
-QtRedisReply QtRedisClient::redisExecCommand(const QString &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (command.isEmpty()) {
-        this->setLastError_safe("Command is Empty!");
-        return QtRedisReply();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QtRedisReply();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QtRedisReply();
-    }
-    this->clearLastError_safe();
-    return _transporter->sendCommand(command.split(" "));
-}
-
-//!
-//! \brief Выпонить команду (QByteArray)
-//! \param command Команда
-//! \return
-//!
-QtRedisReply QtRedisClient::redisExecCommand(const QByteArray &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (command.isEmpty()) {
-        this->setLastError_safe("Command is Empty!");
-        return QtRedisReply();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QtRedisReply();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QtRedisReply();
-    }
-    QVariantList cmdList;
-    const QList<QByteArray> tmpCmd = command.split(' ');
-    for (const QByteArray &ba : tmpCmd)
-        cmdList.append(ba);
-
-    this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(cmdList);
-    if (reply.isError())
-        this->setLastError_safe(reply.strValue());
-    return reply;
-}
-
-//!
-//! \brief Выполнить команду
-//! \param commandArgv Команда в формате списка аргументов
-//! \return
-//!
-QtRedisReply QtRedisClient::redisExecCommandArgv(const QStringList &commandArgv)
-{
-    QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty()) {
-        this->setLastError_safe("CommandList is Empty!");
-        return QtRedisReply();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QtRedisReply();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QtRedisReply();
-    }
-    this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(commandArgv);
-    if (reply.isError())
-        this->setLastError_safe(reply.strValue());
-    return reply;
-}
-
-//!
-//! \brief Выполнить команду (QByteArray)
-//! \param commandArgv Команда в формате списка аргументов
-//! \return
-//!
-QtRedisReply QtRedisClient::redisExecCommandArgv(const QList<QByteArray> &commandArgv)
-{
-    QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty()) {
-        this->setLastError_safe("CommandList is Empty!");
-        return QtRedisReply();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QtRedisReply();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QtRedisReply();
-    }
-    QVariantList cmdList;
-    for (const QByteArray &ba : commandArgv)
-        cmdList.append(ba);
-
-    this->clearLastError_safe();
-    const QtRedisReply reply = _transporter->sendCommand(cmdList);
-    if (reply.isError())
-        this->setLastError_safe(reply.strValue());
-    return reply;
-}
-
-//!
-//! \brief Выпонить команду
-//! \param command Команда
-//! \return
-//!
-QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QString &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (command.isEmpty()) {
-        this->setLastError_safe("Command is Empty!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QList<QtRedisReply>();
-    }
-    this->clearLastError_safe();
-    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(command.split(" "));
-    for (const QtRedisReply &reply : replyList) {
-        if (reply.isError())
-            this->setLastError_safe(reply.strValue());
-    }
-    return replyList;
-}
-
-//!
-//! \brief Выпонить команду (QByteArray)
-//! \param command Команда
-//! \return
-//!
-QList<QtRedisReply> QtRedisClient::redisExecCommand_lst(const QByteArray &command)
-{
-    QMutexLocker lock(&_mutex);
-    if (command.isEmpty()) {
-        this->setLastError_safe("Command is Empty!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QList<QtRedisReply>();
-    }
-    QVariantList cmdList;
-    const QList<QByteArray> tmpCmd = command.split(' ');
-    for (const QByteArray &ba : tmpCmd)
-        cmdList.append(ba);
-
-    this->clearLastError_safe();
-    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(cmdList);
-    for (const QtRedisReply &reply : replyList) {
-        if (reply.isError())
-            this->setLastError_safe(reply.strValue());
-    }
-    return replyList;
-}
-
-//!
-//! \brief Выполнить команду
-//! \param commandArgv Команда в формате списка аргументов
-//! \return
-//!
-QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QStringList &commandArgv)
-{
-    QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty()) {
-        this->setLastError_safe("CommandList is Empty!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QList<QtRedisReply>();
-    }
-    this->clearLastError_safe();
-    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(commandArgv);
-    for (const QtRedisReply &reply : replyList) {
-        if (reply.isError())
-            this->setLastError_safe(reply.strValue());
-    }
-    return replyList;
-}
-
-//!
-//! \brief Выполнить команду (QByteArray)
-//! \param commandArgv Команда в формате списка аргументов
-//! \return
-//!
-QList<QtRedisReply> QtRedisClient::redisExecCommandArgv_lst(const QList<QByteArray> &commandArgv)
-{
-    QMutexLocker lock(&_mutex);
-    if (commandArgv.isEmpty()) {
-        this->setLastError_safe("CommandList is Empty!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter) {
-        this->setLastError_safe("QtRedisTransporter is NULL!");
-        return QList<QtRedisReply>();
-    }
-    if (!_transporter->isConnected()) {
-        this->setLastError_safe("Client is not connected!");
-        return QList<QtRedisReply>();
-    }
-    QVariantList cmdList;
-    for (const QByteArray &ba : commandArgv)
-        cmdList.append(ba);
-
-    this->clearLastError_safe();
-    const QList<QtRedisReply> replyList = _transporter->sendCommand_lst(cmdList);
-    for (const QtRedisReply &reply : replyList) {
-        if (reply.isError())
-            this->setLastError_safe(reply.strValue());
-    }
-    return replyList;
-}
-
-//!
-//! \brief Проверить команду
-//! \param command Команда
-//! \return
-//!
-//! Данный метод проверяет тип результирующего объекта, и если он:
-//! - replyType_Error   - return false
-//! - replyType_Nil     - return false
-//! - replyType_Status  - если ответ != "OK", то return false
-//!
-bool QtRedisClient::redisCheckCommand(const QString &command)
-{
-    QtRedisReply buffReply = this->redisExecCommand(command);
-    if (buffReply.type() == QtRedisReply::ReplyType::Error
-        || buffReply.type() == QtRedisReply::ReplyType::Nil)
-        return false;
-    if (buffReply.type() == QtRedisReply::ReplyType::Status
-        && buffReply.strValue() != "OK")
-        return false;
-
-    return true;
-}
-
-//!
-//! \brief Проверить команду
-//! \param commandArgv Команда в формате списка аргументов
-//! \return
-//!
-//! Данный метод проверяет тип результирующего объекта, и если он:
-//! - replyType_Error   - return false
-//! - replyType_Nil     - return false
-//! - replyType_Status  - если ответ != "OK", то return false
-//!
-bool QtRedisClient::redisCheckCommandArgv(const QStringList &commandArgv)
-{
-    QtRedisReply buffReply = this->redisExecCommandArgv(commandArgv);
-    if (buffReply.type() == QtRedisReply::ReplyType::Error
-        || buffReply.type() == QtRedisReply::ReplyType::Nil)
-        return false;
-    if (buffReply.type() == QtRedisReply::ReplyType::Status
-        && buffReply.strValue() != "OK")
-        return false;
-
-    return true;
-}
-
-
-// ------------------------------------------------------------------------
 // -- SERVER COMMANDS -----------------------------------------------------
 // ------------------------------------------------------------------------
 
@@ -567,26 +288,106 @@ bool QtRedisClient::redisCheckCommandArgv(const QStringList &commandArgv)
 //!
 //! Если авторизация не требуется - возвращает false и сообщение об ошибке, что авторизация не требуется.
 //!
-//! Request for authentication in a password-protected Redis server. Redis can be instructed to require a password before allowing clients to execute commands.
-//! This is done using the requirepass directive in the configuration file.
+//! Redis command: AUTH
 //!
-//! If password matches the password in the configuration file, the server replies with the OK status code and starts accepting commands.
+//! Syntax
+//!
+//! AUTH [username] password
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of passwords defined for the user
+//! ACL categories:
+//!     @fast, @connection
+//!
+//! The AUTH command authenticates the current connection in two cases:
+//!
+//!     If the Redis server is password protected via the requirepass option.
+//!     A Redis 6.0 instance, or greater, is using the Redis ACL system.
+//!
+//! Redis versions prior of Redis 6 were only able to understand the one argument version of the command:
+//!
+//! AUTH <password>
+//!
+//! This form just authenticates against the password set with requirepass.
+//! In this configuration Redis will deny any command executed by the just connected clients,
+//! unless the connection gets authenticated via AUTH.
+//!
+//! If the password provided via AUTH matches the password in the configuration file,
+//! the server replies with the OK status code and starts accepting commands.
 //! Otherwise, an error is returned and the clients needs to try a new password.
 //!
-//! Note: because of the high performance nature of Redis, it is possible to try a lot of passwords in parallel in very short time,
+//! When Redis ACLs are used, the command should be given in an extended way:
+//!
+//! AUTH <username> <password>
+//!
+//! In order to authenticate the current connection with one of the connections defined in the ACL list
+//! (see ACL SETUSER) and the official ACL guide for more information.
+//!
+//! When ACLs are used, the single argument form of the command, where only the password is specified,
+//! assumes that the implicit username is "default".
+//!
+//! Security notice
+//!
+//! Because of the high performance nature of Redis, it is possible to try a lot of passwords in parallel in very short time,
 //! so make sure to generate a strong and very long password so that this attack is infeasible.
+//! A good way to generate strong passwords is via the ACL GENPASS command.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK, or an error if the password, or username/password pair, is invalid.
+//!
+//! History
+//!     Starting with Redis version 6.0.0: Added ACL style (username and password).
 //!
 bool QtRedisClient::redisAuth(const QString &password)
 {
     QStringList argv;
     argv << "AUTH" << password;
-    return this->replySimpleStringToBool(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(argv));
 }
 
 //!
 //! \brief Выпонить команду PING
 //! \param msg Дополнительное сообщение
 //! \return
+//!
+//! Redis command: PING
+//!
+//! Syntax
+//!
+//! PING [message]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @fast, @connection
+//!
+//! Returns PONG if no argument is provided, otherwise return a copy of the argument as a bulk.
+//! This command is useful for:
+//!
+//!     Testing whether a connection is still alive.
+//!     Verifying the server's ability to serve data - an error is returned when this isn't the case
+//!     (e.g., during load from persistence or accessing a stale replica).
+//!     Measuring latency.
+//!
+//! If the client is subscribed to a channel or a pattern, it will instead return a multi-bulk with a "pong"
+//! in the first position and an empty bulk in the second position, unless an argument is provided in which case
+//! it returns a copy of the argument.
+//!
+//! Examples
+//! redis> PING
+//! "PONG"
+//! redis> PING "hello world"
+//! "hello world"
+//!
+//! RESP2/RESP3 Reply
+//!
+//! Any of the following:
+//!     Simple string reply: PONG when no argument is provided.
+//!     Bulk string reply: the provided argument.
 //!
 bool QtRedisClient::redisPing(const QString &msg)
 {
@@ -595,7 +396,7 @@ bool QtRedisClient::redisPing(const QString &msg)
     if (!msg.isEmpty())
         argv << msg;
 
-    QtRedisReply buffReply = this->redisExecCommandArgv(argv);
+    const QtRedisReply buffReply = this->redisExecCommand(argv);
     if (msg.isEmpty()) {
         if (buffReply.type() != QtRedisReply::ReplyType::Status) {
             this->setLastError_safe("Invalid reply type!");
@@ -623,34 +424,494 @@ bool QtRedisClient::redisPing(const QString &msg)
 //! \param msg Сообщение
 //! \return
 //!
+//! Redis command: ECHO
+//!
+//! Syntax
+//!
+//! ECHO message
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @fast, @connection
+//!
+//! Returns message.
+//!
+//! Examples
+//! redis> ECHO "Hello World!"
+//! "Hello World!"
+//!
+//! RESP2/RESP3 Reply
+//! Bulk string reply: the given string.
+//!
 QtRedisReply QtRedisClient::redisEcho(const QString &msg)
 {
     QStringList argv;
     argv << "ECHO" << msg;
-    return this->redisExecCommandArgv(argv);
+    return this->redisExecCommand(argv);
 }
 
 //!
 //! \brief Информация сервера
 //! \return
 //!
-//! The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
+//! Redis command: INFO
+//!
+//! Syntax
+//!
+//! INFO [section [section ...]]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @slow, @dangerous
+//!
+//! The INFO command returns information and statistics about the server in a format that is simple to parse
+//! by computers and easy to read by humans.
 //!
 //! The optional parameter can be used to select a specific section of information:
-//! - server: General information about the Redis server
-//! - clients: Client connections section
-//! - memory: Memory consumption related information
-//! - persistence: RDB and AOF related information
-//! - stats: General statistics
-//! - replication: Master/slave replication information
-//! - cpu: CPU consumption statistics
-//! - commandstats: Redis command statistics
-//! - cluster: Redis Cluster section
-//! - keyspace: Database related statistics
+//!
+//!     server: General information about the Redis server
+//!     clients: Client connections section
+//!     memory: Memory consumption related information
+//!     persistence: RDB and AOF related information
+//!     stats: General statistics
+//!     replication: Master/replica replication information
+//!     cpu: CPU consumption statistics
+//!     commandstats: Redis command statistics
+//!     latencystats: Redis command latency percentile distribution statistics
+//!     sentinel: Redis Sentinel section (only applicable to Sentinel instances)
+//!     cluster: Redis Cluster section
+//!     modules: Modules section
+//!     keyspace: Database related statistics
+//!     errorstats: Redis error statistics
 //!
 //! It can also take the following values:
-//! - all: Return all sections
-//! - default: Return only the default set of sections
+//!
+//!     all: Return all sections (excluding module generated ones)
+//!     default: Return only the default set of sections
+//!     everything: Includes all and modules
+//!
+//! When no parameter is provided, the default option is assumed.
+//! INFO
+//!
+//! Notes
+//!
+//! Please note depending on the version of Redis some of the fields have been added or removed.
+//! A robust client application should therefore parse the result of this command by skipping unknown properties,
+//! and gracefully handle missing fields.
+//!
+//! Here is the description of fields for Redis >= 2.4.
+//!
+//! Here is the meaning of all fields in the server section:
+//!
+//!     redis_version: Version of the Redis server
+//!     redis_git_sha1: Git SHA1
+//!     redis_git_dirty: Git dirty flag
+//!     redis_build_id: The build id
+//!     redis_mode: The server's mode ("standalone", "sentinel" or "cluster")
+//!     os: Operating system hosting the Redis server
+//!     arch_bits: Architecture (32 or 64 bits)
+//!     multiplexing_api: Event loop mechanism used by Redis
+//!     atomicvar_api: Atomicvar API used by Redis
+//!     gcc_version: Version of the GCC compiler used to compile the Redis server
+//!     process_id: PID of the server process
+//!     process_supervised: Supervised system ("upstart", "systemd", "unknown" or "no")
+//!     run_id: Random value identifying the Redis server (to be used by Sentinel and Cluster)
+//!     tcp_port: TCP/IP listen port
+//!     server_time_usec: Epoch-based system time with microsecond precision
+//!     uptime_in_seconds: Number of seconds since Redis server start
+//!     uptime_in_days: Same value expressed in days
+//!     hz: The server's current frequency setting
+//!     configured_hz: The server's configured frequency setting
+//!     lru_clock: Clock incrementing every minute, for LRU management
+//!     executable: The path to the server's executable
+//!     config_file: The path to the config file
+//!     io_threads_active: Flag indicating if I/O threads are active
+//!     shutdown_in_milliseconds: The maximum time remaining for replicas to catch up the replication
+//!                               before completing the shutdown sequence. This field is only present during shutdown.
+//!
+//! Here is the meaning of all fields in the clients section:
+//!
+//!     connected_clients: Number of client connections (excluding connections from replicas)
+//!     cluster_connections: An approximation of the number of sockets used by the cluster's bus
+//!     maxclients: The value of the maxclients configuration directive.
+//!                 This is the upper limit for the sum of connected_clients, connected_slaves and cluster_connections.
+//!     client_recent_max_input_buffer: Biggest input buffer among current client connections
+//!     client_recent_max_output_buffer: Biggest output buffer among current client connections
+//!     blocked_clients: Number of clients pending on a blocking call (BLPOP, BRPOP, BRPOPLPUSH, BLMOVE, BZPOPMIN, BZPOPMAX)
+//!     tracking_clients: Number of clients being tracked (CLIENT TRACKING)
+//!     pubsub_clients: Number of clients in pubsub mode (SUBSCRIBE, PSUBSCRIBE, SSUBSCRIBE). Added in Redis 7.4
+//!     watching_clients: Number of clients in watching mode (WATCH). Added in Redis 7.4
+//!     clients_in_timeout_table: Number of clients in the clients timeout table
+//!     total_watched_keys: Number of watched keys. Added in Redis 7.4.
+//!     total_blocking_keys: Number of blocking keys. Added in Redis 7.2.
+//!     total_blocking_keys_on_nokey: Number of blocking keys that one or more clients that would like
+//!                                   to be unblocked when the key is deleted. Added in Redis 7.2.
+//!
+//! Here is the meaning of all fields in the memory section:
+//!
+//!     used_memory: Total number of bytes allocated by Redis using its allocator
+//!                  (either standard libc, jemalloc, or an alternative allocator such as tcmalloc)
+//!     used_memory_human: Human readable representation of previous value
+//!     used_memory_rss: Number of bytes that Redis allocated as seen by the operating system
+//!                      (a.k.a resident set size). This is the number reported by tools such as top(1) and ps(1)
+//!     used_memory_rss_human: Human readable representation of previous value
+//!     used_memory_peak: Peak memory consumed by Redis (in bytes)
+//!     used_memory_peak_human: Human readable representation of previous value
+//!     used_memory_peak_perc: The percentage of used_memory_peak out of used_memory
+//!     used_memory_overhead: The sum in bytes of all overheads that the server allocated for managing its internal data structures
+//!     used_memory_startup: Initial amount of memory consumed by Redis at startup in bytes
+//!     used_memory_dataset: The size in bytes of the dataset (used_memory_overhead subtracted from used_memory)
+//!     used_memory_dataset_perc: The percentage of used_memory_dataset out of the net memory usage
+//!                              (used_memory minus used_memory_startup)
+//!     total_system_memory: The total amount of memory that the Redis host has
+//!     total_system_memory_human: Human readable representation of previous value
+//!     used_memory_lua: Number of bytes used by the Lua engine for EVAL scripts.
+//!                      Deprecated in Redis 7.0, renamed to used_memory_vm_eval
+//!     used_memory_vm_eval: Number of bytes used by the script VM engines for EVAL framework
+//!                          (not part of used_memory). Added in Redis 7.0
+//!     used_memory_lua_human: Human readable representation of previous value. Deprecated in Redis 7.0
+//!     used_memory_scripts_eval: Number of bytes overhead by the EVAL scripts (part of used_memory). Added in Redis 7.0
+//!     number_of_cached_scripts: The number of EVAL scripts cached by the server. Added in Redis 7.0
+//!     number_of_functions: The number of functions. Added in Redis 7.0
+//!     number_of_libraries: The number of libraries. Added in Redis 7.0
+//!     used_memory_vm_functions: Number of bytes used by the script VM engines for Functions framework
+//!                               (not part of used_memory). Added in Redis 7.0
+//!     used_memory_vm_total: used_memory_vm_eval + used_memory_vm_functions (not part of used_memory). Added in Redis 7.0
+//!     used_memory_vm_total_human: Human readable representation of previous value.
+//!     used_memory_functions: Number of bytes overhead by Function scripts (part of used_memory). Added in Redis 7.0
+//!     used_memory_scripts: used_memory_scripts_eval + used_memory_functions (part of used_memory). Added in Redis 7.0
+//!     used_memory_scripts_human: Human readable representation of previous value
+//!     maxmemory: The value of the maxmemory configuration directive
+//!     maxmemory_human: Human readable representation of previous value
+//!     maxmemory_policy: The value of the maxmemory-policy configuration directive
+//!     mem_fragmentation_ratio: Ratio between used_memory_rss and used_memory. Note that this doesn't only includes fragmentation,
+//!                              but also other process overheads (see the allocator_* metrics), and also overheads like code,
+//!                              shared libraries, stack, etc.
+//!     mem_fragmentation_bytes: Delta between used_memory_rss and used_memory. Note that when the total fragmentation bytes is low (few megabytes),
+//!                              a high ratio (e.g. 1.5 and above) is not an indication of an issue.
+//!     allocator_frag_ratio: Ratio between allocator_active and allocator_allocated. This is the true
+//!                           (external) fragmentation metric (not mem_fragmentation_ratio).
+//!     allocator_frag_bytes: Delta between allocator_active and allocator_allocated.
+//!                           See note about mem_fragmentation_bytes.
+//!     allocator_rss_ratio: Ratio between allocator_resident and allocator_active.
+//!                          This usually indicates pages that the allocator can and probably will soon release back to the OS.
+//!     allocator_rss_bytes: Delta between allocator_resident and allocator_active
+//!     rss_overhead_ratio: Ratio between used_memory_rss (the process RSS) and allocator_resident.
+//!                         This includes RSS overheads that are not allocator or heap related.
+//!     rss_overhead_bytes: Delta between used_memory_rss (the process RSS) and allocator_resident
+//!     allocator_allocated: Total bytes allocated form the allocator, including internal-fragmentation.
+//!                          Normally the same as used_memory.
+//!     allocator_active: Total bytes in the allocator active pages, this includes external-fragmentation.
+//!     allocator_resident: Total bytes resident (RSS) in the allocator, this includes pages that can be released to the OS (by MEMORY PURGE, or just waiting).
+//!     allocator_muzzy: Total bytes of 'muzzy' memory (RSS) in the allocator.
+//!                      Muzzy memory is memory that has been freed, but not yet fully returned to the operating system.
+//!                      It can be reused immediately when needed or reclaimed by the OS when system pressure increases.
+//!     mem_not_counted_for_evict: Used memory that's not counted for key eviction. This is basically transient replica and AOF buffers.
+//!     mem_clients_slaves: Memory used by replica clients - Starting Redis 7.0, replica buffers share memory with the replication backlog,
+//!                         so this field can show 0 when replicas don't trigger an increase of memory usage.
+//!     mem_clients_normal: Memory used by normal clients
+//!     mem_cluster_links: Memory used by links to peers on the cluster bus when cluster mode is enabled.
+//!     mem_aof_buffer: Transient memory used for AOF and AOF rewrite buffers
+//!     mem_replication_backlog: Memory used by replication backlog
+//!     mem_total_replication_buffers: Total memory consumed for replication buffers - Added in Redis 7.0.
+//!     mem_allocator: Memory allocator, chosen at compile time.
+//!     mem_overhead_db_hashtable_rehashing: Temporary memory overhead of database dictionaries currently being rehashed - Added in 7.4.
+//!     active_defrag_running: When activedefrag is enabled, this indicates whether defragmentation is currently active,
+//!                            and the CPU percentage it intends to utilize.
+//!     lazyfree_pending_objects: The number of objects waiting to be freed (as a result of calling UNLINK, or FLUSHDB and FLUSHALL with the ASYNC option)
+//!     lazyfreed_objects: The number of objects that have been lazy freed.
+//!
+//! Ideally, the used_memory_rss value should be only slightly higher than used_memory. When rss >> used,
+//! a large difference may mean there is (external) memory fragmentation, which can be evaluated by checking allocator_frag_ratio, allocator_frag_bytes.
+//! When used >> rss, it means part of Redis memory has been swapped off by the operating system: expect some significant latencies.
+//!
+//! Because Redis does not have control over how its allocations are mapped to memory pages, high used_memory_rss is often the result of a spike in memory usage.
+//!
+//! When Redis frees memory, the memory is given back to the allocator, and the allocator may or may not give the memory back to the system.
+//! There may be a discrepancy between the used_memory value and memory consumption as reported by the operating system.
+//! It may be due to the fact memory has been used and released by Redis, but not given back to the system. The used_memory_peak value is generally useful to check this point.
+//!
+//! Additional introspective information about the server's memory can be obtained by referring to the MEMORY STATS command and the MEMORY DOCTOR.
+//!
+//! Here is the meaning of all fields in the persistence section:
+//!
+//!     loading: Flag indicating if the load of a dump file is on-going
+//!     async_loading: Currently loading replication data-set asynchronously while serving old data.
+//!                    This means repl-diskless-load is enabled and set to swapdb. Added in Redis 7.0.
+//!     current_cow_peak: The peak size in bytes of copy-on-write memory while a child fork is running
+//!     current_cow_size: The size in bytes of copy-on-write memory while a child fork is running
+//!     current_cow_size_age: The age, in seconds, of the current_cow_size value.
+//!     current_fork_perc: The percentage of progress of the current fork process.
+//!                        For AOF and RDB forks it is the percentage of current_save_keys_processed out of current_save_keys_total.
+//!     current_save_keys_processed: Number of keys processed by the current save operation
+//!     current_save_keys_total: Number of keys at the beginning of the current save operation
+//!     rdb_changes_since_last_save: Number of changes since the last dump
+//!     rdb_bgsave_in_progress: Flag indicating a RDB save is on-going
+//!     rdb_last_save_time: Epoch-based timestamp of last successful RDB save
+//!     rdb_last_bgsave_status: Status of the last RDB save operation
+//!     rdb_last_bgsave_time_sec: Duration of the last RDB save operation in seconds
+//!     rdb_current_bgsave_time_sec: Duration of the on-going RDB save operation if any
+//!     rdb_last_cow_size: The size in bytes of copy-on-write memory during the last RDB save operation
+//!     rdb_last_load_keys_expired: Number of volatile keys deleted during the last RDB loading. Added in Redis 7.0.
+//!     rdb_last_load_keys_loaded: Number of keys loaded during the last RDB loading. Added in Redis 7.0.
+//!     aof_enabled: Flag indicating AOF logging is activated
+//!     aof_rewrite_in_progress: Flag indicating a AOF rewrite operation is on-going
+//!     aof_rewrite_scheduled: Flag indicating an AOF rewrite operation will be scheduled once the on-going RDB save is complete.
+//!     aof_last_rewrite_time_sec: Duration of the last AOF rewrite operation in seconds
+//!     aof_current_rewrite_time_sec: Duration of the on-going AOF rewrite operation if any
+//!     aof_last_bgrewrite_status: Status of the last AOF rewrite operation
+//!     aof_last_write_status: Status of the last write operation to the AOF
+//!     aof_last_cow_size: The size in bytes of copy-on-write memory during the last AOF rewrite operation
+//!     module_fork_in_progress: Flag indicating a module fork is on-going
+//!     module_fork_last_cow_size: The size in bytes of copy-on-write memory during the last module fork operation
+//!     aof_rewrites: Number of AOF rewrites performed since startup
+//!     rdb_saves: Number of RDB snapshots performed since startup
+//!
+//! rdb_changes_since_last_save refers to the number of operations that produced some kind of changes in the dataset
+//! since the last time either SAVE or BGSAVE was called.
+//!
+//! If AOF is activated, these additional fields will be added:
+//!
+//!     aof_current_size: AOF current file size
+//!     aof_base_size: AOF file size on latest startup or rewrite
+//!     aof_pending_rewrite: Flag indicating an AOF rewrite operation will be scheduled once the on-going RDB save is complete.
+//!     aof_buffer_length: Size of the AOF buffer
+//!     aof_rewrite_buffer_length: Size of the AOF rewrite buffer. Note this field was removed in Redis 7.0
+//!     aof_pending_bio_fsync: Number of fsync pending jobs in background I/O queue
+//!     aof_delayed_fsync: Delayed fsync counter
+//!
+//! If a load operation is on-going, these additional fields will be added:
+//!
+//!     loading_start_time: Epoch-based timestamp of the start of the load operation
+//!     loading_total_bytes: Total file size
+//!     loading_rdb_used_mem: The memory usage of the server that had generated the RDB file at the time of the file's creation
+//!     loading_loaded_bytes: Number of bytes already loaded
+//!     loading_loaded_perc: Same value expressed as a percentage
+//!     loading_eta_seconds: ETA in seconds for the load to be complete
+//!
+//! Here is the meaning of all fields in the stats section:
+//!
+//!     total_connections_received: Total number of connections accepted by the server
+//!     total_commands_processed: Total number of commands processed by the server
+//!     instantaneous_ops_per_sec: Number of commands processed per second
+//!     total_net_input_bytes: The total number of bytes read from the network
+//!     total_net_output_bytes: The total number of bytes written to the network
+//!     total_net_repl_input_bytes: The total number of bytes read from the network for replication purposes
+//!     total_net_repl_output_bytes: The total number of bytes written to the network for replication purposes
+//!     instantaneous_input_kbps: The network's read rate per second in KB/sec
+//!     instantaneous_output_kbps: The network's write rate per second in KB/sec
+//!     instantaneous_input_repl_kbps: The network's read rate per second in KB/sec for replication purposes
+//!     instantaneous_output_repl_kbps: The network's write rate per second in KB/sec for replication purposes
+//!     rejected_connections: Number of connections rejected because of maxclients limit
+//!     sync_full: The number of full resyncs with replicas
+//!     sync_partial_ok: The number of accepted partial resync requests
+//!     sync_partial_err: The number of denied partial resync requests
+//!     expired_subkeys: The number of hash field expiration events
+//!     expired_keys: Total number of key expiration events
+//!     expired_stale_perc: The percentage of keys probably expired
+//!     expired_time_cap_reached_count: The count of times that active expiry cycles have stopped early
+//!     expire_cycle_cpu_milliseconds: The cumulative amount of time spent on active expiry cycles
+//!     evicted_keys: Number of evicted keys due to maxmemory limit
+//!     evicted_clients: Number of evicted clients due to maxmemory-clients limit. Added in Redis 7.0.
+//!     evicted_scripts: Number of evicted EVAL scripts due to LRU policy, see EVAL for more details. Added in Redis 7.4.
+//!     total_eviction_exceeded_time: Total time used_memory was greater than maxmemory since server startup, in milliseconds
+//!     current_eviction_exceeded_time: The time passed since used_memory last rose above maxmemory, in milliseconds
+//!     keyspace_hits: Number of successful lookup of keys in the main dictionary
+//!     keyspace_misses: Number of failed lookup of keys in the main dictionary
+//!     pubsub_channels: Global number of pub/sub channels with client subscriptions
+//!     pubsub_patterns: Global number of pub/sub pattern with client subscriptions
+//!     pubsubshard_channels: Global number of pub/sub shard channels with client subscriptions. Added in Redis 7.0.3
+//!     latest_fork_usec: Duration of the latest fork operation in microseconds
+//!     total_forks: Total number of fork operations since the server start
+//!     migrate_cached_sockets: The number of sockets open for MIGRATE purposes
+//!     slave_expires_tracked_keys: The number of keys tracked for expiry purposes (applicable only to writable replicas)
+//!     active_defrag_hits: Number of value reallocations performed by active the defragmentation process
+//!     active_defrag_misses: Number of aborted value reallocations started by the active defragmentation process
+//!     active_defrag_key_hits: Number of keys that were actively defragmented
+//!     active_defrag_key_misses: Number of keys that were skipped by the active defragmentation process
+//!     total_active_defrag_time: Total time memory fragmentation was over the limit, in milliseconds
+//!     current_active_defrag_time: The time passed since memory fragmentation last was over the limit, in milliseconds
+//!     tracking_total_keys: Number of keys being tracked by the server
+//!     tracking_total_items: Number of items, that is the sum of clients number for each key, that are being tracked
+//!     tracking_total_prefixes: Number of tracked prefixes in server's prefix table (only applicable for broadcast mode)
+//!     unexpected_error_replies: Number of unexpected error replies, that are types of errors from an AOF load or replication
+//!     total_error_replies: Total number of issued error replies, that is the sum of rejected commands (errors prior command execution)
+//!                          and failed commands (errors within the command execution)
+//!     dump_payload_sanitizations: Total number of dump payload deep integrity validations (see sanitize-dump-payload config).
+//!     total_reads_processed: Total number of read events processed
+//!     total_writes_processed: Total number of write events processed
+//!     io_threaded_reads_processed: Number of read events processed by the main and I/O threads
+//!     io_threaded_writes_processed: Number of write events processed by the main and I/O threads
+//!     client_query_buffer_limit_disconnections: Total number of disconnections due to client reaching query buffer limit
+//!     client_output_buffer_limit_disconnections: Total number of disconnections due to client reaching output buffer limit
+//!     reply_buffer_shrinks: Total number of output buffer shrinks
+//!     reply_buffer_expands: Total number of output buffer expands
+//!     eventloop_cycles: Total number of eventloop cycles
+//!     eventloop_duration_sum: Total time spent in the eventloop in microseconds (including I/O and command processing)
+//!     eventloop_duration_cmd_sum: Total time spent on executing commands in microseconds
+//!     instantaneous_eventloop_cycles_per_sec: Number of eventloop cycles per second
+//!     instantaneous_eventloop_duration_usec: Average time spent in a single eventloop cycle in microseconds
+//!     acl_access_denied_auth: Number of authentication failures
+//!     acl_access_denied_cmd: Number of commands rejected because of access denied to the command
+//!     acl_access_denied_key: Number of commands rejected because of access denied to a key
+//!     acl_access_denied_channel: Number of commands rejected because of access denied to a channel
+//!
+//! Here is the meaning of all fields in the replication section:
+//!
+//!     role: Value is "master" if the instance is replica of no one, or "slave" if the instance is a replica of some master instance.
+//!           Note that a replica can be master of another replica (chained replication).
+//!     master_failover_state: The state of an ongoing failover, if any.
+//!     master_replid: The replication ID of the Redis server.
+//!     master_replid2: The secondary replication ID, used for PSYNC after a failover.
+//!     master_repl_offset: The server's current replication offset
+//!     second_repl_offset: The offset up to which replication IDs are accepted
+//!     repl_backlog_active: Flag indicating replication backlog is active
+//!     repl_backlog_size: Total size in bytes of the replication backlog buffer
+//!     repl_backlog_first_byte_offset: The master offset of the replication backlog buffer
+//!     repl_backlog_histlen: Size in bytes of the data in the replication backlog buffer
+//!
+//! If the instance is a replica, these additional fields are provided:
+//!
+//!     master_host: Host or IP address of the master
+//!     master_port: Master listening TCP port
+//!     master_link_status: Status of the link (up/down)
+//!     master_last_io_seconds_ago: Number of seconds since the last interaction with master
+//!     master_sync_in_progress: Indicate the master is syncing to the replica
+//!     slave_read_repl_offset: The read replication offset of the replica instance.
+//!     slave_repl_offset: The replication offset of the replica instance
+//!     slave_priority: The priority of the instance as a candidate for failover
+//!     slave_read_only: Flag indicating if the replica is read-only
+//!     replica_announced: Flag indicating if the replica is announced by Sentinel.
+//!
+//! If a SYNC operation is on-going, these additional fields are provided:
+//!
+//!     master_sync_total_bytes: Total number of bytes that need to be transferred.
+//!                              This may be 0 when the size is unknown (for example, when the repl-diskless-sync configuration directive is used)
+//!     master_sync_read_bytes: Number of bytes already transferred
+//!     master_sync_left_bytes: Number of bytes left before syncing is complete (may be negative when master_sync_total_bytes is 0)
+//!     master_sync_perc: The percentage master_sync_read_bytes from master_sync_total_bytes,
+//!                       or an approximation that uses loading_rdb_used_mem when master_sync_total_bytes is 0
+//!     master_sync_last_io_seconds_ago: Number of seconds since last transfer I/O during a SYNC operation
+//!
+//! If the link between master and replica is down, an additional field is provided:
+//!
+//!     master_link_down_since_seconds: Number of seconds since the link is down
+//!
+//! The following field is always provided:
+//!
+//!     connected_slaves: Number of connected replicas
+//!
+//! If the server is configured with the min-slaves-to-write (or starting with Redis 5 with the min-replicas-to-write) directive,
+//! an additional field is provided:
+//!
+//!     min_slaves_good_slaves: Number of replicas currently considered good
+//!
+//! For each replica, the following line is added:
+//!
+//!     slaveXXX: id, IP address, port, state, offset, lag
+//!
+//! Here is the meaning of all fields in the cpu section:
+//!
+//!     used_cpu_sys: System CPU consumed by the Redis server, which is the sum of system CPU consumed by all threads
+//!                   of the server process (main thread and background threads)
+//!     used_cpu_user: User CPU consumed by the Redis server, which is the sum of user CPU consumed by all threads
+//!                    of the server process (main thread and background threads)
+//!     used_cpu_sys_children: System CPU consumed by the background processes
+//!     used_cpu_user_children: User CPU consumed by the background processes
+//!     used_cpu_sys_main_thread: System CPU consumed by the Redis server main thread
+//!     used_cpu_user_main_thread: User CPU consumed by the Redis server main thread
+//!
+//! The commandstats section provides statistics based on the command type, including the number of calls that reached command execution (not rejected),
+//! the total CPU time consumed by these commands, the average CPU consumed per command execution,
+//! the number of rejected calls (errors prior command execution), and the number of failed calls (errors within the command execution).
+//!
+//! For each command type, the following line is added:
+//!
+//!     cmdstat_XXX: calls=XXX,usec=XXX,usec_per_call=XXX,rejected_calls=XXX,failed_calls=XXX
+//!
+//! The latencystats section provides latency percentile distribution statistics based on the command type.
+//!
+//! By default, the exported latency percentiles are the p50, p99, and p999. If you need to change the exported percentiles,
+//! use CONFIG SET latency-tracking-info-percentiles "50.0 99.0 99.9".
+//!
+//! This section requires the extended latency monitoring feature to be enabled (by default it's enabled).
+//! If you need to enable it, use CONFIG SET latency-tracking yes.
+//!
+//! For each command type, the following line is added:
+//!
+//!     latency_percentiles_usec_XXX: p<percentile 1>=<percentile 1 value>,p<percentile 2>=<percentile 2 value>,...
+//!
+//! The errorstats section enables keeping track of the different errors that occurred within Redis,
+//! based upon the reply error prefix ( The first word after the "-", up to the first space. Example: ERR ).
+//!
+//! For each error type, the following line is added:
+//!
+//!     errorstat_XXX: count=XXX
+//!
+//! If the server detects that this section was flooded with an excessive number of errors, it will be disabled,
+//! show a single ERRORSTATS_DISABLED error, and print the errors to the server log. This can be reset by CONFIG RESETSTAT.
+//!
+//! The sentinel section is only available in Redis Sentinel instances. It consists of the following fields:
+//!
+//!     sentinel_masters: Number of Redis masters monitored by this Sentinel instance
+//!     sentinel_tilt: A value of 1 means this sentinel is in TILT mode
+//!     sentinel_tilt_since_seconds: Duration in seconds of current TILT, or -1 if not TILTed. Added in Redis 7.0.0
+//!     sentinel_running_scripts: The number of scripts this Sentinel is currently executing
+//!     sentinel_scripts_queue_length: The length of the queue of user scripts that are pending execution
+//!     sentinel_simulate_failure_flags: Flags for the SENTINEL SIMULATE-FAILURE command
+//!
+//! The cluster section currently only contains a unique field:
+//!
+//!     cluster_enabled: Indicate Redis cluster is enabled
+//!
+//! The modules section contains additional information about loaded modules if the modules provide it.
+//! The field part of properties lines in this section is always prefixed with the module's name.
+//!
+//! The keyspace section provides statistics on the main dictionary of each database.
+//! The statistics are the number of keys, and the number of keys with an expiration.
+//!
+//! For each database, the following line is added:
+//!
+//!     dbXXX: keys=XXX,expires=XXX,avg_ttl=XXX,subexpiry=XXX
+//!
+//! The debug section contains experimental metrics, which might change or get removed in future versions.
+//! It won't be included when INFO or INFO ALL are called, and it is returned only when INFO DEBUG is used.
+//!
+//!     eventloop_duration_aof_sum: Total time spent on flushing AOF in eventloop in microseconds.
+//!     eventloop_duration_cron_sum: Total time consumption of cron in microseconds
+//!                                  (including serverCron and beforeSleep, but excluding IO and AOF flushing).
+//!     eventloop_duration_max: The maximal time spent in a single eventloop cycle in microseconds.
+//!     eventloop_cmd_per_cycle_max: The maximal number of commands processed in a single eventloop cycle.
+//!     allocator_allocated_lua: Total bytes allocated from the allocator specifically for Lua, including internal-fragmentation.
+//!     allocator_active_lua: Total bytes in the allocator active pages specifically for Lua, including external-fragmentation.
+//!     allocator_resident_lua: Total bytes resident (RSS) in the allocator specifically for Lua.
+//!                             This includes pages that can be released to the OS (by MEMORY PURGE, or just waiting).
+//!     allocator_frag_bytes_lua: Delta between allocator_active_lua and allocator_allocated_lua.
+//!
+//! A note about the word slave used in this man page: Starting with Redis 5,
+//! if not for backward compatibility, the Redis project no longer uses the word slave.
+//! Unfortunately in this command the word slave is part of the protocol,
+//! so we'll be able to remove such occurrences only when this API will be naturally deprecated.
+//!
+//! Modules generated sections: Starting with Redis 6, modules can inject their information into the INFO command.
+//! These are excluded by default even when the all argument is provided (it will include a list of loaded modules but not their generated info fields).
+//! To get these you must use either the modules argument or everything.
+//!
+//! RESP2/RESP3 Reply
+//!
+//! Bulk string reply: a map of info fields, one field per line in the form of <field>:<value> where the value can be a comma separated map like <key>=<val>.
+//! Also contains section header lines starting with # and blank lines.
+//!
+//! Lines can contain a section name (starting with a # character) or a property. All the properties are in the form of field:value terminated by \r\n.
+//!
+//! History
+//!     Starting with Redis version 7.0.0: Added support for taking multiple section arguments.
 //!
 QMap<QString, QVariant> QtRedisClient::redisInfo(const QString &section)
 {
@@ -675,35 +936,44 @@ QMap<QString, QVariant> QtRedisClient::redisInfo(const QString &section)
     if (!section.isEmpty())
         command += QString(" %1").arg(section.toLower());
 
-    QtRedisReply buffReply = this->redisExecCommand(command.trimmed());
+    const QtRedisReply buffReply = this->redisExecCommand(command.trimmed());
     if (buffReply.type() != QtRedisReply::ReplyType::String) {
         this->setLastError_safe("Invalid reply type!");
         return QMap<QString, QVariant>();
     }
-
-    QMap<QString, QVariant> buffInfo;
-    QStringList buffReplyList = buffReply.strValue().split("\n");
-    for (int i = 0; i < buffReplyList.size(); i++) {
-        buffReplyList[i] = buffReplyList[i].trimmed();
-        if (buffReplyList[i].isEmpty())
-            continue;
-
-        QStringList buffSplitValue = buffReplyList[i].split(":");
-        if (buffSplitValue.size() < 2)
-            continue;
-        buffInfo.insert(buffSplitValue[0], buffSplitValue[1]);
-    }
-    return buffInfo;
+    return QtRedisClient::redisInfoFromRawData(buffReply.rawValue());
 }
 
 //!
 //! \brief Текущее время сервера
 //! \return
 //!
-//! The TIME command returns the current server time as a two items lists:
-//! a Unix timestamp and the amount of microseconds already elapsed in the current second.
-//! 1) "1507794780"
-//! 2) "374706"
+//! Redis command: TIME
+//!
+//! Syntax
+//!
+//! TIME
+//!
+//! Available since:
+//!     2.6.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @fast
+//!
+//! The TIME command returns the current server time as a two items lists: a Unix timestamp and the amount of microseconds already elapsed in the current second.
+//! Basically the interface is very similar to the one of the gettimeofday system call.
+//!
+//! Examples
+//! redis> TIME
+//! 1) "1780314965"
+//! 2) "427145"
+//! redis> TIME
+//! 1) "1780314965"
+//! 2) "427457"
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: specifically, a two-element array consisting of the Unix timestamp in seconds and the microseconds' count.
 //!
 QtRedisReply QtRedisClient::redisTime()
 {
@@ -715,20 +985,36 @@ QtRedisReply QtRedisClient::redisTime()
 //! \param dbIndex Индекс БД
 //! \return
 //!
+//! Redis command: SELECT
+//!
+//! Syntax
+//!
+//! SELECT index
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @fast, @connection
+//!
 //! Select the Redis logical database having the specified zero-based numeric index. New connections always use the database 0.
 //!
-//! Redis different selectable databases are a form of namespacing: all the databases are anyway persisted together in the same RDB / AOF file.
-//! However different databases can have keys having the same name, and there are commands available like FLUSHDB, SWAPDB or RANDOMKEY that work on specific databases.
+//! Selectable Redis databases are a form of namespacing: all databases are still persisted in the same RDB / AOF file.
+//! However different databases can have keys with the same name, and commands like FLUSHDB, SWAPDB or RANDOMKEY work on specific databases.
 //!
-//! In practical terms, Redis databases should mainly used in order to, if needed, separate different keys belonging to the same application,
-//! and not in order to use a single Redis instance for multiple unrelated applications.
+//! In practical terms, Redis databases should be used to separate different keys belonging to the same application (if needed),
+//! and not to use a single Redis instance for multiple unrelated applications.
 //!
 //! When using Redis Cluster, the SELECT command cannot be used, since Redis Cluster only supports database zero.
-//! In the case of Redis Cluster, having multiple databases would be useless, and a worthless source of complexity, because anyway commands operating atomically
-//! on a single database would not be possible with the Redis Cluster design and goals.
+//! In the case of a Redis Cluster, having multiple databases would be useless and an unnecessary source of complexity.
+//! Commands operating atomically on a single database would not be possible with the Redis Cluster design and goals.
 //!
 //! Since the currently selected database is a property of the connection, clients should track the currently selected database and re-select it on reconnection.
 //! While there is no command in order to query the selected database in the current connection, the CLIENT LIST output shows, for each client, the currently selected database.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
 //!
 bool QtRedisClient::redisSelect(const int dbIndex)
 {
@@ -736,12 +1022,14 @@ bool QtRedisClient::redisSelect(const int dbIndex)
         this->setLastError_safe("Invalid db index!");
         return false;
     }
-    return this->replySimpleStringToBool(this->redisExecCommand(QString("SELECT %1").arg(dbIndex)));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(QString("SELECT %1").arg(dbIndex)));
 }
 
 //!
 //! \brief Индекс текущей БД
 //! \return
+//!
+//! Get the Redis logical database having the specified zero-based numeric index. New connections always use the database 0.
 //!
 int QtRedisClient::redisSelectedDb()
 {
@@ -761,9 +1049,27 @@ int QtRedisClient::redisSelectedDb()
 //! \brief Количество ключей в текущей БД
 //! \return
 //!
+//! Redis command: DBSIZE
+//!
+//! Syntax
+//!
+//! DBSIZE
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @keyspace, @read, @fast
+//!
+//! Return the number of keys in the currently-selected database.
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of keys in the currently-selected database.
+//!
 qlonglong QtRedisClient::redisDbSize()
 {
-    QtRedisReply buffReply = this->redisExecCommand(QString("DBSIZE"));
+    const QtRedisReply buffReply = this->redisExecCommand(QString("DBSIZE"));
     if (buffReply.type() != QtRedisReply::ReplyType::Integer) {
         this->setLastError_safe("Invalid reply type!");
         return -1;
@@ -776,19 +1082,49 @@ qlonglong QtRedisClient::redisDbSize()
 //! \param async
 //! \return
 //!
-//! Delete all the keys of all the existing databases, not just the currently selected one. This command never fails.
-//! The time-complexity for this operation is O(N), N being the number of keys in all existing databases.
+//! Redis command: FLUSHALL
 //!
-//! FLUSHALL ASYNC (Redis 4.0.0 or greater)
-//! Redis is now able to delete keys in the background in a different thread without blocking the server.
-//! An ASYNC option was added to FLUSHALL and FLUSHDB in order to let the entire dataset or a single database to be freed asynchronously.
+//! Syntax
+//!
+//! FLUSHALL [ASYNC | SYNC]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the total number of keys in all databases
+//! ACL categories:
+//!     @keyspace, @write, @slow, @dangerous
+//!
+//! Delete all the keys of all the existing databases, not just the currently selected one. This command never fails.
+//!
+//! By default, FLUSHALL will synchronously flush all the databases. Starting with Redis 6.2,
+//! setting the lazyfree-lazy-user-flush configuration directive to "yes" changes the default flush mode to asynchronous.
+//!
+//! It is possible to use one of the following modifiers to dictate the flushing mode explicitly:
+//!
+//!     ASYNC: flushes the databases asynchronously
+//!     SYNC: flushes the databases synchronously
+//!
+//! Note: an asynchronous FLUSHALL command only deletes keys that were present at the time the command was invoked.
+//!       Keys created during an asynchronous flush will be unaffected.
+//!
+//! Behavior change history
+//!     >= 6.2.0: Default flush behavior now configurable by the lazyfree-lazy-user-flush configuration directive.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
+//!
+//! History
+//!     Starting with Redis version 4.0.0: Added the ASYNC flushing mode modifier.
+//!     Starting with Redis version 6.2.0: Added the SYNC flushing mode modifier.
 //!
 bool QtRedisClient::redisFlushAll(const bool async)
 {
+    // TODO add flag SYNC!
     QString command("FLUSHALL");
     if (async)
         command += QString(" ASYNC");
-    return this->replySimpleStringToBool(this->redisExecCommand(command));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(command));
 }
 
 //!
@@ -796,18 +1132,49 @@ bool QtRedisClient::redisFlushAll(const bool async)
 //! \param async
 //! \return
 //!
-//! Delete all the keys of the currently selected DB. This command never fails.
-//! The time-complexity for this operation is O(N), N being the number of keys in the database.
+//! Redis command: FLUSHDB
 //!
-//! FLUSHDB ASYNC (Redis 4.0.0 or greater)
-//! See FLUSHALL for documentation.
+//! Syntax
+//!
+//! FLUSHDB [ASYNC | SYNC]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the number of keys in the selected database
+//! ACL categories:
+//!     @keyspace, @write, @slow, @dangerous
+//!
+//! Delete all the keys of the currently selected DB. This command never fails.
+//!
+//! By default, FLUSHDB will synchronously flush all keys from the database. Starting with Redis 6.2,
+//! setting the lazyfree-lazy-user-flush configuration directive to "yes" changes the default flush mode to asynchronous.
+//!
+//! It is possible to use one of the following modifiers to dictate the flushing mode explicitly:
+//!
+//!     ASYNC: flushes the database asynchronously
+//!     SYNC: flushes the database synchronously
+//!
+//! Note: an asynchronous FLUSHDB command only deletes keys that were present at the time the command was invoked.
+//!       Keys created during an asynchronous flush will be unaffected.
+//!
+//! Behavior change history
+//!     >= 6.2.0: Default flush behavior now configurable by the lazyfree-lazy-user-flush configuration directive.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
+//!
+//! History
+//!     Starting with Redis version 4.0.0: Added the ASYNC flushing mode modifier.
+//!     Starting with Redis version 6.2.0: Added the SYNC flushing mode modifier.
 //!
 bool QtRedisClient::redisFlushDb(const bool async)
 {
+    // TODO add flag SYNC!
     QString command("FLUSHDB");
     if (async)
         command += QString(" ASYNC");
-    return this->replySimpleStringToBool(this->redisExecCommand(command));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(command));
 }
 
 
@@ -817,25 +1184,76 @@ bool QtRedisClient::redisFlushDb(const bool async)
 //! \brief Синхронное сохранение данных
 //! \return
 //!
+//! Redis command: SAVE
+//!
+//! Syntax
+//!
+//! SAVE
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(N) where N is the total number of keys in all databases
+//! ACL categories:
+//!     @admin, @slow, @dangerous
+//!
 //! The SAVE commands performs a synchronous save of the dataset producing a point in time snapshot of all the data inside the Redis instance, in the form of an RDB file.
+//!
 //! You almost never want to call SAVE in production environments where it will block all the other clients. Instead usually BGSAVE is used.
 //! However in case of issues preventing Redis to create the background saving child (for instance errors in the fork(2) system call),
 //! the SAVE command can be a good last resort to perform the dump of the latest dataset.
 //!
+//! See the persistence documentation for detailed information.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
+//!
 bool QtRedisClient::redisSave()
 {
-    return this->replySimpleStringToBool(this->redisExecCommand(QString("SAVE")));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(QString("SAVE")));
 }
 
 //!
 //! \brief Сохранение данных в фоновом режиме
 //! \return
 //!
-//! Save the DB in background. The OK code is immediately returned. Redis forks, the parent continues to serve the clients, the child saves the DB on disk then exits.
+//! Redis command: BGSAVE
+//!
+//! Syntax
+//!
+//! BGSAVE [SCHEDULE]
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @admin, @slow, @dangerous
+//!
+//! Save the DB in background.
+//!
+//! Normally the OK code is immediately returned. Redis forks, the parent continues to serve the clients, the child saves the DB on disk then exits.
+//!
+//! An error is returned if there is already a background save running or if there is another non-background-save process running, specifically an in-progress AOF rewrite.
+//!
+//! If BGSAVE SCHEDULE is used, the command will immediately return OK when an AOF rewrite is in progress and schedule the background save to run at the next opportunity.
+//!
 //! A client may be able to check if the operation succeeded using the LASTSAVE command.
+//!
+//! See the persistence documentation for detailed information.
+//!
+//! RESP2/RESP3 Reply
+//! One of the following:
+//!
+//!     Simple string reply: Background saving started.
+//!     Simple string reply: Background saving scheduled.
+//!
+//! History
+//!     Starting with Redis version 3.2.2: Added the SCHEDULE option.
 //!
 QtRedisReply QtRedisClient::redisBgSave()
 {
+    // TODO add flag SCHEDULE
     return this->redisExecCommand(QString("BGSAVE"));
 }
 
@@ -843,12 +1261,28 @@ QtRedisReply QtRedisClient::redisBgSave()
 //! \brief Время последнего сохранения (utc)
 //! \return
 //!
+//! Redis command: LASTSAVE
+//!
+//! Syntax
+//!
+//! LASTSAVE
+//!
+//! Available since:
+//!     1.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @admin, @fast, @dangerous
+//!
 //! Return the UNIX TIME of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value,
-//! then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
+//! then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed. Redis considers the database saved successfully at startup.
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: UNIX TIME of the last DB save executed with success.
 //!
 uint QtRedisClient::redisLastSave()
 {
-    QtRedisReply buffReply = this->redisExecCommand(QString("LASTSAVE"));
+    const QtRedisReply buffReply = this->redisExecCommand(QString("LASTSAVE"));
     if (buffReply.type() != QtRedisReply::ReplyType::Integer) {
         this->setLastError_safe("Invalid reply type!");
         return 0;
@@ -864,18 +1298,57 @@ uint QtRedisClient::redisLastSave()
 //! \param param Параметр (или строка поиска)
 //! \return
 //!
-//! The CONFIG GET command is used to read the configuration parameters of a running Redis server. Not all the configuration parameters are supported in Redis 2.4,
-//! while Redis 2.6 can read the whole configuration of a server using this command.
+//! Redis command: CONFIG GET
+//!
+//! Syntax
+//!
+//! CONFIG GET parameter [parameter ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) when N is the number of configuration parameters provided
+//! ACL categories:
+//!     @admin, @slow, @dangerous
+//!
+//! The CONFIG GET command is used to read the configuration parameters of a running Redis server.
+//! Not all the configuration parameters are supported in Redis 2.4, while Redis 2.6 can read the whole configuration of a server using this command.
+//!
 //! The symmetric command used to alter the configuration at run time is CONFIG SET.
-//! CONFIG GET takes a single argument, which is a glob-style pattern. All the configuration parameters matching this parameter are reported as a list of key-value pairs.
+//!
+//! CONFIG GET takes multiple arguments, which are glob-style patterns. Any configuration parameter matching any of the patterns are reported as a list of key-value pairs.
+//!
 //! Example:
-//! redis> config get *max-*-entries*
-//! 1) "hash-max-zipmap-entries"
-//! 2) "512"
-//! 3) "list-max-ziplist-entries"
-//! 4) "512"
-//! 5) "set-max-intset-entries"
-//! 6) "512"
+//!
+//! redis> config get *max-*-entries* maxmemory
+//!  1) "maxmemory"
+//!  2) "0"
+//!  3) "hash-max-listpack-entries"
+//!  4) "512"
+//!  5) "hash-max-ziplist-entries"
+//!  6) "512"
+//!  7) "set-max-intset-entries"
+//!  8) "512"
+//!  9) "zset-max-listpack-entries"
+//! 10) "128"
+//! 11) "zset-max-ziplist-entries"
+//! 12) "128"
+//!
+//! You can obtain a list of all the supported configuration parameters by typing CONFIG GET * in an open redis-cli prompt.
+//!
+//! All the supported parameters have the same meaning of the equivalent configuration parameter used in the redis.conf file:
+//!
+//! Note that you should look at the redis.conf file relevant to the version you're working with as configuration options might change between versions.
+//! The link above is to the latest development version.
+//!
+//! RESP2 Reply
+//! Array reply: a list of configuration parameters matching the provided arguments.
+//!
+//! RESP3 Reply
+//! Map reply: a list of configuration parameters matching the provided arguments.
+//!
+//! History
+//!     Starting with Redis version 7.0.0: Added the ability to pass multiple pattern parameters in one call
 //!
 QtRedisReply QtRedisClient::redisConfigGet(const QString &param)
 {
@@ -892,31 +1365,46 @@ QtRedisReply QtRedisClient::redisConfigGet(const QString &param)
 //! \param value Значение
 //! \return
 //!
+//! Redis command: CONFIG SET
+//!
+//! Syntax
+//!
+//! CONFIG SET parameter value [parameter value ...]
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(N) when N is the number of configuration parameters provided
+//! ACL categories:
+//!     @admin, @slow, @dangerous
+//!
 //! The CONFIG SET command is used in order to reconfigure the server at run time without the need to restart Redis.
 //! You can change both trivial parameters or switch from one to another persistence option using this command.
 //!
-//! The list of configuration parameters supported by CONFIG SET can be obtained issuing a CONFIG GET * command, that is the symmetrical command used to obtain information about the
-//! configuration of a running Redis instance.
+//! The list of configuration parameters supported by CONFIG SET can be obtained issuing a CONFIG GET * command,
+//! that is the symmetrical command used to obtain information about the configuration of a running Redis instance.
 //!
 //! All the configuration parameters set using CONFIG SET are immediately loaded by Redis and will take effect starting with the next command executed.
-//! All the supported parameters have the same meaning of the equivalent configuration parameter used in the redis.conf file, with the following important differences:
-//! - In options where bytes or other quantities are specified, it is not possible to use the redis.conf abbreviated form (10k, 2gb ... and so forth),
-//!   everything should be specified as a well-formed 64-bit integer, in the base unit of the configuration directive.
-//!   However since Redis version 3.0 or greater, it is possible to use CONFIG SET with memory units for maxmemory, client output buffers, and replication backlog size.
-//! - The save parameter is a single string of space-separated integers. Every pair of integers represent a seconds/modifications threshold.
 //!
-//! For instance what in redis.conf looks like:
-//! save 900 1
-//! save 300 10
+//! All the supported parameters have the same meaning of the equivalent configuration parameter used in the redis.conf file.
 //!
-//! that means, save after 900 seconds if there is at least 1 change to the dataset, and after 300 seconds if there are at least 10 changes to the dataset,
-//! should be set using CONFIG SET SAVE "900 1 300 10".
+//! Note that you should look at the redis.conf file relevant to the version you're working with as configuration options might change between versions.
+//! The link above is to the latest development version.
 //!
 //! It is possible to switch persistence from RDB snapshotting to append-only file (and the other way around) using the CONFIG SET command.
-//! For more information about how to do that please check the persistence page.
-//! In general what you should know is that setting the appendonly parameter to yes will start a background process to save the initial append-only file (obtained from the in memory data set),
-//! and will append all the subsequent commands on the append-only file, thus obtaining exactly the same effect of a Redis server that started with AOF turned on since the start.
+//! See the persistence page for more information.
+//!
+//! In general what you should know is that setting the appendonly parameter to yes will start a background process to save the initial append-only file
+//! (obtained from the in memory data set), and will append all the subsequent commands on the append-only file,
+//! thus obtaining exactly the same effect of a Redis server that started with AOF turned on since the start.
+//!
 //! You can have both the AOF enabled with RDB snapshotting if you want, the two options are not mutually exclusive.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK when the configuration was set properly. Otherwise an error is returned.
+//!
+//! History
+//!     Starting with Redis version 7.0.0: Added the ability to set multiple parameters in one call.
 //!
 bool QtRedisClient::redisConfigSet(const QString &param, const QString &value)
 {
@@ -926,105 +1414,202 @@ bool QtRedisClient::redisConfigSet(const QString &param, const QString &value)
     }
     QStringList argv;
     argv << "CONFIG SET" << param << value;
-    return this->replySimpleStringToBool(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(argv));
 }
 
 //!
 //! \brief Перезаписать redis.conf
 //! \return
 //!
-//! The CONFIG REWRITE command rewrites the redis.conf file the server was started with, applying the minimal changes needed to make it reflect the configuration currently used by the server,
+//! Redis command: CONFIG REWRITE
+//!
+//! Syntax
+//!
+//! CONFIG REWRITE
+//!
+//! Available since:
+//!     2.8.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @admin, @slow, @dangerous
+//!
+//! The CONFIG REWRITE command rewrites the redis.conf file the server was started with,
+//! applying the minimal changes needed to make it reflect the configuration currently used by the server,
 //! which may be different compared to the original one because of the use of the CONFIG SET command.
 //!
 //! The rewrite is performed in a very conservative way:
-//! - Comments and the overall structure of the original redis.conf are preserved as much as possible.
-//! - If an option already exists in the old redis.conf file, it will be rewritten at the same position (line number).
-//! - If an option was not already present, but it is set to its default value, it is not added by the rewrite process.
-//! - If an option was not already present, but it is set to a non-default value, it is appended at the end of the file.
-//! - Non used lines are blanked. For instance if you used to have multiple save directives, but the current configuration has fewer or none as you disabled RDB persistence,
-//!   all the lines will be blanked.
+//!
+//!     Comments and the overall structure of the original redis.conf are preserved as much as possible.
+//!     If an option already exists in the old redis.conf file, it will be rewritten at the same position (line number).
+//!     If an option was not already present, but it is set to its default value, it is not added by the rewrite process.
+//!     If an option was not already present, but it is set to a non-default value, it is appended at the end of the file.
+//!     Non used lines are blanked. For instance if you used to have multiple save directives,
+//!     but the current configuration has fewer or none as you disabled RDB persistence, all the lines will be blanked.
 //!
 //! CONFIG REWRITE is also able to rewrite the configuration file from scratch if the original one no longer exists for some reason.
 //! However if the server was started without a configuration file at all, the CONFIG REWRITE will just return an error.
 //!
+//! Atomic rewrite process
+//!
+//! In order to make sure the redis.conf file is always consistent, that is, on errors or crashes you always end with the old file,
+//! or the new one, the rewrite is performed with a single write(2) call that has enough content to be at least as big as the old file.
+//! Sometimes additional padding in the form of comments is added in order to make sure the resulting file is big enough,
+//! and later the file gets truncated to remove the padding at the end.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK when the configuration was rewritten properly. Otherwise an error is returned.
+//!
 bool QtRedisClient::redisConfigReWrite()
 {
-    return this->replySimpleStringToBool(this->redisExecCommand(QString("CONFIG REWRITE")));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(QString("CONFIG REWRITE")));
 }
 
 //!
 //! \brief Сбросить статистику сервера
 //! \return
 //!
-//! Resets the statistics reported by Redis using the INFO command.
-//! These are the counters that are reset:
-//! - Keyspace hits
-//! - Keyspace misses
-//! - Number of commands processed
-//! - Number of connections received
-//! - Number of expired keys
-//! - Number of rejected connections
-//! - Latest fork(2) time
-//! - The aof_delayed_fsync counter
+//! Redis command: CONFIG RESETSTAT
+//!
+//! Syntax
+//!
+//! CONFIG RESETSTAT
+//!
+//! Available since:
+//!     2.0.0
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @admin, @slow, @dangerous
+//!
+//! Resets the statistics reported by Redis using the INFO and LATENCY HISTOGRAM commands.
+//!
+//! The following is a non-exhaustive list of values that are reset:
+//!
+//!     Keyspace hits and misses
+//!     Number of expired keys
+//!     Command and error statistics
+//!     Connections received, rejected and evicted
+//!     Persistence statistics
+//!     Active defragmentation statistics
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK.
 //!
 bool QtRedisClient::redisConfigResetStat()
 {
-    return this->replySimpleStringToBool(this->redisExecCommand(QString("CONFIG RESETSTAT")));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(QString("CONFIG RESETSTAT")));
 }
 
 
 // -- CLIENT-methods --
 
 //!
-//! \brief Список подключенный к серверу клиентов
+//! \brief Список подключенных к серверу клиентов
 //! \return
 //!
-//! The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
-//! Here is the meaning of the fields:
-//! - id: an unique 64-bit client ID (introduced in Redis 2.8.12).
-//! - addr: address/port of the client
-//! - fd: file descriptor corresponding to the socket
-//! - age: total duration of the connection in seconds
-//! - idle: idle time of the connection in seconds
-//! - flags: client flags (see below)
-//! - db: current database ID
-//! - sub: number of channel subscriptions
-//! - psub: number of pattern matching subscriptions
-//! - multi: number of commands in a MULTI/EXEC context
-//! - qbuf: query buffer length (0 means no query pending)
-//! - qbuf-free: free space of the query buffer (0 means the buffer is full)
-//! - obl: output buffer length
-//! - oll: output list length (replies are queued in this list when the buffer is full)
-//! - omem: output buffer memory usage
-//! - events: file descriptor events (see below)
-//! - cmd: last command played
+//! Redis command: CLIENT LIST
 //!
-QVector<QtRedisClientInfo> QtRedisClient::redisClientList()
+//! Syntax
+//!
+//! CLIENT LIST [TYPE <NORMAL | MASTER | REPLICA | PUBSUB>]
+//!   [ID client-id [client-id ...]]
+//!
+//! Available since:
+//!     2.4.0
+//! Time complexity:
+//!     O(N) where N is the number of client connections
+//! ACL categories:
+//!     @admin, @slow, @dangerous, @connection
+//!
+//! The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
+//!
+//! You can use one of the optional subcommands to filter the list. The TYPE type subcommand filters the list by clients' type,
+//! where type is one of normal, master, replica, and pubsub. Note that clients blocked by the MONITOR command belong to the normal class.
+//!
+//! The ID filter only returns entries for clients with IDs matching the client-id arguments.
+//!
+//! Here is the meaning of the fields:
+//!
+//!     id: a unique 64-bit client ID
+//!     addr: address/port of the client
+//!     laddr: address/port of local address client connected to (bind address)
+//!     fd: file descriptor corresponding to the socket
+//!     name: the name set by the client with CLIENT SETNAME
+//!     age: total duration of the connection in seconds
+//!     idle: idle time of the connection in seconds
+//!     flags: client flags (see below)
+//!     db: current database ID
+//!     sub: number of channel subscriptions
+//!     psub: number of pattern matching subscriptions
+//!     ssub: number of shard channel subscriptions. Added in Redis 7.0.3
+//!     multi: number of commands in a MULTI/EXEC context
+//!     watch: number of keys this client is currently watching. Added in Redis 7.4
+//!     qbuf: query buffer length (0 means no query pending)
+//!     qbuf-free: free space of the query buffer (0 means the buffer is full)
+//!     argv-mem: incomplete arguments for the next command (already extracted from query buffer)
+//!     multi-mem: memory is used up by buffered multi commands. Added in Redis 7.0
+//!     obl: output buffer length
+//!     oll: output list length (replies are queued in this list when the buffer is full)
+//!     omem: output buffer memory usage
+//!     tot-mem: total memory consumed by this client in its various buffers
+//!     events: file descriptor events (see below)
+//!     cmd: last command played
+//!     user: the authenticated username of the client
+//!     redir: client id of current client tracking redirection
+//!     resp: client RESP protocol version. Added in Redis 7.0
+//!
+//! The client flags can be a combination of:
+//!
+//! A: connection to be closed ASAP
+//! b: the client is waiting in a blocking operation
+//! c: connection to be closed after writing entire reply
+//! d: a watched keys has been modified - EXEC will fail
+//! e: the client is excluded from the client eviction mechanism
+//! i: the client is waiting for a VM I/O (deprecated)
+//! M: the client is a master
+//! N: no specific flag set
+//! O: the client is a client in MONITOR mode
+//! P: the client is a Pub/Sub subscriber
+//! r: the client is in readonly mode against a cluster node
+//! S: the client is a replica node connection to this instance
+//! u: the client is unblocked
+//! U: the client is connected via a Unix domain socket
+//! x: the client is in a MULTI/EXEC context
+//! t: the client enabled keys tracking in order to perform client side caching
+//! T: the client will not touch the LRU/LFU of the keys it accesses
+//! R: the client tracking target client is invalid
+//! B: the client enabled broadcast tracking mode
+//!
+//! The file descriptor events can be:
+//!
+//! r: the client socket is readable (event loop)
+//! w: the client socket is writable (event loop)
+//!
+//! Notes
+//!
+//! New fields are regularly added for debugging purpose. Some could be removed in the future.
+//! A version safe Redis client using this command should parse the output accordingly (i.e. handling gracefully missing fields, skipping unknown fields).
+//!
+//! RESP2/RESP3 Reply
+//! Bulk string reply: information and statistics about client connections.
+//!
+//! History
+//!     Starting with Redis version 2.8.12: Added unique client id field.
+//!     Starting with Redis version 5.0.0: Added optional TYPE filter.
+//!     Starting with Redis version 6.0.0: Added user field.
+//!     Starting with Redis version 6.2.0: Added argv-mem, tot-mem, laddr and redir fields and the optional ID filter.
+//!     Starting with Redis version 7.0.0: Added resp, multi-mem, rbs and rbp fields.
+//!     Starting with Redis version 7.0.3: Added ssub field.
+//!
+QList<QtRedisClientInfo> QtRedisClient::redisClientList()
 {
-    QtRedisReply buffReply = this->redisExecCommand(QString("CLIENT LIST"));
+    const QtRedisReply buffReply = this->redisExecCommand(QString("CLIENT LIST"));
     if (buffReply.type() != QtRedisReply::ReplyType::String) {
         this->setLastError_safe("Invalid reply type!");
-        return QVector<QtRedisClientInfo>();
+        return QList<QtRedisClientInfo>();
     }
-
-    QVector<QtRedisClientInfo> buffList;
-    QStringList buffReplyList = buffReply.strValue().split("\n");
-    for (int i = 0; i < buffReplyList.size(); i++) {
-        buffReplyList[i] = buffReplyList[i].trimmed();
-        if (buffReplyList[i].isEmpty())
-            continue;
-
-        QMap <QString, QVariant> buffInfo;
-        QStringList buffSplitValue = buffReplyList[i].split(" ");
-        for (const QString &str : buffSplitValue) {
-            QStringList strSplit = str.split("=");
-            if (strSplit.size() != 2)
-                continue;
-            buffInfo.insert(strSplit[0], strSplit[1]);
-        }
-        buffList.append(QtRedisClientInfo(buffInfo));
-    }
-    return buffList;
+    return QtRedisClientInfo::fromRawData(buffReply.rawValue_ref());
 }
 
 //!
@@ -1032,16 +1617,38 @@ QVector<QtRedisClientInfo> QtRedisClient::redisClientList()
 //! \param connectionName Имя
 //! \return
 //!
+//! Redis command: CLIENT SETNAME
+//!
+//! Syntax
+//!
+//! CLIENT SETNAME connection-name
+//!
+//! Available since:
+//!     2.6.9
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @slow, @connection
+//!
 //! The CLIENT SETNAME command assigns a name to the current connection.
+//!
 //! The assigned name is displayed in the output of CLIENT LIST so that it is possible to identify the client that performed a given connection.
+//!
 //! For instance when Redis is used in order to implement a queue, producers and consumers of messages may want to set the name of the connection according to their role.
+//!
 //! There is no limit to the length of the name that can be assigned if not the usual limits of the Redis string type (512 MB).
 //! However it is not possible to use spaces in the connection name as this would violate the format of the CLIENT LIST reply.
 //!
 //! It is possible to entirely remove the connection name setting it to the empty string, that is not a valid connection name since it serves to this specific purpose.
+//!
 //! The connection name can be inspected using CLIENT GETNAME.
+//!
 //! Every new connection starts without an assigned name.
+//!
 //! Tip: setting names to connections is a good way to debug connection leaks due to bugs in the application using Redis.
+//!
+//! RESP2/RESP3 Reply
+//! Simple string reply: OK if the connection name was successfully set.
 //!
 bool QtRedisClient::redisClientSetName(const QString &connectionName)
 {
@@ -1049,19 +1656,44 @@ bool QtRedisClient::redisClientSetName(const QString &connectionName)
         this->setLastError_safe("Invalid connection name!");
         return false;
     }
-    return this->replySimpleStringToBool(this->redisExecCommand(QString("CLIENT SETNAME %1").arg(connectionName)));
+    return QtRedisReply::replySimpleStringToBool(this->redisExecCommand(QString("CLIENT SETNAME %1").arg(connectionName)));
 }
 
 //!
 //! \brief Имя для текущего соединения (если задано)
 //! \return
 //!
+//! Redis command: CLIENT GETNAME
+//!
+//! Syntax
+//!
+//! CLIENT GETNAME
+//!
+//! Available since:
+//!     2.6.9
+//! Time complexity:
+//!     O(1)
+//! ACL categories:
+//!     @slow, @connection
+//!
 //! The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME.
 //! Since every new connection starts without an associated name, if no name was assigned a null bulk reply is returned.
 //!
+//! RESP2 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the connection name of the current connection.
+//!     Nil reply: the connection name was not set.
+//!
+//! RESP3 Reply
+//!
+//! One of the following:
+//!     Bulk string reply: the connection name of the current connection.
+//!     Null reply: the connection name was not set.
+//!
 QString QtRedisClient::redisClientGetName()
 {
-    return this->replyToString(this->redisExecCommand(QString("CLIENT GETNAME")));
+    return QtRedisReply::replyToString(this->redisExecCommand(QString("CLIENT GETNAME")));
 }
 
 //!
@@ -1069,6 +1701,77 @@ QString QtRedisClient::redisClientGetName()
 //! \param ip IP-адрес
 //! \param port Порт
 //! \return
+//!
+//! Redis command: CLIENT KILL
+//!
+//! Syntax
+//!
+//! CLIENT KILL <ip:port | <[ID client-id] | [TYPE <NORMAL | MASTER |
+//!   SLAVE | REPLICA | PUBSUB>] | [USER username] | [ADDR ip:port] |
+//!   [LADDR ip:port] | [SKIPME <YES | NO>] | [MAXAGE maxage]
+//!   [[ID client-id] | [TYPE <NORMAL | MASTER | SLAVE | REPLICA |
+//!   PUBSUB>] | [USER username] | [ADDR ip:port] | [LADDR ip:port] |
+//!   [SKIPME <YES | NO>] | [MAXAGE maxage] ...]>>
+//!
+//! Available since:
+//!     2.4.0
+//! Time complexity:
+//!     O(N) where N is the number of client connections
+//! ACL categories:
+//!     @admin, @slow, @dangerous, @connection
+//!
+//! The CLIENT KILL command closes a given client connection. This command support two formats, the old format:
+//!
+//! CLIENT KILL addr:port
+//!
+//! The ip:port should match a line returned by the CLIENT LIST command (addr field).
+//!
+//! The new format:
+//!
+//! CLIENT KILL <filter> <value> ... ... <filter> <value>
+//!
+//! With the new form it is possible to kill clients by different attributes instead of killing just by address. The following filters are available:
+//!
+//!     CLIENT KILL ADDR ip:port. This is exactly the same as the old three-arguments behavior.
+//!     CLIENT KILL LADDR ip:port. Kill all clients connected to specified local (bind) address.
+//!     CLIENT KILL ID client-id. Allows to kill a client by its unique ID field. Client ID's are retrieved using the CLIENT LIST command.
+//!     CLIENT KILL TYPE type, where type is one of normal, master, replica and pubsub. This closes the connections of all the clients in the specified class.
+//!                            Note that clients blocked into the MONITOR command are considered to belong to the normal class.
+//!     CLIENT KILL USER username. Closes all the connections that are authenticated with the specified ACL username,
+//!                                however it returns an error if the username does not map to an existing ACL user.
+//!     CLIENT KILL SKIPME yes/no. By default this option is set to yes, that is, the client calling the command will not get killed,
+//!                                however setting this option to no will have the effect of also killing the client calling the command.
+//!     CLIENT KILL MAXAGE maxage. Closes all the connections that are older than the specified age, in seconds. Added in Redis v7.4.
+//!
+//! It is possible to provide multiple filters at the same time. The command will handle multiple filters via logical AND. For example:
+//!
+//! CLIENT KILL addr 127.0.0.1:12345 type pubsub
+//!
+//! is valid and will kill only a pubsub client with the specified address. This format containing multiple filters is rarely useful currently.
+//!
+//! When the new form is used the command no longer returns OK or an error, but instead the number of killed clients, that may be zero.
+//!
+//! CLIENT KILL and Redis Sentinel
+//!     Recent versions of Redis Sentinel (Redis 2.8.12 or greater) use CLIENT KILL in order to kill clients when an instance is reconfigur ed,
+//!     in order to force clients to perform the handshake with one Sentinel again and update its configuration.
+//!
+//! Notes
+//!     Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.
+//!     From the client point of view, the connection can never be closed in the middle of the execution of a command. However,
+//!     the client will notice the connection has been closed only when the next command is sent (and results in network error).
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Simple string reply: OK when called in 3 argument format and the connection has been closed.
+//!     Integer reply: when called in filter/value format, the number of clients killed.
+//!
+//! History
+//!     Starting with Redis version 2.8.12: Added new filter format.
+//!     Starting with Redis version 2.8.12: ID option.
+//!     Starting with Redis version 3.2.0: Added master type in for TYPE option.
+//!     Starting with Redis version 5.0.0: Replaced slave TYPE with replica. slave still supported for backward compatibility.
+//!     Starting with Redis version 6.2.0: LADDR option.
 //!
 bool QtRedisClient::redisClientKill(const QString &ip, const uint port)
 {
@@ -1082,7 +1785,7 @@ bool QtRedisClient::redisClientKill(const QString &ip, const uint port)
     }
     QStringList argv;
     argv << "CLIENT" << "KILL" << "ADDR" << QString("%1:%2").arg(ip).arg(port);
-    return this->replyIntToBool(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyIntToBool(this->redisExecCommand(argv));
 }
 
 //!
@@ -1090,2784 +1793,84 @@ bool QtRedisClient::redisClientKill(const QString &ip, const uint port)
 //! \param id ID клиента
 //! \return
 //!
+//! Redis command: CLIENT KILL
+//!
+//! Syntax
+//!
+//! CLIENT KILL <ip:port | <[ID client-id] | [TYPE <NORMAL | MASTER |
+//!   SLAVE | REPLICA | PUBSUB>] | [USER username] | [ADDR ip:port] |
+//!   [LADDR ip:port] | [SKIPME <YES | NO>] | [MAXAGE maxage]
+//!   [[ID client-id] | [TYPE <NORMAL | MASTER | SLAVE | REPLICA |
+//!   PUBSUB>] | [USER username] | [ADDR ip:port] | [LADDR ip:port] |
+//!   [SKIPME <YES | NO>] | [MAXAGE maxage] ...]>>
+//!
+//! Available since:
+//!     2.4.0
+//! Time complexity:
+//!     O(N) where N is the number of client connections
+//! ACL categories:
+//!     @admin, @slow, @dangerous, @connection
+//!
+//! The CLIENT KILL command closes a given client connection. This command support two formats, the old format:
+//!
+//! CLIENT KILL addr:port
+//!
+//! The ip:port should match a line returned by the CLIENT LIST command (addr field).
+//!
+//! The new format:
+//!
+//! CLIENT KILL <filter> <value> ... ... <filter> <value>
+//!
+//! With the new form it is possible to kill clients by different attributes instead of killing just by address. The following filters are available:
+//!
+//!     CLIENT KILL ADDR ip:port. This is exactly the same as the old three-arguments behavior.
+//!     CLIENT KILL LADDR ip:port. Kill all clients connected to specified local (bind) address.
+//!     CLIENT KILL ID client-id. Allows to kill a client by its unique ID field. Client ID's are retrieved using the CLIENT LIST command.
+//!     CLIENT KILL TYPE type, where type is one of normal, master, replica and pubsub. This closes the connections of all the clients in the specified class.
+//!                            Note that clients blocked into the MONITOR command are considered to belong to the normal class.
+//!     CLIENT KILL USER username. Closes all the connections that are authenticated with the specified ACL username,
+//!                                however it returns an error if the username does not map to an existing ACL user.
+//!     CLIENT KILL SKIPME yes/no. By default this option is set to yes, that is, the client calling the command will not get killed,
+//!                                however setting this option to no will have the effect of also killing the client calling the command.
+//!     CLIENT KILL MAXAGE maxage. Closes all the connections that are older than the specified age, in seconds. Added in Redis v7.4.
+//!
+//! It is possible to provide multiple filters at the same time. The command will handle multiple filters via logical AND. For example:
+//!
+//! CLIENT KILL addr 127.0.0.1:12345 type pubsub
+//!
+//! is valid and will kill only a pubsub client with the specified address. This format containing multiple filters is rarely useful currently.
+//!
+//! When the new form is used the command no longer returns OK or an error, but instead the number of killed clients, that may be zero.
+//!
+//! CLIENT KILL and Redis Sentinel
+//!     Recent versions of Redis Sentinel (Redis 2.8.12 or greater) use CLIENT KILL in order to kill clients when an instance is reconfigur ed,
+//!     in order to force clients to perform the handshake with one Sentinel again and update its configuration.
+//!
+//! Notes
+//!     Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.
+//!     From the client point of view, the connection can never be closed in the middle of the execution of a command. However,
+//!     the client will notice the connection has been closed only when the next command is sent (and results in network error).
+//!
+//! RESP2/RESP3 Reply
+//!
+//! One of the following:
+//!     Simple string reply: OK when called in 3 argument format and the connection has been closed.
+//!     Integer reply: when called in filter/value format, the number of clients killed.
+//!
+//! History
+//!     Starting with Redis version 2.8.12: Added new filter format.
+//!     Starting with Redis version 2.8.12: ID option.
+//!     Starting with Redis version 3.2.0: Added master type in for TYPE option.
+//!     Starting with Redis version 5.0.0: Replaced slave TYPE with replica. slave still supported for backward compatibility.
+//!     Starting with Redis version 6.2.0: LADDR option.
+//!
 bool QtRedisClient::redisClientKill(const QString &id)
 {
     if (id.isEmpty()) {
         this->setLastError_safe("Invalid ID!");
         return false;
     }
-    return this->replyIntToBool(this->redisExecCommand(QString("CLIENT KILL ID %1").arg(id)));
-}
-
-
-// ------------------------------------------------------------------------
-// -- KEY-VALUE COMMANDS --------------------------------------------------
-// ------------------------------------------------------------------------
-
-//!
-//! \brief Список ключей в БД
-//! \param arg Условие поиска
-//! \return
-//!
-QStringList QtRedisClient::redisKeys(const QString &arg)
-{
-    return this->replyToArray(this->redisExecCommand(QString("KEYS %1").arg(arg)));
-}
-
-//!
-//! \brief Случайный ключ из текущей БД
-//! \return
-//!
-QString QtRedisClient::redisRandomKey()
-{
-    return this->replyToString(this->redisExecCommand(QString("RANDOMKEY")));
-}
-
-//!
-//! \brief Проверка наличия ключей в БД
-//! \param keyList Список ключей
-//! \return
-//!
-//! Since Redis 3.0.3 it is possible to specify multiple keys instead of a single one. In such a case, it returns the total number of keys existing.
-//! Note that returning 1 or 0 for a single key is just a special case of the variadic usage, so the command is completely backward compatible.
-//!
-//! The user should be aware that if the same existing key is mentioned in the arguments multiple times, it will be counted multiple times.
-//! So if somekey exists, EXISTS somekey somekey will return 2.
-//!
-//! Integer reply, specifically:
-//! - 1 if the key exists.
-//! - 0 if the key does not exist.
-//!
-//! Since Redis 3.0.3 the command accepts a variable number of keys and the return value is generalized:
-//! - The number of keys existing among the ones specified as arguments. Keys mentioned multiple times and existing are counted multiple times.
-//!
-qlonglong QtRedisClient::redisExists(const QStringList &keyList)
-{
-    if (keyList.isEmpty()) {
-        this->setLastError_safe("Invalid key list (Empty)!");
-        return -1;
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return -1;
-        }
-    }
-    return this->replyToLong(this->redisExecCommand(QString("EXISTS %1").arg(keyList.join(" ")).trimmed()));
-}
-
-//!
-//! \brief Получить значение по ключу
-//! \param key Ключ
-//! \return
-//!
-//! Get the value of key. If the key does not exist the special value nil is returned.
-//! An error is returned if the value stored at key is not a string, because GET only handles string values.
-//!
-QtRedisReply QtRedisClient::redisGet(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    return this->redisExecCommand(QString("GET %1").arg(key));
-}
-
-//!
-//! \brief Получить подстроку значения в указанных диапазонах
-//! \param key Ключ
-//! \param startPos Начало
-//! \param endPos Конец
-//! \return
-//!
-//! Warning: this command was renamed to GETRANGE, it is called SUBSTR in Redis versions <= 2.0.
-//! Returns the substring of the string value stored at key, determined by the offsets start and end (both are inclusive).
-//! Negative offsets can be used in order to provide an offset starting from the end of the string. So -1 means the last character, -2 the penultimate and so forth.
-//! The function handles out of range requests by limiting the resulting range to the actual length of the string.
-//! Examples:
-//! redis>  SET mykey "This is a string"
-//! "OK"
-//! redis>  GETRANGE mykey 0 3
-//! "This"
-//! redis>  GETRANGE mykey -3 -1
-//! "ing"
-//! redis>  GETRANGE mykey 0 -1
-//! "This is a string"
-//! redis>  GETRANGE mykey 10 100
-//! "string"
-//! redis>
-//!
-QString QtRedisClient::redisGetRange(const QString &key, const int startPos, const int endPos)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QString();
-    }
-    return this->replyToString(this->redisExecCommand(QString("GETRANGE %1 %2 %3").arg(key).arg(startPos).arg(endPos)));
-}
-
-//!
-//! \brief Получить значение ключа и задать новое
-//! \param key Ключ
-//! \param value Новое значение
-//! \return
-//!
-//! Atomically sets key to value and returns the old value stored at key. Returns an error when key exists but does not hold a string value.
-//!
-//! GETSET can be used together with INCR for counting with atomic reset. For example: a process may call INCR against the key mycounter every time some event occurs,
-//! but from time to time we need to get the value of the counter and reset it to zero atomically.
-//! This can be done using GETSET mycounter "0":
-//! redis>  INCR mycounter
-//! (integer) 1
-//! redis>  GETSET mycounter "0"
-//! "1"
-//! redis>  GET mycounter
-//! "0"
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisGetSet(const QString &key, const QString &value)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    QStringList argv;
-    argv << "GETSET" << key << value;
-    return this->redisExecCommandArgv(argv);
-}
-
-//!
-//! \brief Добавить/задать значение ключу
-//! \param key Ключ
-//! \param appendValue Значение
-//! \return
-//!
-//! If key already exists and is a string, this command appends the value at the end of the string.
-//! If key does not exist it is created and set as an empty string, so APPEND will be similar to SET in this special case.
-//!
-//! Examples
-//! redis>  EXISTS mykey
-//! (integer) 0
-//! redis>  APPEND mykey "Hello"
-//! (integer) 5
-//! redis>  APPEND mykey " World"
-//! (integer) 11
-//! redis>  GET mykey
-//! "Hello World"
-//! redis>
-//!
-qlonglong QtRedisClient::redisAppend(const QString &key, const QString &appendValue)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "APPEND" << key << appendValue;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Задать значение ключу
-//! \param key Ключ
-//! \param value Значение
-//! \param exSec Время "жизни" объекта в сек.
-//! \param pxMSec Время "жизни" объекта в мсек.
-//! \param existFlag Флаг проверки существования объекта (NX|XX)
-//! \return
-//!
-//! Если заданы exSec и(или) pxMSec, то по истечении времени объект будет автоматически удален.
-//!
-//! Set key to hold the string value. If key already holds a value, it is overwritten, regardless of its type. Any previous time to live associated with the key is discarded on successful SET operation.
-//! Options
-//!
-//! Starting with Redis 2.6.12 SET supports a set of options that modify its behavior:
-//! - EX seconds -- Set the specified expire time, in seconds.
-//! - PX milliseconds -- Set the specified expire time, in milliseconds.
-//! - NX -- Only set the key if it does not already exist.
-//! - XX -- Only set the key if it already exist.
-//!
-bool QtRedisClient::redisSet(const QString &key,
-                             const QString &value,
-                             const uint exSec,
-                             const uint pxMSec,
-                             const QString existFlag)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    if (!existFlag.isEmpty()
-        && existFlag.toUpper() != QString("NX")
-        && existFlag.toUpper() != QString("XX")) {
-        this->setLastError_safe("Invalid existFlag!");
-        return false;
-    }
-    QStringList argv;
-    argv << "SET" << key << value;
-    if (exSec > 0)
-        argv << "EX" << QString::number(exSec);
-    if (pxMSec > 0)
-        argv << "PX" << QString::number(pxMSec);
-    if (!existFlag.isEmpty())
-        argv << existFlag.toUpper();
-
-    return this->replySimpleStringToBool(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Перезаписать часть строки значения на новое, начиная с позиции
-//! \param key Ключ
-//! \param value Новое значение
-//! \param offset Позиция
-//! \return
-//!
-//! Overwrites part of the string stored at key, starting at the specified offset, for the entire length of value.
-//! If the offset is larger than the current length of the string at key, the string is padded with zero-bytes to make offset fit.
-//! Non-existing keys are considered as empty strings, so this command will make sure it holds a string large enough to be able to set value at offset.
-//!
-//! Note that the maximum offset that you can set is 229 -1 (536870911), as Redis Strings are limited to 512 megabytes.
-//! If you need to grow beyond this size, you can use multiple keys.
-//!
-qlonglong QtRedisClient::redisSetRange(const QString &key, const QString &value, const int offset)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "SETRANGE" << key << QString::number(offset) << value;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Удалить ключи и их значения из БД
-//! \param keyList Список ключей
-//! \return
-//!
-//! Removes the specified keys. A key is ignored if it does not exist.
-//! Return value: The number of keys that were removed.
-//! Examples
-//! redis>  SET key1 "Hello"
-//! "OK"
-//! redis>  SET key2 "World"
-//! "OK"
-//! redis>  DEL key1 key2 key3
-//! (integer) 2
-//! redis>
-//!
-qlonglong QtRedisClient::redisDel(const QStringList &keyList)
-{
-    if (keyList.isEmpty()) {
-        this->setLastError_safe("Invalid key list (Empty)!");
-        return -1;
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return -1;
-        }
-    }
-    return this->replyToLong(this->redisExecCommand(QString("DEL %1").arg(keyList.join(" ")).trimmed()));
-}
-
-//!
-//! \brief Получить длину строки значения
-//! \param key Ключ
-//! \return
-//!
-//! Returns the length of the string value stored at key. An error is returned when key holds a non-string value.
-//! Return value: the length of the string at key, or 0 when key does not exist.
-//! Examples
-//! redis>  SET mykey "Hello world"
-//! "OK"
-//! redis>  STRLEN mykey
-//! (integer) 11
-//! redis>  STRLEN nonexisting
-//! (integer) 0
-//! redis>
-//!
-qlonglong QtRedisClient::redisStrlen(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return 0;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("STRLEN %1").arg(key)));
-}
-
-//!
-//! \brief Задать время "жизни" объекта в сек.
-//! \param key Ключ
-//! \param sec Время в сек.
-//! \return
-//!
-//! Set a timeout on key. After the timeout has expired, the key will automatically be deleted. A key with an associated timeout is often said to be volatile in Redis terminology.
-//!
-//! The timeout will only be cleared by commands that delete or overwrite the contents of the key, including DEL, SET, GETSET and all the *STORE commands.
-//! This means that all the operations that conceptually alter the value stored at the key without replacing it with a new one will leave the timeout untouched.
-//! For instance, incrementing the value of a key with INCR, pushing a new value into a list with LPUSH, or altering the field value of a hash with HSET are all operations
-//! that will leave the timeout untouched.
-//!
-//! The timeout can also be cleared, turning the key back into a persistent key, using the PERSIST command.
-//! If a key is renamed with RENAME, the associated time to live is transferred to the new key name.
-//! If a key is overwritten by RENAME, like in the case of an existing key Key_A that is overwritten by a call like RENAME Key_B Key_A,
-//! it does not matter if the original Key_A had a timeout associated or not, the new key Key_A will inherit all the characteristics of Key_B.
-//!
-//! Refreshing expires
-//! It is possible to call EXPIRE using as argument a key that already has an existing expire set. In this case the time to live of a key is updated to the new value.
-//! There are many useful applications for this, an example is documented in the Navigation session pattern section below.
-//!
-//! Examples
-//! redis>  SET mykey "Hello"
-//! "OK"
-//! redis>  EXPIRE mykey 10
-//! (integer) 1
-//! redis>  TTL mykey
-//! (integer) 10
-//! redis>  SET mykey "Hello World"
-//! "OK"
-//! redis>  TTL mykey
-//! (integer) -1
-//! redis>
-//!
-bool QtRedisClient::redisExpire(const QString &key, const uint sec)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    if (sec == 0) {
-        this->setLastError_safe("Invalid sec!");
-        return false;
-    }
-    return this->replyIntToBool(this->redisExecCommand(QString("EXPIRE %1 %2").arg(key).arg(sec)));
-}
-
-//!
-//! \brief Задать время "жизни" объекта в формате utc (сек)
-//! \param key Ключ
-//! \param utcSec Время в формате utc (сек)
-//! \return
-//!
-//! EXPIREAT has the same effect and semantic as EXPIRE, but instead of specifying the number of seconds representing the TTL (time to live),
-//! it takes an absolute Unix timestamp (seconds since January 1, 1970). A timestamp in the past will delete the key immediately.
-//! Examples
-//! redis>  SET mykey "Hello"
-//! "OK"
-//! redis>  EXISTS mykey
-//! (integer) 1
-//! redis>  EXPIREAT mykey 1293840000
-//! (integer) 1
-//! redis>  EXISTS mykey
-//! (integer) 0
-//! redis>
-//!
-bool QtRedisClient::redisExpireAt(const QString &key, const uint utcSec)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    if (utcSec == 0) {
-        this->setLastError_safe("Invalid utcSec!");
-        return false;
-    }
-    return this->replyIntToBool(this->redisExecCommand(QString("EXPIREAT %1 %2").arg(key).arg(utcSec)));
-}
-
-//!
-//! \brief Задать время "жизни" объекта в мсек.
-//! \param key Ключ
-//! \param msec Время в мсек
-//! \return
-//!
-//! This command works exactly like EXPIRE but the time to live of the key is specified in milliseconds instead of seconds.
-//! Examples
-//! redis>  SET mykey "Hello"
-//! "OK"
-//! redis>  PEXPIRE mykey 1500
-//! (integer) 1
-//! redis>  TTL mykey
-//! (integer) 1
-//! redis>  PTTL mykey
-//! (integer) 1494
-//! redis>
-//!
-bool QtRedisClient::redisPExpire(const QString &key, const uint msec)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    return this->replyIntToBool(this->redisExecCommand(QString("PEXPIRE %1 %2").arg(key).arg(msec)));
-}
-
-//!
-//! \brief Задать время "жизни" объекта в формате utc (мсек)
-//! \param key Ключ
-//! \param utcMsec Время в формате utc (мсек)
-//! \return
-//!
-//! PEXPIREAT has the same effect and semantic as EXPIREAT, but the Unix time at which the key will expire is specified in milliseconds instead of seconds.
-//! Examples
-//! redis>  SET mykey "Hello"
-//! "OK"
-//! redis>  PEXPIREAT mykey 1555555555005
-//! (integer) 1
-//! redis>  TTL mykey
-//! (integer) 47755408
-//! redis>  PTTL mykey
-//! (integer) 47755408215
-//! redis>
-//!
-bool QtRedisClient::redisPExpireAt(const QString &key, const qint64 utcMsec)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    return this->replyIntToBool(this->redisExecCommand(QString("PEXPIREAT %1 %2").arg(key).arg(utcMsec)));
-}
-
-//!
-//! \brief Удалить заданное время "жизни" объекта
-//! \param key Ключ
-//! \return
-//!
-//! Remove the existing timeout on key, turning the key from volatile (a key with an expire set) to persistent (a key that will never expire as no timeout is associated).
-//! Examples
-//! redis>  SET mykey "Hello"
-//! "OK"
-//! redis>  EXPIRE mykey 10
-//! (integer) 1
-//! redis>  TTL mykey
-//! (integer) 10
-//! redis>  PERSIST mykey
-//! (integer) 1
-//! redis>  TTL mykey
-//! (integer) -1
-//! redis>
-//!
-bool QtRedisClient::redisPersist(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    return this->replyIntToBool(this->redisExecCommand(QString("PERSIST %1").arg(key)));
-}
-
-//!
-//! \brief Получить время "жизни" объекта в сек.
-//! \param key Ключ
-//! \return
-//!
-//! Returns the remaining time to live of a key that has a timeout. This introspection capability allows a Redis client to check how many seconds a given key will continue
-//! to be part of the dataset.
-//!
-//! In Redis 2.6 or older the command returns -1 if the key does not exist or if the key exist but has no associated expire.
-//!
-//! Starting with Redis 2.8 the return value in case of error changed:
-//! - The command returns -2 if the key does not exist.
-//! - The command returns -1 if the key exists but has no associated expire.
-//!
-qlonglong QtRedisClient::redisTtl(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("TTL %1").arg(key)));
-}
-
-//!
-//! \brief Получить время "жизни" объекта в мсек.
-//! \param key Ключ
-//! \return
-//!
-//! Like TTL this command returns the remaining time to live of a key that has an expire set, with the sole difference that TTL returns the amount of remaining time
-//! in seconds while PTTL returns it in milliseconds.
-//!
-//! In Redis 2.6 or older the command returns -1 if the key does not exist or if the key exist but has no associated expire.
-//!
-//! Starting with Redis 2.8 the return value in case of error changed:
-//! - The command returns -2 if the key does not exist.
-//! - The command returns -1 if the key exists but has no associated expire.
-//!
-qlonglong QtRedisClient::redisPTtl(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("PTTL %1").arg(key)));
-}
-
-//!
-//! \brief Уменьшить число, сохраненное в ключе на один
-//! \param key Ключ
-//! \return
-//!
-//! Decrements the number stored at key by one. If the key does not exist, it is set to 0 before performing the operation.
-//! An error is returned if the key contains a value of the wrong type or contains a string that can not be represented as integer.
-//! This operation is limited to 64 bit signed integers.
-//!
-//! Return value: the value of key after the decrement
-//!
-qlonglong QtRedisClient::redisDecr(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("DECR %1").arg(key)));
-}
-
-//!
-//! \brief Уменьшить число, сохраненное в ключе на значение
-//! \param key Ключ
-//! \param decr Значение
-//! \return
-//!
-//! Decrements the number stored at key by decrement. If the key does not exist, it is set to 0 before performing the operation.
-//! An error is returned if the key contains a value of the wrong type or contains a string that can not be represented as integer.
-//! This operation is limited to 64 bit signed integers.
-//!
-//! Return value: the value of key after the decrement
-//!
-qlonglong QtRedisClient::redisDecrBy(const QString &key, const qint64 decr)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("DECRBY %1 %2").arg(key).arg(decr)));
-}
-
-//!
-//! \brief Увеличить число, сохраненное в ключе на один
-//! \param key Ключ
-//! \return
-//!
-//! Increments the number stored at key by one. If the key does not exist, it is set to 0 before performing the operation.
-//! An error is returned if the key contains a value of the wrong type or contains a string that can not be represented as integer.
-//! This operation is limited to 64 bit signed integers.
-//!
-//! Note: this is a string operation because Redis does not have a dedicated integer type.
-//!       The string stored at the key is interpreted as a base-10 64 bit signed integer to execute the operation.
-//!
-//! Redis stores integers in their integer representation, so for string values that actually hold an integer,
-//! there is no overhead for storing the string representation of the integer.
-//!
-//! Return value: the value of key after the increment
-//!
-qlonglong QtRedisClient::redisIncr(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("INCR %1").arg(key)));
-}
-
-//!
-//! \brief Увеличить число, сохраненное в ключе на значение
-//! \param key Ключ
-//! \param incr Значение
-//! \return
-//!
-//! Increments the number stored at key by increment. If the key does not exist, it is set to 0 before performing the operation.
-//! An error is returned if the key contains a value of the wrong type or contains a string that can not be represented as integer.
-//! This operation is limited to 64 bit signed integers.
-//!
-//! Return value: the value of key after the increment
-//!
-qlonglong QtRedisClient::redisIncrBy(const QString &key, const qint64 incr)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("INCRBY %1 %2").arg(key).arg(incr)));
-}
-
-//!
-//! \brief Увеличить число, сохраненное в ключе на значение
-//! \param key Ключ
-//! \param incr Значение
-//! \return
-//!
-//! Increment the string representing a floating point number stored at key by the specified increment.
-//! By using a negative increment value, the result is that the value stored at the key is decremented (by the obvious properties of addition).
-//! If the key does not exist, it is set to 0 before performing the operation. An error is returned if one of the following conditions occur:
-//!
-//! The key contains a value of the wrong type (not a string).
-//! The current key content or the specified increment are not parsable as a double precision floating point number.
-//!
-//! If the command is successful the new incremented value is stored as the new value of the key (replacing the old one), and returned to the caller as a string.
-//!
-//! Both the value already contained in the string key and the increment argument can be optionally provided in exponential notation,
-//! however the value computed after the increment is stored consistently in the same format, that is, an integer number followed (if needed) by a dot,
-//! and a variable number of digits representing the decimal part of the number. Trailing zeroes are always removed.
-//!
-//! The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.
-//!
-//! Return value: the value of key after the increment
-//!
-qlonglong QtRedisClient::redisIncrByFloat(const QString &key, const float incr)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("INCRBYFLOAT %1 %2").arg(key).arg(incr)));
-}
-
-//!
-//! \brief Переименовать ключ
-//! \param key Ключ
-//! \param newKey Новое имя ключа
-//! \return
-//!
-//! Renames key to newkey. It returns an error when key does not exist. If newkey already exists it is overwritten, when this happens RENAME executes an implicit DEL operation,
-//! so if the deleted key contains a very big value it may cause high latency even if RENAME itself is usually a constant-time operation.
-//!
-//! Note: Before Redis 3.2.0, an error is returned if source and destination names are the same.
-//!
-bool QtRedisClient::redisRename(const QString &key, const QString &newKey)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    if (newKey.isEmpty() || newKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid newKey!");
-        return false;
-    }
-    return this->replySimpleStringToBool(this->redisExecCommand(QString("RENAME %1 %2").arg(key).arg(newKey)));
-}
-
-//!
-//! \brief Переименовать ключ, если новое имя не существует
-//! \param key Ключ
-//! \param newKey Новое имя ключа
-//! \return
-//!
-//! Renames key to newkey if newkey does not yet exist. It returns an error when key does not exist.
-//!
-//! Note: Before Redis 3.2.0, an error is returned if source and destination names are the same.
-//!
-bool QtRedisClient::redisRenameNx(const QString &key, const QString &newKey)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    if (newKey.isEmpty() || newKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid newKey!");
-        return false;
-    }
-    return this->replyIntToBool(this->redisExecCommand(QString("RENAMENX %1 %2").arg(key).arg(newKey)));
-}
-
-//!
-//! \brief Получить тип значения ключа
-//! \param key Ключ
-//! \return
-//!
-//! Returns the string representation of the type of the value stored at key.
-//! The different types that can be returned are: string, list, set, zset and hash.
-//!
-QString QtRedisClient::redisType(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QString();
-    }
-    return this->replyToString(this->redisExecCommand(QString("TYPE %1").arg(key)));
-}
-
-//!
-//! \brief Установить ключи в соответствии со значениями
-//! \param keyValue Список ключ-значение
-//! \return
-//!
-//! Sets the given keys to their respective values. MSET replaces existing values with new values, just as regular SET.
-//! See MSETNX if you don't want to overwrite existing values.
-//! MSET is atomic, so all given keys are set at once. It is not possible for clients to see that some of the keys were updated while others are unchanged.
-//!
-bool QtRedisClient::redisMSet(const QMap<QString, QString> &keyValue)
-{
-    if (keyValue.isEmpty()) {
-        this->setLastError_safe("Invalid key-value (Empty)!");
-        return false;
-    }
-    QList<QString> keyList = keyValue.keys();
-    for (const QString &key : keyList) {
-        if (key.isEmpty() || key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return false;
-        }
-    }
-    QStringList argv;
-    argv << "MSET";
-    QMapIterator<QString, QString> i (keyValue);
-    while (i.hasNext()) {
-        i.next();
-        argv << i.key() << i.value();
-    }
-    return this->replySimpleStringToBool(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Установить ключи в соответствии со значениями, если ключи не существуют
-//! \param keyValue Список ключ-значение
-//! \return
-//!
-//! Sets the given keys to their respective values. MSETNX will not perform any operation at all even if just a single key already exists.
-//! Because of this semantic MSETNX can be used in order to set different keys representing different fields of an unique logic object
-//! in a way that ensures that either all the fields or none at all are set.
-//!
-//! MSETNX is atomic, so all given keys are set at once. It is not possible for clients to see that some of the keys were updated while others are unchanged.
-//!
-bool QtRedisClient::redisMSetNx(const QMap<QString, QString> &keyValue)
-{
-    if (keyValue.isEmpty()) {
-        this->setLastError_safe("Invalid key-value (Empty)!");
-        return false;
-    }
-    QList<QString> keyList = keyValue.keys();
-    for (const QString &key : keyList) {
-        if (key.isEmpty() || key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return false;
-        }
-    }
-    QStringList argv;
-    argv << "MSETNX";
-    QMapIterator<QString, QString> i (keyValue);
-    while (i.hasNext()) {
-        i.next();
-        argv << i.key() << i.value();
-    }
-    return this->replyIntToBool(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Получить значения ключей
-//! \param keyList Список ключей
-//! \return
-//!
-//! Returns the values of all specified keys. For every key that does not hold a string value or does not exist, the special value nil is returned.
-//! Because of this, the operation never fails.
-//! Examples
-//! redis>  SET key1 "Hello"
-//! "OK"
-//! redis>  SET key2 "World"
-//! "OK"
-//! redis>  MGET key1 key2 nonexisting
-//! 1) "Hello"
-//! 2) "World"
-//! 3) (nil)
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisMGet(const QStringList &keyList)
-{
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return QtRedisReply();
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return QtRedisReply();
-        }
-    }
-    return this->redisExecCommand(QString("MGET %1").arg(keyList.join(" ")));
-}
-
-//!
-//! \brief Переместить ключ с его значениями в другую БД
-//! \param key Ключ
-//! \param dbIndex Индекс БД
-//! \return
-//!
-//! Move key from the currently selected database (see SELECT) to the specified destination database.
-//! When key already exists in the destination database, or it does not exist in the source database, it does nothing.
-//! It is possible to use MOVE as a locking primitive because of this.
-//!
-bool QtRedisClient::redisMove(const QString &key, const int dbIndex)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    if (dbIndex < 0) {
-        this->setLastError_safe("Invalid db index!");
-        return false;
-    }
-    return this->replyIntToBool(this->redisExecCommand(QString("MOVE %1 %2").arg(key).arg(dbIndex)));
-}
-
-//!
-//! \brief Преобразовать значение ключа в формат Redis-а
-//! \param key Ключ
-//! \return
-//!
-//! Для получения корректного значения пользуйтесь QtRedisReply::rawValue().
-//!
-//! Serialize the value stored at key in a Redis-specific format and return it to the user. The returned value can be synthesized back into a Redis key using the RESTORE command.
-//!
-//! The serialization format is opaque and non-standard, however it has a few semantic characteristics:
-//!
-//! - It contains a 64-bit checksum that is used to make sure errors will be detected. The RESTORE command makes sure to check the checksum before synthesizing a key using the serialized value.
-//! - Values are encoded in the same format used by RDB.
-//! - An RDB version is encoded inside the serialized value, so that different Redis versions with incompatible RDB formats will refuse to process the serialized value.
-//!
-//! The serialized value does NOT contain expire information. In order to capture the time to live of the current value the PTTL command should be used.
-//!
-//! If key does not exist a nil bulk reply is returned.
-//! Return value: the serialized value.
-//!
-//! Examples
-//! redis>  SET mykey 10
-//! "OK"
-//! redis>  DUMP mykey
-//! "\u0000\xC0\n\b\u0000ײ\xBB\xFA\xA7\xB7\xE9\x83"
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisDump(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    return this->redisExecCommand(QString("DUMP %1").arg(key));
-}
-
-
-// ------------------------------------------------------------------------
-// -- LIST COMMANDS -------------------------------------------------------
-// ------------------------------------------------------------------------
-
-//!
-//! \brief Получить элменет списка по индексу
-//! \param key Ключ
-//! \param index Индекс
-//! \return
-//!
-//! Returns the element at index index in the list stored at key. The index is zero-based, so 0 means the first element,
-//! 1 the second element and so on. Negative indices can be used to designate elements starting at the tail of the list.
-//! Here, -1 means the last element, -2 means the penultimate and so forth.
-//!
-//! When the value at key is not a list, an error is returned.
-//!
-QString QtRedisClient::redisLIndex(const QString &key, const int index)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QString();
-    }
-    return this->replyToString(this->redisExecCommand(QString("LINDEX %1 %2").arg(key).arg(index)));
-}
-
-//!
-//! \brief Вставить значение (value) в список до или после значения (pilot)
-//! \param key Ключ
-//! \param pilot Значение поиска
-//! \param value Новое значение
-//! \param insertFlag Тип вставки (BEFORE|AFTER)
-//! \return
-//!
-//! Inserts value in the list stored at key either before or after the reference value pivot.
-//! When key does not exist, it is considered an empty list and no operation is performed.
-//! An error is returned when key exists but does not hold a list value.
-//! Return value: the length of the list after the insert operation, or -1 when the value pivot was not found.
-//!
-qlonglong QtRedisClient::redisLInsert(const QString &key,
-                                      const QString &pilot,
-                                      const QString &value,
-                                      const QString &insertFlag)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (insertFlag.toUpper() != QString("BEFORE")
-        && insertFlag.toUpper() != QString("AFTER")) {
-        this->setLastError_safe("Invalid insertFlag!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "LINSERT" << key << insertFlag.toUpper() << pilot << value;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Получить размер списка
-//! \param key Ключ
-//! \return
-//!
-//! Returns the length of the list stored at key. If key does not exist, it is interpreted as an empty list and 0 is returned.
-//! An error is returned when the value stored at key is not a list.
-//! Return value: the length of the list at key.
-//!
-qlonglong QtRedisClient::redisLLen(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("LLEN %1").arg(key)));
-}
-
-//!
-//! \brief Удалить и вернуть первый элменет списка
-//! \param key Ключ
-//! \return
-//!
-//! Removes and returns the first element of the list stored at key.
-//! Return value: the value of the first element, or nil when key does not exist.
-//!
-QString QtRedisClient::redisLPop(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QString();
-    }
-    return this->replyToString(this->redisExecCommand(QString("LPOP %1").arg(key)));
-}
-
-//!
-//! \brief Вставить значения в начало списка
-//! \param key Ключ
-//! \param valueList Значения
-//! \return
-//!
-//! Insert all the specified values at the head of the list stored at key. If key does not exist, it is created as empty list before performing the push operations.
-//! When key holds a value that is not a list, an error is returned.
-//!
-//! It is possible to push multiple elements using a single command call just specifying multiple arguments at the end of the command.
-//! Elements are inserted one after the other to the head of the list, from the leftmost element to the rightmost element.
-//! So for instance the command LPUSH mylist a b c will result into a list containing c as first element, b as second element and a as third element.
-//! Return value: the length of the list after the push operations.
-//!
-//! Redis >= 2.4: Accepts multiple value arguments. In Redis versions older than 2.4 it was possible to push a single value per command.
-//!
-qlonglong QtRedisClient::redisLPush(const QString &key, const QStringList &valueList)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (valueList.isEmpty()) {
-        this->setLastError_safe("Invalid valueList (Empty)!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "LPUSH" << key;
-    for (const QString &str : valueList)
-        argv << str;
-
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Вставить значение в начало списка, если ключ существует и он содержит список
-//! \param key Ключ
-//! \param value Значение
-//! \return
-//!
-//! Inserts value at the head of the list stored at key, only if key already exists and holds a list. In contrary to LPUSH, no operation will be performed when key does not yet exist.
-//! Return value: the length of the list after the push operation.
-//!
-qlonglong QtRedisClient::redisLPushX(const QString &key, const QString &value)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "LPUSHX" << key << value;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Получить список значений ключа
-//! \param key Ключ
-//! \param start Начальный индекс
-//! \param stop Конечный индекс
-//! \return
-//!
-//! Returns the specified elements of the list stored at key. The offsets start and stop are zero-based indexes, with 0 being the first element of the list (the head of the list),
-//! 1 being the next element and so on.
-//!
-//! These offsets can also be negative numbers indicating offsets starting at the end of the list. For example, -1 is the last element of the list, -2 the penultimate, and so on.
-//!
-//! Consistency with range functions in various programming languages:
-//! Note that if you have a list of numbers from 0 to 100, LRANGE list 0 10 will return 11 elements, that is, the rightmost item is included.
-//! This may or may not be consistent with behavior of range-related functions in your programming language of choice (think Ruby's Range.new, Array#slice or Python's range() function).
-//!
-//! Out-of-range indexes:
-//! Out of range indexes will not produce an error. If start is larger than the end of the list, an empty list is returned.
-//! If stop is larger than the actual end of the list, Redis will treat it like the last element of the list.
-//!
-//! Return value: list of elements in the specified range.
-//!
-QtRedisReply QtRedisClient::redisLRange(const QString &key, const int start, const int stop)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    return this->redisExecCommand(QString("LRANGE %1 %2 %3").arg(key).arg(start).arg(stop));
-}
-
-//!
-//! \brief Удалить первое найденное значение из списка начиная с заданного индекса
-//! \param key Ключ
-//! \param value Значение
-//! \param count Индекс
-//! \return
-//!
-//! Removes the first count occurrences of elements equal to value from the list stored at key. The count argument influences the operation in the following ways:
-//! - count > 0: Remove elements equal to value moving from head to tail.
-//! - count < 0: Remove elements equal to value moving from tail to head.
-//! - count = 0: Remove all elements equal to value.
-//!
-//! For example, LREM list -2 "hello" will remove the last two occurrences of "hello" in the list stored at list.
-//!
-//! Note that non-existing keys are treated like empty lists, so when key does not exist, the command will always return 0.
-//! Return value: the number of removed elements.
-//!
-qlonglong QtRedisClient::redisLRem(const QString &key, const QString &value, const int count)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "LREM" << key << QString::number(count) << value;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Установить новое знаяение в списке по индексу
-//! \param key Ключ
-//! \param value Новое значение
-//! \param index Индекс
-//! \return
-//!
-bool QtRedisClient::redisLSet(const QString &key, const QString &value, const int index)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    QStringList argv;
-    argv << "LSET" << key << QString::number(index) << value;
-    return this->replySimpleStringToBool(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Обрезать список, чтобы он содержал тоько указанный диапазон элементов
-//! \param key Ключ
-//! \param start Начало диапазона
-//! \param stop Конец диапазона
-//! \return
-//!
-//! Trim an existing list so that it will contain only the specified range of elements specified. Both start and stop are zero-based indexes,
-//! where 0 is the first element of the list (the head), 1 the next element and so on.
-//!
-//! For example: LTRIM foobar 0 2 will modify the list stored at foobar so that only the first three elements of the list will remain.
-//!
-//! start and end can also be negative numbers indicating offsets from the end of the list, where -1 is the last element of the list, -2 the penultimate element and so on.
-//!
-//! Out of range indexes will not produce an error: if start is larger than the end of the list, or start > end, the result will be an empty list (which causes key to be removed).
-//! If end is larger than the end of the list, Redis will treat it like the last element of the list.
-//!
-//! A common use of LTRIM is together with LPUSH / RPUSH. For example:
-//! LPUSH mylist someelement
-//! LTRIM mylist 0 99
-//!
-//! This pair of commands will push a new element on the list, while making sure that the list will not grow larger than 100 elements.
-//! This is very useful when using Redis to store logs for example. It is important to note that when used in this way LTRIM is an O(1) operation because in the average case
-//! just one element is removed from the tail of the list.
-//!
-//! Examples
-//! redis>  RPUSH mylist "one"
-//! (integer) 1
-//! redis>  RPUSH mylist "two"
-//! (integer) 2
-//! redis>  RPUSH mylist "three"
-//! (integer) 3
-//! redis>  LTRIM mylist 1 -1
-//! "OK"
-//! redis>  LRANGE mylist 0 -1
-//! 1) "two"
-//! 2) "three"
-//! redis>
-//!
-bool QtRedisClient::redisLTrim(const QString &key, const int start, const int stop)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    return this->replySimpleStringToBool(this->redisExecCommand(QString("LTRIM %1 %2 %3").arg(key).arg(start).arg(stop)));
-}
-
-//!
-//! \brief Удалить и получить последний элемент списка, хранящегося в ключе
-//! \param key Ключ
-//! \return
-//!
-//! Removes and returns the last element of the list stored at key.
-//!
-QString QtRedisClient::redisRPop(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QString();
-    }
-    return this->replyToString(this->redisExecCommand(QString("RPOP %1").arg(key)));
-}
-
-//!
-//! \brief Удалить и получить последний элемент списка (sourceKey), и поместить его в начало списка (destKey)
-//! \param sourceKey Ключ-ичтоник
-//! \param destKey Ключ-получатель
-//! \return
-//!
-//! Atomically returns and removes the last element (tail) of the list stored at source, and pushes the element at the first element (head) of the list stored at destination.
-//!
-//! For example: consider source holding the list a,b,c, and destination holding the list x,y,z. Executing RPOPLPUSH results in source holding a,b and destination holding c,x,y,z.
-//!
-//! If source does not exist, the value nil is returned and no operation is performed. If source and destination are the same,
-//! the operation is equivalent to removing the last element from the list and pushing it as first element of the list, so it can be considered as a list rotation command.
-//!
-//! Return value: the element being popped and pushed.
-//!
-QString QtRedisClient::redisRPopLPush(const QString &sourceKey, const QString &destKey)
-{
-    if (sourceKey.isEmpty() || sourceKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid sourceKey!");
-        return QString();
-    }
-    if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid destKey!");
-        return QString();
-    }
-    return this->replyToString(this->redisExecCommand(QString("RPOPLPUSH %1 %2").arg(sourceKey).arg(destKey)));
-}
-
-//!
-//! \brief Вставить значения в конец списка
-//! \param key Ключ
-//! \param valueList Значения
-//! \return
-//!
-//! Insert all the specified values at the tail of the list stored at key. If key does not exist, it is created as empty list before performing the push operation.
-//! When key holds a value that is not a list, an error is returned.
-//!
-//! It is possible to push multiple elements using a single command call just specifying multiple arguments at the end of the command.
-//! Elements are inserted one after the other to the tail of the list, from the leftmost element to the rightmost element.
-//! So for instance the command RPUSH mylist a b c will result into a list containing a as first element, b as second element and c as third element.
-//!
-//! Return value: the length of the list after the push operation.
-//! Redis >= 2.4: Accepts multiple value arguments. In Redis versions older than 2.4 it was possible to push a single value per command.
-//!
-//!
-qlonglong QtRedisClient::redisRPush(const QString &key, const QStringList &valueList)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (valueList.isEmpty()) {
-        this->setLastError_safe("Invalid valueList (Empty)!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "RPUSH" << key;
-    for (const QString &str : valueList)
-        argv << str;
-
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Вставить значение в конец списка, если ключ существует и содержит список
-//! \param key Ключ
-//! \param value Значение
-//! \return
-//!
-//! Inserts value at the tail of the list stored at key, only if key already exists and holds a list.
-//! In contrary to RPUSH, no operation will be performed when key does not yet exist.
-//! Return value: the length of the list after the push operation.
-//!
-qlonglong QtRedisClient::redisRPushX(const QString &key, const QString &value)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "RPUSHX" << key << value;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-
-// ------------------------------------------------------------------------
-// -- STORED COMMANDS -----------------------------------------------------
-// ------------------------------------------------------------------------
-
-//!
-//! \brief Добавить значения в набор
-//! \param key Ключ
-//! \param memberList Значения
-//! \return
-//!
-//! Если одно или несколько значений уже есть в наборе, то они не добавляются.
-//!
-//! Add the specified members to the set stored at key. Specified members that are already a member of this set are ignored.
-//! If key does not exist, a new set is created before adding the specified members.
-//!
-//! An error is returned when the value stored at key is not a set.
-//! Return value: the number of elements that were added to the set, not including all the elements already present into the set.
-//! Redis >= 2.4: Accepts multiple member arguments. Redis versions before 2.4 are only able to add a single member per call.
-//!
-qlonglong QtRedisClient::redisSAdd(const QString &key, const QStringList &memberList)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (memberList.isEmpty()) {
-        this->setLastError_safe("Invalid memberList (Empty)!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "SADD" << key;
-    for (const QString &str : memberList)
-        argv << str;
-
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Получить количество элементов в наборе
-//! \param key Ключ
-//! \return
-//!
-//! Returns the set cardinality (number of elements) of the set stored at key.
-//! Return value: the cardinality (number of elements) of the set, or 0 if key does not exist.
-//!
-qlonglong QtRedisClient::redisSCard(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("SCARD %1").arg(key)));
-}
-
-//!
-//! \brief Получить список элементов, полученный путем разницы между первым набором(keyList[0]) и остальными(keyList[1..N])
-//! \param keyList Список ключей наборов
-//! \return
-//!
-//! Returns the members of the set resulting from the difference between the first set and all the successive sets.
-//!
-//! For example:
-//! key1 = {a,b,c,d}
-//! key2 = {c}
-//! key3 = {a,c,e}
-//! SDIFF key1 key2 key3 = {b,d}
-//!
-//! Keys that do not exist are considered to be empty sets.
-//!
-QtRedisReply QtRedisClient::redisSDiff(const QStringList &keyList)
-{
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return QtRedisReply();
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return QtRedisReply();
-        }
-    }
-    return this->redisExecCommand(QString("SDIFF %1").arg(keyList.join(" ")));
-}
-
-//!
-//! \brief Получить список элементов, полученный путем разницы между первым набором(keyList[0]) и остальными(keyList[1..N]), и записать результат в новый набор
-//! \param dest Название нового набора
-//! \param keyList Список ключей наборов
-//! \return
-//!
-//! This command is equal to SDIFF, but instead of returning the resulting set, it is stored in destination.
-//!
-//! If destination already exists, it is overwritten.
-//! Return value: the number of elements in the resulting set.
-//!
-qlonglong QtRedisClient::redisSDiffStore(const QString &dest, const QStringList &keyList)
-{
-    if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid dest!");
-        return -1;
-    }
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return -1;
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return -1;
-        }
-    }
-    return this->replyToLong(this->redisExecCommand(QString("SDIFFSTORE %1 %2").arg(dest).arg(keyList.join(" "))));
-}
-
-//!
-//! \brief Получить список элементов, полученных путем пересечения наборов
-//! \param keyList Список ключей наборов
-//! \return
-//!
-//! Returns the members of the set resulting from the intersection of all the given sets.
-//!
-//! For example:
-//! key1 = {a,b,c,d}
-//! key2 = {c}
-//! key3 = {a,c,e}
-//! SINTER key1 key2 key3 = {c}
-//!
-//! Keys that do not exist are considered to be empty sets. With one of the keys being an empty set, the resulting set is also empty
-//! (since set intersection with an empty set always results in an empty set).
-//!
-QtRedisReply QtRedisClient::redisSInter(const QStringList &keyList)
-{
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return QtRedisReply();
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return QtRedisReply();
-        }
-    }
-    return this->redisExecCommand(QString("SINTER %1").arg(keyList.join(" ")));
-}
-
-//!
-//! \brief Получить список элементов, полученных путем пересечения наборов, и записать результат в новый набор
-//! \param dest Название нового набора
-//! \param keyList Список ключей наборов
-//! \return
-//!
-//! This command is equal to SINTER, but instead of returning the resulting set, it is stored in destination.
-//!
-//! If destination already exists, it is overwritten.
-//! Return value: the number of elements in the resulting set.
-//!
-qlonglong QtRedisClient::redisSInterStore(const QString &dest, const QStringList &keyList)
-{
-    if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid dest!");
-        return -1;
-    }
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return -1;
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return -1;
-        }
-    }
-    return this->replyToLong(this->redisExecCommand(QString("SINTERSTORE %1 %2").arg(dest).arg(keyList.join(" "))));
-}
-
-//!
-//! \brief Входит ли элемент в набор
-//! \param key Ключ набора
-//! \param member Значение
-//! \return
-//!
-bool QtRedisClient::redisSIsMember(const QString &key, const QString &member)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return false;
-    }
-    QStringList argv;
-    argv << "SISMEMBER" << key << member;
-    return this->replyIntToBool(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Получить список всех элементов набора
-//! \param key Ключ набора
-//! \return
-//!
-QStringList QtRedisClient::redisSMembers(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QStringList();
-    }
-    return this->replyToArray(this->redisExecCommand(QString("SMEMBERS %1").arg(key)));
-}
-
-//!
-//! \brief Переместить элемент из одного набора(sourceKey) в другой(destKey)
-//! \param sourceKey Ключ набора источника
-//! \param destKey Ключ набора получателя
-//! \param member Значение
-//! \return
-//!
-//! Move member from the set at source to the set at destination. This operation is atomic.
-//! In every given moment the element will appear to be a member of source or destination for other clients.
-//!
-//! If the source set does not exist or does not contain the specified element, no operation is performed and 0 is returned.
-//! Otherwise, the element is removed from the source set and added to the destination set.
-//! When the specified element already exists in the destination set, it is only removed from the source set.
-//!
-//! An error is returned if source or destination does not hold a set value.
-//!
-bool QtRedisClient::redisSMove(const QString &sourceKey, const QString &destKey, const QString &member)
-{
-    if (sourceKey.isEmpty() || sourceKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid sourceKey!");
-        return false;
-    }
-    if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid destKey!");
-        return false;
-    }
-    QStringList argv;
-    argv << "SMOVE" << sourceKey << destKey << member;
-    return this->replyIntToBool(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Удалить и вернуть один или несколько случайных элментов в наборе
-//! \param key Ключ набора
-//! \param count Количество элементов
-//! \return
-//!
-//! Removes and returns one or more random elements from the set value store at key.
-//!
-//! This operation is similar to SRANDMEMBER, that returns one or more random elements from a set but does not remove it.
-//!
-//! The count argument is available since version 3.2.
-//! Return value: the removed element, or nil when key does not exist.
-//! Examples
-//! redis>  SADD myset "one"
-//! (integer) 1
-//! redis>  SADD myset "two"
-//! (integer) 1
-//! redis>  SADD myset "three"
-//! (integer) 1
-//! redis>  SPOP myset
-//! "three"
-//! redis>  SMEMBERS myset
-//! 1) "two"
-//! 2) "one"
-//! redis>  SADD myset "four"
-//! (integer) 1
-//! redis>  SADD myset "five"
-//! (integer) 1
-//! redis>  SPOP myset 3
-//! 1) "four"
-//! 2) "two"
-//! 3) "one"
-//! redis>  SMEMBERS myset
-//! 1) "five"
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisSPop(const QString &key, const uint count)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    QStringList argv;
-    argv << "SPOP" << key;
-    if (count > 1)
-        argv << QString::number(count);
-
-    return this->redisExecCommandArgv(argv);
-}
-
-//!
-//! \brief Получить один или несколько случайных элементов из набора
-//! \param key Ключ набора
-//! \param count Количество элементов
-//! \return
-//!
-//! When called with just the key argument, return a random element from the set value stored at key.
-//!
-//! Starting from Redis version 2.6, when called with the additional count argument, return an array of count distinct elements if count is positive.
-//! If called with a negative count the behavior changes and the command is allowed to return the same element multiple times.
-//! In this case the number of returned elements is the absolute value of the specified count.
-//!
-//! When called with just the key argument, the operation is similar to SPOP, however while SPOP also removes the randomly selected element from the set,
-//! SRANDMEMBER will just return a random element without altering the original set in any way.
-//! Return value:
-//! - String reply: without the additional count argument the command returns a Bulk Reply with the randomly selected element, or nil when key does not exist.
-//! - Array reply: when the additional count argument is passed the command returns an array of elements, or an empty array when key does not exist.
-//!
-//! Examples
-//! redis>  SADD myset one two three
-//! (integer) 3
-//! redis>  SRANDMEMBER myset
-//! "two"
-//! redis>  SRANDMEMBER myset 2
-//! 1) "two"
-//! 2) "one"
-//! redis>  SRANDMEMBER myset -5
-//! 1) "two"
-//! 2) "three"
-//! 3) "two"
-//! 4) "three"
-//! 5) "three"
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisSRandMember(const QString &key, const int count)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    if (count == 0 || count == 1)
-        return this->redisExecCommand(QString("SRANDMEMBER %1").arg(key));
-
-    return this->redisExecCommand(QString("SRANDMEMBER %1 %2").arg(key).arg(count));
-}
-
-//!
-//! \brief Удалить элемент(ы) из набора
-//! \param key Ключ набора
-//! \param memberList Список элементов
-//! \return
-//!
-//! Remove the specified members from the set stored at key. Specified members that are not a member of this set are ignored.
-//! If key does not exist, it is treated as an empty set and this command returns 0.
-//!
-//! An error is returned when the value stored at key is not a set.
-//! Return value: the number of members that were removed from the set, not including non existing members.
-//! Redis >= 2.4: Accepts multiple member arguments. Redis versions older than 2.4 can only remove a set member per call.
-//!
-qlonglong QtRedisClient::redisSRem(const QString &key, const QStringList &memberList)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (memberList.isEmpty()) {
-        this->setLastError_safe("Invalid memberList (Empty)!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "SREM" << key;
-    for (const QString &str : memberList)
-        argv << str;
-
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Получить список элементов, полученных путем объединения всех заданных наборов
-//! \param keyList Список ключей наборов
-//! \return
-//!
-//! Returns the members of the set resulting from the union of all the given sets.
-//!
-//! For example:
-//! key1 = {a,b,c,d}
-//! key2 = {c}
-//! key3 = {a,c,e}
-//! SUNION key1 key2 key3 = {a,b,c,d,e}
-//!
-//! Keys that do not exist are considered to be empty sets.
-//!
-QtRedisReply QtRedisClient::redisSUnion(const QStringList &keyList)
-{
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return QtRedisReply();
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return QtRedisReply();
-        }
-    }
-    return this->redisExecCommand(QString("SUNION %1").arg(keyList.join(" ")));
-}
-
-//!
-//! \brief Получить список элементов, полученных путем объединения всех заданных наборов, и записать в новый набор (dest)
-//! \param dest Название ключа нового набора
-//! \param keyList Список ключей наборов
-//! \return
-//!
-//! This command is equal to SUNION, but instead of returning the resulting set, it is stored in destination.
-//! If destination already exists, it is overwritten.
-//! Return value: the number of elements in the resulting set.
-//!
-qlonglong QtRedisClient::redisSUnionStore(const QString &dest, const QStringList &keyList)
-{
-    if (dest.isEmpty() || dest.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid dest!");
-        return -1;
-    }
-    if (keyList.isEmpty() || keyList.size() < 2) {
-        this->setLastError_safe("Invalid keyList (Empty or size < 2)!");
-        return -1;
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return -1;
-        }
-    }
-    return this->replyToLong(this->redisExecCommand(QString("SUNIONSTORE %1 %2").arg(dest).arg(keyList.join(" "))));
-}
-
-
-// ------------------------------------------------------------------------
-// -- SORTED STORED COMMANDS ----------------------------------------------
-// ------------------------------------------------------------------------
-
-//!
-//! \brief Добавить элементы со значениями в отсортированный набор
-//! \param key Ключ
-//! \param scoreMember Список элементов со значениями
-//! \param updFlag Флаг обновления (NX|XX)
-//! \param chFlag Флаг модификации
-//! \param incrFlag Флаг инкремента
-//! \return
-//!
-//! Adds all the specified members with the specified scores to the sorted set stored at key. It is possible to specify multiple score / member pairs.
-//! If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
-//!
-//! If key does not exist, a new sorted set with the specified members as sole members is created, like if the sorted set was empty. If the key exists but does not hold a sorted set,
-//! an error is returned.
-//!
-//! The score values should be the string representation of a double precision floating point number. +inf and -inf values are valid values as well.
-//!
-//! ZADD options (Redis 3.0.2 or greater):
-//! ZADD supports a list of options, specified after the name of the key and before the first score argument. Options are:
-//! - XX: Only update elements that already exist. Never add elements.
-//! - NX: Don't update already existing elements. Always add new elements.
-//! - CH: Modify the return value from the number of new elements added, to the total number of elements changed (CH is an abbreviation of changed). Changed elements are new elements added and elements already existing for which the score was updated. So elements specified in the command line having the same score as they had in the past are not counted. Note: normally the return value of ZADD only counts the number of new elements added.
-//! - INCR: When this option is specified ZADD acts like ZINCRBY. Only one score-element pair can be specified in this mode.
-//!
-//! Range of integer scores that can be expressed precisely:
-//! Redis sorted sets use a double 64-bit floating point number to represent the score. In all the architectures we support, this is represented as an IEEE 754 floating point number,
-//! that is able to represent precisely integer numbers between -(2^53) and +(2^53) included. In more practical terms,
-//! all the integers between -9007199254740992 and 9007199254740992 are perfectly representable. Larger integers, or fractions, are internally represented in exponential form,
-//! so it is possible that you get only an approximation of the decimal number, or of the very big integer, that you set as score.
-//!
-//! Sorted sets 101:
-//! Sorted sets are sorted by their score in an ascending way. The same element only exists a single time, no repeated elements are permitted.
-//! The score can be modified both by ZADD that will update the element score, and as a side effect, its position on the sorted set,
-//! and by ZINCRBY that can be used in order to update the score relatively to its previous value.
-//!
-//! The current score of an element can be retrieved using the ZSCORE command, that can also be used to verify if an element already exists or not.
-//! For an introduction to sorted sets, see the data types page on sorted sets.
-//!
-//! Elements with the same score:
-//! While the same element can't be repeated in a sorted set since every element is unique, it is possible to add multiple different elements having the same score.
-//! When multiple elements have the same score, they are ordered lexicographically (they are still ordered by score as a first key, however, locally,
-//! all the elements with the same score are relatively ordered lexicographically).
-//!
-//! The lexicographic ordering used is binary, it compares strings as array of bytes.
-//! If the user inserts all the elements in a sorted set with the same score (for example 0), all the elements of the sorted set are sorted lexicographically,
-//! and range queries on elements are possible using the command ZRANGEBYLEX (Note: it is also possible to query sorted sets by range of scores using ZRANGEBYSCORE).
-//!
-//! Return value:
-//! - The number of elements added to the sorted sets, not including elements already existing for which the score was updated.
-//! - If the INCR option is specified, the return value will be Bulk string reply: the new score of member (a double precision floating point number), represented as string.
-//!
-//! Redis >= 2.4: Accepts multiple elements. In Redis versions older than 2.4 it was possible to add or update a single member per call.
-//!
-//!
-QtRedisReply QtRedisClient::redisZAdd(const QString &key,
-                                      const QMultiMap<QString, QString> scoreMember,
-                                      const QString &updFlag,
-                                      const bool chFlag,
-                                      const bool incrFlag)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    if (scoreMember.isEmpty()) {
-        this->setLastError_safe("Invalid scoreMember (Empty)!");
-        return QtRedisReply();
-    }
-    if (!updFlag.isEmpty()
-        && updFlag.toUpper() != QString("NX")
-        && updFlag.toUpper() != QString("XX")) {
-        this->setLastError_safe("Invalid updFlag!");
-        return QtRedisReply();
-    }
-    QStringList argv;
-    argv << "ZADD" << key;
-    if (!updFlag.isEmpty())
-        argv << updFlag.toUpper();
-    if (chFlag)
-        argv << "CH";
-    if (incrFlag)
-        argv << "INCR";
-
-    QMapIterator<QString, QString> i (scoreMember);
-    while (i.hasNext()) {
-        i.next();
-        argv << i.key() << i.value();
-    }
-    return this->redisExecCommandArgv(argv);
-}
-
-//!
-//! \brief Получить размер отсортированного набора
-//! \param key Ключ
-//! \return
-//!
-qlonglong QtRedisClient::redisZCard(const QString &key)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("ZCARD %1").arg(key)));
-}
-
-//!
-//! \brief Получить кличество элементов отсортированного набора, находящихся между min и max
-//! \param key Ключ
-//! \param min Мин.
-//! \param max Макс.
-//! \return
-//!
-//! Returns the number of elements in the sorted set at key with a score between min and max.
-//!
-//! Exclusive intervals and infinity:
-//! min and max can be -inf and +inf, so that you are not required to know the highest or lowest score in the sorted set to get all elements from or up to a certain score.
-//! By default, the interval specified by min and max is closed (inclusive). It is possible to specify an open interval (exclusive) by prefixing the score with the character (.
-//!
-//! For example:
-//!
-//! ZRANGEBYSCORE zset (1 5
-//! Will return all elements with 1 < score <= 5 while:
-//!
-//! ZRANGEBYSCORE zset (5 (10
-//! Will return all the elements with 5 < score < 10 (5 and 10 excluded).
-//!
-//! Note: the command has a complexity of just O(log(N)) because it uses elements ranks (see ZRANK) to get an idea of the range. Because of this there is no need to do a work proportional to the size of the range.
-//! Return value: the number of elements in the specified score range.
-//!
-qlonglong QtRedisClient::redisZCount(const QString &key, const QVariant &min, const QVariant &max)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (min.type() != QVariant::Invalid
-        && min.type() != QVariant::Int
-        && min.type() != QVariant::UInt
-        && min.type() != QVariant::LongLong
-        && min.type() != QVariant::ULongLong
-        && min.type() != QVariant::Double) {
-        this->setLastError_safe("Invalid min!");
-        return -1;
-    }
-    if (max.type() != QVariant::Invalid
-        && max.type() != QVariant::Int
-        && max.type() != QVariant::UInt
-        && max.type() != QVariant::LongLong
-        && max.type() != QVariant::ULongLong
-        && max.type() != QVariant::Double) {
-        this->setLastError_safe("Invalid max!");
-        return -1;
-    }
-    QString buffMin("-inf");
-    if (min.type() != QVariant::Invalid)
-        buffMin = min.toString();
-
-    QString buffMax("+inf");
-    if (max.type() != QVariant::Invalid)
-        buffMax = max.toString();
-
-    return this->replyToLong(this->redisExecCommand(QString("ZCOUNT %1 %2 %3").arg(key).arg(buffMin).arg(buffMax)));
-}
-
-//!
-//! \brief Увеличить значение отсортированного набора на величину incr
-//! \param key Ключ
-//! \param member Значение набора
-//! \param incr Инкремент
-//! \return
-//!
-//! Increments the score of member in the sorted set stored at key by increment. If member does not exist in the sorted set, it is added with increment as its score (as if its previous score was 0.0). If key does not exist, a new sorted set with the specified member as its sole member is created.
-//!
-//! An error is returned when key exists but does not hold a sorted set.
-//!
-//! The score value should be the string representation of a numeric value, and accepts double precision floating point numbers. It is possible to provide a negative value to decrement the score.
-//! Return value: the new score of member (a double precision floating point number), represented as string.
-//!
-QtRedisReply QtRedisClient::redisZIncrBy(const QString &key, const QString &member, const qint64 incr)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    QStringList argv;
-    argv << "ZINCRBY" << key << QString::number(incr) << member;
-    return this->redisExecCommandArgv(argv);
-}
-
-//!
-//! \brief Вычислить пересечения отсортированных наборов и результат записать в новый набор
-//! \param destKey Название ключа нового набора
-//! \param keyList Список ключей
-//! \param weightList Список значений
-//! \param aggregateFlag Флаг агрегации (SUM|MIN|MAX)
-//! \return
-//!
-//! Computes the intersection of numkeys sorted sets given by the specified keys, and stores the result in destination.
-//! It is mandatory to provide the number of input keys (numkeys) before passing the input keys and the other (optional) arguments.
-//!
-//! By default, the resulting score of an element is the sum of its scores in the sorted sets where it exists.
-//! Because intersection requires an element to be a member of every given sorted set, this results in the score of every element in the resulting sorted set to be equal
-//! to the number of input sorted sets.
-//!
-//! For a description of the WEIGHTS and AGGREGATE options, see ZUNIONSTORE.
-//!
-//! If destination already exists, it is overwritten.
-//! Return value: the number of elements in the resulting sorted set at destination.
-//! Examples
-//! redis>  ZADD zset1 1 "one"
-//! (integer) 1
-//! redis>  ZADD zset1 2 "two"
-//! (integer) 1
-//! redis>  ZADD zset2 1 "one"
-//! (integer) 1
-//! redis>  ZADD zset2 2 "two"
-//! (integer) 1
-//! redis>  ZADD zset2 3 "three"
-//! (integer) 1
-//! redis>  ZINTERSTORE out 2 zset1 zset2 WEIGHTS 2 3
-//! (integer) 2
-//! redis>  ZRANGE out 0 -1 WITHSCORES
-//! 1) "one"
-//! 2) "5"
-//! 3) "two"
-//! 4) "10"
-//! redis>
-//!
-qlonglong QtRedisClient::redisZInterStore(const QString &destKey,
-                                          const QStringList &keyList,
-                                          const QList<int> &weightList,
-                                          const QString &aggregateFlag)
-{
-    if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid destKey!");
-        return -1;
-    }
-    if (keyList.isEmpty()) {
-        this->setLastError_safe("Invalid keyList (Empty)!");
-        return -1;
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return -1;
-        }
-    }
-    QString weightListStr;
-    for (const int weight : weightList) {
-        if (weight <= 0)
-            return -1;
-        weightListStr += QString("%1 ").arg(weight);
-    }
-    if (!aggregateFlag.isEmpty()
-        && aggregateFlag.toUpper() != QString("SUM")
-        && aggregateFlag.toUpper() != QString("MIN")
-        && aggregateFlag.toUpper() != QString("MAX")) {
-        this->setLastError_safe("Invalid aggregateFlag!");
-        return -1;
-    }
-
-    QString command = QString("ZINTERSTORE %1 %2 %3")
-                      .arg(destKey)
-                      .arg(keyList.size())
-                      .arg(keyList.join(" "));
-
-    if (!weightList.isEmpty())
-        command += QString(" WEIGHTS %1").arg(weightListStr);
-    if (!aggregateFlag.isEmpty())
-        command += QString(" AGGREGATE %1").arg(aggregateFlag.toUpper());
-
-    return this->replyToLong(this->redisExecCommand(command.trimmed()));
-}
-
-//!
-//! \brief Когда все элементы в отсортированном наборе вставляются с одинаковой оценкой, возвращает количество элементов в отсортированном наборе между min и max.
-//! \param key Ключ
-//! \param min Мин
-//! \param max Макс
-//! \return
-//!
-//! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns the number of elements
-//! in the sorted set at key with a value between min and max.
-//!
-//! Exclusive intervals and infinity:
-//! min and max can be -inf and +inf, so that you are not required to know the highest or lowest score in the sorted set to get all elements from or up to a certain score.
-//! By default, the interval specified by min and max is closed (inclusive). It is possible to specify an open interval (exclusive) by prefixing the score with the character (.
-//!
-//! Note: the command has a complexity of just O(log(N)) because it uses elements ranks (see ZRANK) to get an idea of the range.
-//! Because of this there is no need to do a work proportional to the size of the range.
-//! Return value: the number of elements in the specified score range.
-//!
-qlonglong QtRedisClient::redisZLexCount(const QString &key, const QString &min, const QString &max)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return -1;
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return -1;
-    }
-    if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return -1;
-    }
-    if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("ZLEXCOUNT %1 %2 %3").arg(key).arg(min).arg(max)));
-}
-
-//!
-//! \brief Получить диапазон элементов отсортированного набора
-//! \param key Ключ
-//! \param start Начальный индекс
-//! \param stop Конечный индекс
-//! \param withScores Если true - вернуть количество элементов вместе с элементами
-//! \return
-//!
-//! Returns the specified range of elements in the sorted set stored at key. The elements are considered to be ordered from the lowest to the highest score.
-//! Lexicographical order is used for elements with equal score.
-//!
-//! See ZREVRANGE when you need the elements ordered from highest to lowest score (and descending lexicographical order for elements with equal score).
-//!
-//! Both start and stop are zero-based indexes, where 0 is the first element, 1 is the next element and so on.
-//! They can also be negative numbers indicating offsets from the end of the sorted set, with -1 being the last element of the sorted set, -2 the penultimate element and so on.
-//!
-//! start and stop are inclusive ranges, so for example ZRANGE myzset 0 1 will return both the first and the second element of the sorted set.
-//!
-//! Out of range indexes will not produce an error. If start is larger than the largest index in the sorted set, or start > stop, an empty list is returned.
-//! If stop is larger than the end of the sorted set Redis will treat it like it is the last element of the sorted set.
-//!
-//! It is possible to pass the WITHSCORES option in order to return the scores of the elements together with the elements.
-//! The returned list will contain value1,score1,...,valueN,scoreN instead of value1,...,valueN.
-//! Client libraries are free to return a more appropriate data type (suggestion: an array with (value, score) arrays/tuples).
-//! Return value: list of elements in the specified range (optionally with their scores, in case the WITHSCORES option is given).
-//!
-QtRedisReply QtRedisClient::redisZRange(const QString &key, const int start, const int stop, const bool withScores)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    QString command = QString("ZREMRANGEBYRANK %1 %2 %3").arg(key).arg(start).arg(stop);
-    if (withScores)
-        command += QString(" WITHSCORES");
-
-    return this->redisExecCommand(command.trimmed());
-}
-
-//!
-//! \brief Когда все элементы в отсортированном наборе вставляются с одинаковой оценкой, возвращает все элементы между min и max.
-//! \param key Ключ
-//! \param min Мин
-//! \param max Макс
-//! \param offset Смещение
-//! \param count Количество
-//! \return
-//!
-//! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns all the elements
-//! in the sorted set at key with a value between min and max.
-//!
-//! If the elements in the sorted set have different scores, the returned elements are unspecified.
-//!
-//! The elements are considered to be ordered from lower to higher strings as compared byte-by-byte using the memcmp() C function.
-//! Longer strings are considered greater than shorter strings if the common part is identical.
-//!
-//! The optional LIMIT argument can be used to only get a range of the matching elements (similar to SELECT LIMIT offset, count in SQL).
-//! Keep in mind that if offset is large, the sorted set needs to be traversed for offset elements before getting to the elements to return, which can add up to O(N) time complexity.
-//!
-//! How to specify intervals:
-//! Valid start and stop must start with ( or [, in order to specify if the range item is respectively exclusive or inclusive.
-//! The special values of + or - for start and stop have the special meaning or positively infinite and negatively infinite strings,
-//! so for instance the command ZRANGEBYLEX myzset - + is guaranteed to return all the elements in the sorted set, if all the elements have the same score.
-//!
-//! Details on strings comparison:
-//! Strings are compared as binary array of bytes. Because of how the ASCII character set is specified, this means that usually this also have the effect
-//! of comparing normal ASCII characters in an obvious dictionary way. However this is not true if non plain ASCII strings are used (for example utf8 strings).
-//!
-//! However the user can apply a transformation to the encoded string so that the first part of the element inserted in the sorted set will compare as the user requires
-//! for the specific application. For example if I want to add strings that will be compared in a case-insensitive way, but I still want to retrieve the real case when querying,
-//! I can add strings in the following way:
-//!
-//! ZADD autocomplete 0 foo:Foo 0 bar:BAR 0 zap:zap
-//!
-//! Because of the first normalized part in every element (before the colon character), we are forcing a given comparison, however after the range is queries using ZRANGEBYLEX
-//! the application can display to the user the second part of the string, after the colon.
-//!
-//! The binary nature of the comparison allows to use sorted sets as a general purpose index, for example the first part of the element can be a 64 bit big endian number:
-//! since big endian numbers have the most significant bytes in the initial positions, the binary comparison will match the numerical comparison of the numbers.
-//! This can be used in order to implement range queries on 64 bit values. As in the example below, after the first 8 bytes we can store the value of the element we are actually indexing.
-//!
-//! Return value: list of elements in the specified score range.
-//!
-//! Examples
-//! redis>  ZADD myzset 0 a 0 b 0 c 0 d 0 e 0 f 0 g
-//! (integer) 7
-//! redis>  ZRANGEBYLEX myzset - [c
-//! 1) "a"
-//! 2) "b"
-//! 3) "c"
-//! redis>  ZRANGEBYLEX myzset - (c
-//! 1) "a"
-//! 2) "b"
-//! redis>  ZRANGEBYLEX myzset [aaa (g
-//! 1) "b"
-//! 2) "c"
-//! 3) "d"
-//! 4) "e"
-//! 5) "f"
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisZRangeByLex(const QString &key,
-                                             const QString &min,
-                                             const QString &max,
-                                             const int offset,
-                                             const int count)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return QtRedisReply();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return QtRedisReply();
-    }
-    if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return QtRedisReply();
-    }
-    if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return QtRedisReply();
-    }
-    QString command = QString("ZRANGEBYLEX %1 %2 %3").arg(key).arg(min).arg(max);
-    if (offset > 0 && count > 0)
-        command += QString(" LIMIT %1 %2").arg(offset).arg(count);
-
-    return this->redisExecCommand(command.trimmed());
-}
-
-//!
-//! \brief Возвращает все элементы между min и max, включая min и max
-//! \param key Ключ
-//! \param min Мин
-//! \param max Макс
-//! \param withScores Если true - вернуть количество элементов вместе с элементами
-//! \param offset Смещение
-//! \param count Количество
-//! \return
-//!
-//! Returns all the elements in the sorted set at key with a score between min and max (including elements with score equal to min or max).
-//! The elements are considered to be ordered from low to high scores.
-//!
-//! The elements having the same score are returned in lexicographical order (this follows from a property of the sorted set implementation in Redis and does not involve further computation).
-//!
-//! The optional LIMIT argument can be used to only get a range of the matching elements (similar to SELECT LIMIT offset, count in SQL).
-//! Keep in mind that if offset is large, the sorted set needs to be traversed for offset elements before getting to the elements to return, which can add up to O(N) time complexity.
-//!
-//! The optional WITHSCORES argument makes the command return both the element and its score, instead of the element alone. This option is available since Redis 2.0.
-//!
-//! Exclusive intervals and infinity:
-//! min and max can be -inf and +inf, so that you are not required to know the highest or lowest score in the sorted set to get all elements from or up to a certain score.
-//!
-//! By default, the interval specified by min and max is closed (inclusive). It is possible to specify an open interval (exclusive) by prefixing the score with the character (.
-//! For example:
-//!
-//! ZRANGEBYSCORE zset (1 5
-//! Will return all elements with 1 < score <= 5 while:
-//!
-//! ZRANGEBYSCORE zset (5 (10
-//! Will return all the elements with 5 < score < 10 (5 and 10 excluded).
-//!
-//! Return value: list of elements in the specified score range (optionally with their scores).
-//!
-//! Examples
-//! redis>  ZADD myzset 1 "one"
-//! (integer) 1
-//! redis>  ZADD myzset 2 "two"
-//! (integer) 1
-//! redis>  ZADD myzset 3 "three"
-//! (integer) 1
-//! redis>  ZRANGEBYSCORE myzset -inf +inf
-//! 1) "one"
-//! 2) "two"
-//! 3) "three"
-//! redis>  ZRANGEBYSCORE myzset 1 2
-//! 1) "one"
-//! 2) "two"
-//! redis>  ZRANGEBYSCORE myzset (1 2
-//! 1) "two"
-//! redis>  ZRANGEBYSCORE myzset (1 (2
-//! (empty list or set)
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisZRangeByScore(const QString &key,
-                                               const QString &min,
-                                               const QString &max,
-                                               const bool withScores,
-                                               const int offset,
-                                               const int count)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return QtRedisReply();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return QtRedisReply();
-    }
-    if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return QtRedisReply();
-    }
-    if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return QtRedisReply();
-    }
-    QString command = QString("ZRANGEBYSCORE %1 %2 %3").arg(key).arg(min).arg(max);
-    if (withScores)
-        command += QString(" WITHSCORES");
-    if (offset > 0 && count > 0)
-        command += QString(" LIMIT %1 %2").arg(offset).arg(count);
-
-    return this->redisExecCommand(command.trimmed());
-}
-
-//!
-//! \brief Получить ранг элемента отсортированного набора от мин к макс
-//! \param key Ключ
-//! \param member Значение
-//! \return
-//!
-//! Returns the rank of member in the sorted set stored at key, with the scores ordered from low to high.
-//! The rank (or index) is 0-based, which means that the member with the lowest score has rank 0.
-//!
-//! Use ZREVRANK to get the rank of an element with the scores ordered from high to low.
-//! Return value:
-//! - If member exists in the sorted set, Integer reply: the rank of member.
-//! - If member does not exist in the sorted set or key does not exist, Bulk string reply: nil.
-//!
-//! Examples
-//! redis>  ZADD myzset 1 "one"
-//! (integer) 1
-//! redis>  ZADD myzset 2 "two"
-//! (integer) 1
-//! redis>  ZADD myzset 3 "three"
-//! (integer) 1
-//! redis>  ZRANK myzset "three"
-//! (integer) 2
-//! redis>  ZRANK myzset "four"
-//! (nil)
-//! redis>
-//!
-qlonglong QtRedisClient::redisZRank(const QString &key, const QString &member)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "ZRANK" << key << member;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Удалить элемент(ы) отсортированного набора
-//! \param key Ключ
-//! \param members Значения
-//! \return
-//!
-//! Removes the specified members from the sorted set stored at key. Non existing members are ignored.
-//!
-//! An error is returned when key exists and does not hold a sorted set.
-//! Return value: the number of members removed from the sorted set, not including non existing members.
-//! Redis >= 2.4: Accepts multiple elements. In Redis versions older than 2.4 it was possible to remove a single member per call.
-//!
-qlonglong QtRedisClient::redisZRem(const QString &key, const QStringList &members)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (members.isEmpty()) {
-        this->setLastError_safe("Invalid members (Empty)!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "ZREM" << key;
-    for (const QString &member : members)
-        argv << member;
-
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Когда все элементы в отсортированном наборе вставляются с одинаковой оценкой, удаляет все элементы между min и max.
-//! \param key Ключ
-//! \param min Мин
-//! \param max Макс
-//! \return
-//!
-//! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering,
-//! this command removes all elements in the sorted set stored at key between the lexicographical range specified by min and max.
-//!
-//! The meaning of min and max are the same of the ZRANGEBYLEX command. Similarly, this command actually returns the same elements that ZRANGEBYLEX would return
-//! if called with the same min and max arguments.
-//!
-//! Return value: the number of elements removed.
-//!
-//! Examples
-//! redis>  ZADD myzset 0 aaaa 0 b 0 c 0 d 0 e
-//! (integer) 5
-//! redis>  ZADD myzset 0 foo 0 zap 0 zip 0 ALPHA 0 alpha
-//! (integer) 5
-//! redis>  ZRANGE myzset 0 -1
-//! 1) "ALPHA"
-//! 2) "aaaa"
-//! 3) "alpha"
-//! 4) "b"
-//! 5) "c"
-//! 6) "d"
-//! 7) "e"
-//! 8) "foo"
-//! 9) "zap"
-//! 10) "zip"
-//! redis>  ZREMRANGEBYLEX myzset [alpha [omega
-//! (integer) 6
-//! redis>  ZRANGE myzset 0 -1
-//! 1) "ALPHA"
-//! 2) "aaaa"
-//! 3) "zap"
-//! 4) "zip"
-//! redis>
-//!
-qlonglong QtRedisClient::redisZRemRangeByLex(const QString &key, const QString &min, const QString &max)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return -1;
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return -1;
-    }
-    if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return -1;
-    }
-    if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYLEX %1 %2 %3").arg(key).arg(min).arg(max)));
-}
-
-//!
-//! \brief Удалить все элементе в отсортированном наборе между индексами start и stop
-//! \param key Ключ
-//! \param start Начальный индекс
-//! \param stop Конечный индекс
-//! \return
-//!
-//! Removes all elements in the sorted set stored at key with rank between start and stop.
-//! Both start and stop are 0 -based indexes with 0 being the element with the lowest score.
-//! These indexes can be negative numbers, where they indicate offsets starting at the element with the highest score.
-//! For example: -1 is the element with the highest score, -2 the element with the second highest score and so forth.
-//!
-//! Return value: the number of elements removed.
-//!
-//! Examples
-//! redis>  ZADD myzset 1 "one"
-//! (integer) 1
-//! redis>  ZADD myzset 2 "two"
-//! (integer) 1
-//! redis>  ZADD myzset 3 "three"
-//! (integer) 1
-//! redis>  ZREMRANGEBYRANK myzset 0 1
-//! (integer) 2
-//! redis>  ZRANGE myzset 0 -1 WITHSCORES
-//! 1) "three"
-//! 2) "3"
-//! redis>
-//!
-qlonglong QtRedisClient::redisZRemRangeByRank(const QString &key, const int start, const int stop)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYRANK %1 %2 %3").arg(key).arg(start).arg(stop)));
-}
-
-//!
-//! \brief Удалить все элементе в отсортированном наборе между min и max, включая их.
-//! \param key Ключ
-//! \param min Мин
-//! \param max Макс
-//! \return
-//!
-//! Removes all elements in the sorted set stored at key with a score between min and max (inclusive).
-//!
-//! Since version 2.1.6, min and max can be exclusive, following the syntax of ZRANGEBYSCORE.
-//! Return value: the number of elements removed.
-//!
-//! Examples
-//! redis>  ZADD myzset 1 "one"
-//! (integer) 1
-//! redis>  ZADD myzset 2 "two"
-//! (integer) 1
-//! redis>  ZADD myzset 3 "three"
-//! (integer) 1
-//! redis>  ZREMRANGEBYSCORE myzset -inf (2
-//! (integer) 1
-//! redis>  ZRANGE myzset 0 -1 WITHSCORES
-//! 1) "two"
-//! 2) "2"
-//! 3) "three"
-//! 4) "3"
-//! redis>
-//!
-qlonglong QtRedisClient::redisZRemRangeByScore(const QString &key, const QString &min, const QString &max)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return -1;
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return -1;
-    }
-    if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return -1;
-    }
-    if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return -1;
-    }
-    return this->replyToLong(this->redisExecCommand(QString("ZREMRANGEBYSCORE %1 %2 %3").arg(key).arg(min).arg(max)));
-}
-
-//!
-//! \brief Получить набор элементов в указанном диапазоне индексов start - stop
-//! \param key Ключ
-//! \param start Начальный индекс
-//! \param stop Конечный индекс
-//! \param withScores
-//! \return
-//!
-//! Returns the specified range of elements in the sorted set stored at key. The elements are considered to be ordered from the highest to the lowest score.
-//! Descending lexicographical order is used for elements with equal score.
-//!
-//! Apart from the reversed ordering, ZREVRANGE is similar to ZRANGE.
-//! Return value: list of elements in the specified range (optionally with their scores).
-//!
-//! Examples
-//! redis>  ZADD myzset 1 "one"
-//! (integer) 1
-//! redis>  ZADD myzset 2 "two"
-//! (integer) 1
-//! redis>  ZADD myzset 3 "three"
-//! (integer) 1
-//! redis>  ZREVRANGE myzset 0 -1
-//! 1) "three"
-//! 2) "two"
-//! 3) "one"
-//! redis>  ZREVRANGE myzset 2 3
-//! 1) "one"
-//! redis>  ZREVRANGE myzset -2 -1
-//! 1) "two"
-//! 2) "one"
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisZRevRange(const QString &key, const int start, const int stop, const bool withScores)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    QString command = QString("ZREVRANGE %1 %2 %3").arg(key).arg(start).arg(stop);
-    if (withScores)
-        command += QString(" WITHSCORES");
-
-    return this->redisExecCommand(command.trimmed());
-}
-
-//!
-//! \brief Когда все элементы в отсортированном наборе вставляются с одинаковой оценкой, возвращает все элементы между min и max в обратном порядке.
-//! \param key Ключ
-//! \param max Макс
-//! \param min Мин
-//! \param offset Смещение
-//! \param count Количество
-//! \return
-//!
-//! When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering,
-//! this command returns all the elements in the sorted set at key with a value between max and min.
-//!
-//! Apart from the reversed ordering, ZREVRANGEBYLEX is similar to ZRANGEBYLEX.
-//! Return value: list of elements in the specified score range.
-//!
-//! Examples
-//! redis>  ZADD myzset 0 a 0 b 0 c 0 d 0 e 0 f 0 g
-//! (integer) 7
-//! redis>  ZREVRANGEBYLEX myzset [c -
-//! 1) "c"
-//! 2) "b"
-//! 3) "a"
-//! redis>  ZREVRANGEBYLEX myzset (c -
-//! 1) "b"
-//! 2) "a"
-//! redis>  ZREVRANGEBYLEX myzset (g [aaa
-//! 1) "f"
-//! 2) "e"
-//! 3) "d"
-//! 4) "c"
-//! 5) "b"
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisZRevRangeByLex(const QString &key,
-                                                const QString &max,
-                                                const QString &min,
-                                                const int offset,
-                                                const int count)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return QtRedisReply();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return QtRedisReply();
-    }
-    if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return QtRedisReply();
-    }
-    if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return QtRedisReply();
-    }
-    QString command = QString("ZREVRANGEBYLEX %1 %2 %3").arg(key).arg(max).arg(min);
-    if (offset > 0 && count > 0)
-        command += QString(" LIMIT %1 %2").arg(offset).arg(count);
-
-    return this->redisExecCommand(command.trimmed());
-}
-
-//!
-//! \brief Получить все элементе в отсортированном наборе между min и max, включая их, в обратном порядке.
-//! \param key Ключ
-//! \param max Макс
-//! \param min Мин
-//! \param withScores
-//! \param offset Смещение
-//! \param count Количество
-//! \return
-//!
-//! Returns all the elements in the sorted set at key with a score between max and min (including elements with score equal to max or min). In contrary to the default ordering of sorted sets, for this command the elements are considered to be ordered from high to low scores.
-//!
-//! The elements having the same score are returned in reverse lexicographical order.
-//!
-//! Apart from the reversed ordering, ZREVRANGEBYSCORE is similar to ZRANGEBYSCORE.
-//! Return value
-//!
-//! Array reply: list of elements in the specified score range (optionally with their scores).
-//! Examples
-//! redis>  ZADD myzset 1 "one"
-//! (integer) 1
-//! redis>  ZADD myzset 2 "two"
-//! (integer) 1
-//! redis>  ZADD myzset 3 "three"
-//! (integer) 1
-//! redis>  ZREVRANGEBYSCORE myzset +inf -inf
-//! 1) "three"
-//! 2) "two"
-//! 3) "one"
-//! redis>  ZREVRANGEBYSCORE myzset 2 1
-//! 1) "two"
-//! 2) "one"
-//! redis>  ZREVRANGEBYSCORE myzset 2 (1
-//! 1) "two"
-//! redis>  ZREVRANGEBYSCORE myzset (2 (1
-//! (empty list or set)
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisZRevRangeByScore(const QString &key,
-                                                  const QString &max,
-                                                  const QString &min,
-                                                  const bool withScores,
-                                                  const int offset,
-                                                  const int count)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    if (min.isEmpty() || min.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid min!");
-        return QtRedisReply();
-    }
-    if (max.isEmpty() || max.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid max!");
-        return QtRedisReply();
-    }
-    if (min.at(0) != '(' && min.at(0) != '['
-        && min != "+" && min != "-") {
-        this->setLastError_safe("Invalid min!");
-        return QtRedisReply();
-    }
-    if (max.at(0) != '(' && max.at(0) != '['
-        && max != "+" && max != "-") {
-        this->setLastError_safe("Invalid max!");
-        return QtRedisReply();
-    }
-    QString command = QString("ZREVRANGEBYSCORE %1 %2 %3").arg(key).arg(max).arg(min);
-    if (withScores)
-        command += QString(" WITHSCORES");
-    if (offset > 0 && count > 0)
-        command += QString(" LIMIT %1 %2").arg(offset).arg(count);
-
-    return this->redisExecCommand(command.trimmed());
-}
-
-//!
-//! \brief Получить ранг элемента отсортированного набора от макс к мин
-//! \param key Ключ
-//! \param member Значение
-//! \return
-//!
-//! Returns the rank of member in the sorted set stored at key, with the scores ordered from high to low.
-//! The rank (or index) is 0-based, which means that the member with the highest score has rank 0.
-//!
-//! Use ZRANK to get the rank of an element with the scores ordered from low to high.
-//! Return value:
-//! - If member exists in the sorted set, Integer reply: the rank of member.
-//! - If member does not exist in the sorted set or key does not exist, Bulk string reply: nil.
-//!
-//! Examples
-//! redis>  ZADD myzset 1 "one"
-//! (integer) 1
-//! redis>  ZADD myzset 2 "two"
-//! (integer) 1
-//! redis>  ZADD myzset 3 "three"
-//! (integer) 1
-//! redis>  ZREVRANK myzset "one"
-//! (integer) 2
-//! redis>  ZREVRANK myzset "four"
-//! (nil)
-//! redis>
-//!
-qlonglong QtRedisClient::redisZRevRank(const QString &key, const QString &member)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return -1;
-    }
-    QStringList argv;
-    argv << "ZREVRANK" << key << member;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
-}
-
-//!
-//! \brief Получить счет элемента отсортированного набора
-//! \param key Ключ
-//! \param member Значение
-//! \return
-//!
-//! Returns the score of member in the sorted set at key.
-//!
-//! If member does not exist in the sorted set, or key does not exist, nil is returned.
-//! Return value: the score of member (a double precision floating point number), represented as string.
-//!
-//! Examples
-//! redis>  ZADD myzset 1 "one"
-//! (integer) 1
-//! redis>  ZSCORE myzset "one"
-//! "1"
-//! redis>
-//!
-QtRedisReply QtRedisClient::redisZScore(const QString &key, const QString &member)
-{
-    if (key.isEmpty() || key.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid key!");
-        return QtRedisReply();
-    }
-    QStringList argv;
-    argv << "ZSCORE" << key << member;
-    return this->redisExecCommandArgv(argv);
-}
-
-//!
-//! \brief Вычислить объединение отсортированных наборов и сохранить результат в новый набор
-//! \param destKey Название ключа нового набора
-//! \param keyList Список ключей наборов
-//! \param weightList Список "весов"
-//! \param aggregateFlag Флаг агрегации (SUM|MIN|MAX)
-//! \return
-//!
-//! Computes the union of numkeys sorted sets given by the specified keys, and stores the result in destination.
-//! It is mandatory to provide the number of input keys (numkeys) before passing the input keys and the other (optional) arguments.
-//!
-//! By default, the resulting score of an element is the sum of its scores in the sorted sets where it exists.
-//!
-//! Using the WEIGHTS option, it is possible to specify a multiplication factor for each input sorted set.
-//! This means that the score of every element in every input sorted set is multiplied by this factor before being passed to the aggregation function.
-//! When WEIGHTS is not given, the multiplication factors default to 1.
-//!
-//! With the AGGREGATE option, it is possible to specify how the results of the union are aggregated.
-//! This option defaults to SUM, where the score of an element is summed across the inputs where it exists.
-//! When this option is set to either MIN or MAX, the resulting set will contain the minimum or maximum score of an element across the inputs where it exists.
-//!
-//! If destination already exists, it is overwritten.
-//!
-//! Return value: the number of elements in the resulting sorted set at destination.
-//!
-//! Examples
-//! redis>  ZADD zset1 1 "one"
-//! (integer) 1
-//! redis>  ZADD zset1 2 "two"
-//! (integer) 1
-//! redis>  ZADD zset2 1 "one"
-//! (integer) 1
-//! redis>  ZADD zset2 2 "two"
-//! (integer) 1
-//! redis>  ZADD zset2 3 "three"
-//! (integer) 1
-//! redis>  ZUNIONSTORE out 2 zset1 zset2 WEIGHTS 2 3
-//! (integer) 3
-//! redis>  ZRANGE out 0 -1 WITHSCORES
-//! 1) "one"
-//! 2) "5"
-//! 3) "three"
-//! 4) "9"
-//! 5) "two"
-//! 6) "10"
-//! redis>
-//!
-qlonglong QtRedisClient::redisZUnionStore(const QString &destKey,
-                                          const QStringList &keyList,
-                                          const QList<int> &weightList,
-                                          const QString &aggregateFlag)
-{
-    if (destKey.isEmpty() || destKey.indexOf(" ") != -1) {
-        this->setLastError_safe("Invalid destKey!");
-        return -1;
-    }
-    if (keyList.isEmpty()) {
-        this->setLastError_safe("Invalid keyList (Empty)!");
-        return -1;
-    }
-    for (const QString &key : keyList) {
-        if (key.indexOf(" ") != -1) {
-            this->setLastError_safe(QString("Invalid key (%1)!").arg(key));
-            return -1;
-        }
-    }
-    QString weightListStr;
-    for (const int weight : weightList) {
-        if (weight <= 0)
-            return -1;
-        weightListStr += QString("%1 ").arg(weight);
-    }
-    if (!aggregateFlag.isEmpty()
-        && aggregateFlag.toUpper() != QString("SUM")
-        && aggregateFlag.toUpper() != QString("MIN")
-        && aggregateFlag.toUpper() != QString("MAX")) {
-        this->setLastError_safe("Invalid aggregateFlag!");
-        return -1;
-    }
-
-    QString command = QString("ZUNIONSTORE %1 %2 %3")
-                      .arg(destKey)
-                      .arg(keyList.size())
-                      .arg(keyList.join(" "));
-
-    if (!weightList.isEmpty())
-        command += QString(" WEIGHTS %1").arg(weightListStr);
-    if (!aggregateFlag.isEmpty())
-        command += QString(" AGGREGATE %1").arg(aggregateFlag.toUpper());
-
-    return this->replyToLong(this->redisExecCommand(command.trimmed()));
+    return QtRedisReply::replyIntToBool(this->redisExecCommand(QString("CLIENT KILL ID %1").arg(id)));
 }
 
 
@@ -3879,6 +1882,8 @@ qlonglong QtRedisClient::redisZUnionStore(const QString &destKey,
 //! \brief Получить список каналов, на которые выполнена подписка
 //! \param pattern
 //! \return
+//!
+//! Redis command: PUBSUB CHANNELS
 //!
 //! Syntax
 //!
@@ -3901,18 +1906,23 @@ qlonglong QtRedisClient::redisZUnionStore(const QString &destKey,
 //! The cluster will make sure that published messages are forwarded as needed.
 //! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
 //!
+//! RESP2/RESP3 Reply
+//! Array reply: a list of active channels, optionally matching the specified pattern.
+//!
 QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
 {
     QStringList argv;
     argv << "PUBSUB" << "CHANNELS";
     if (!pattern.trimmed().isEmpty())
         argv << pattern.trimmed();
-    return this->replyToArray(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToStringList(this->redisExecCommand(argv));
 }
 
 //!
 //! \brief Получить число уникальных шаблонов, на которые подписаны клиенты.
 //! \return The number of unique patterns that are subscribed to by clients
+//!
+//! Redis command: PUBSUB NUMPAT
 //!
 //! Syntax
 //!
@@ -3933,17 +1943,22 @@ QStringList QtRedisClient::redisPubSubChannels(const QString &pattern)
 //! The cluster will make sure that published messages are forwarded as needed.
 //! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
 //!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of patterns all the clients are subscribed to.
+//!
 qlonglong QtRedisClient::redisPubSubNumPat()
 {
     QStringList argv;
     argv << "PUBSUB" << "NUMPAT";
-    return this->replyToLong(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToLong(this->redisExecCommand(argv));
 }
 
 //!
 //! \brief Получить число подписчиков на каждый канал
 //! \param channel
 //! \return
+//!
+//! Redis command: PUBSUB NUMSUB
 //!
 //! Syntax
 //!
@@ -3963,6 +1978,9 @@ qlonglong QtRedisClient::redisPubSubNumPat()
 //! Cluster note: in a Redis Cluster clients can subscribe to every node, and can also publish to every other node.
 //! The cluster will make sure that published messages are forwarded as needed.
 //! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: the number of subscribers per channel, each even element (including the 0th) is channel name, each odd element is the number of subscribers
 //!
 QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QString &channel)
 {
@@ -3974,6 +1992,8 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QString &channel
 //! \param channels
 //! \return
 //!
+//! Redis command: PUBSUB NUMSUB
+//!
 //! Syntax
 //!
 //! PUBSUB NUMSUB [channel [channel ...]]
@@ -3993,6 +2013,9 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QString &channel
 //! The cluster will make sure that published messages are forwarded as needed.
 //! That said, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
 //!
+//! RESP2/RESP3 Reply
+//! Array reply: the number of subscribers per channel, each even element (including the 0th) is channel name, each odd element is the number of subscribers
+//!
 QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &channels)
 {
     // make valid list
@@ -4003,7 +2026,7 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &cha
     argv << "PUBSUB" << "NUMSUB";
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    QtRedisReply reply = this->redisExecCommandArgv(argv);
+    const QtRedisReply reply = this->redisExecCommand(argv);
     if (reply.arrayValueSize() != tmpChannels.size() * 2)
         return QMap<QString, qlonglong>();
     // parse result
@@ -4022,6 +2045,8 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &cha
 //! \param pattern
 //! \return
 //!
+//! Redis command: PUBSUB SHARDCHANNELS
+//!
 //! Syntax
 //!
 //! PUBSUB SHARDCHANNELS [pattern]
@@ -4037,15 +2062,19 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubNumSub(const QStringList &cha
 //!
 //! An active shard channel is a Pub/Sub shard channel with one or more subscribers.
 //!
-//! If no pattern is specified, all the channels are listed, otherwise if pattern is specified only channels matching the specified glob-style pattern are listed.
+//! If no pattern is specified, all the channels are listed,
+//! otherwise if pattern is specified only channels matching the specified glob-style pattern are listed.
 //!
 //! The information returned about the active shard channels are at the shard level and not at the cluster level.
-//! Examples
 //!
+//! Examples
 //! > PUBSUB SHARDCHANNELS
 //! 1) "orders"
 //! > PUBSUB SHARDCHANNELS o*
 //! 1) "orders"
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: a list of active channels, optionally matching the specified pattern.
 //!
 QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
 {
@@ -4053,13 +2082,15 @@ QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
     argv << "PUBSUB" << "SHARDCHANNELS";
     if (!pattern.trimmed().isEmpty())
         argv << pattern;
-    return this->replyToArray(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToStringList(this->redisExecCommand(argv));
 }
 
 //!
 //! \brief Получить число подписчиков на каждый канал сегмента
 //! \param shardChannel
 //! \return
+//!
+//! Redis command: PUBSUB SHARDNUMSUB
 //!
 //! Syntax
 //!
@@ -4076,13 +2107,17 @@ QStringList QtRedisClient::redisPubSubShardChannels(const QString &pattern)
 //!
 //! Note that it is valid to call this command without channels, in this case it will just return an empty list.
 //!
-//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context,
+//!               rather than the entire cluster.
 //!
 //! Examples
-//!
 //! > PUBSUB SHARDNUMSUB orders
 //! 1) "orders"
 //! 2) (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: the number of subscribers per shard channel, each even element (including the 0th) is channel name,
+//! each odd element is the number of subscribers.
 //!
 QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QString &shardChannel)
 {
@@ -4094,6 +2129,8 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QString &sh
 //! \param shardChannels
 //! \return
 //!
+//! Redis command: PUBSUB SHARDNUMSUB
+//!
 //! Syntax
 //!
 //! PUBSUB SHARDNUMSUB [shardchannel [shardchannel ...]]
@@ -4109,13 +2146,17 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QString &sh
 //!
 //! Note that it is valid to call this command without channels, in this case it will just return an empty list.
 //!
-//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context, rather than the entire cluster.
+//! Cluster note: in a Redis Cluster, PUBSUB's replies in a cluster only report information from the node's Pub/Sub context,
+//!               rather than the entire cluster.
 //!
 //! Examples
-//!
 //! > PUBSUB SHARDNUMSUB orders
 //! 1) "orders"
 //! 2) (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//! Array reply: the number of subscribers per shard channel, each even element (including the 0th) is channel name,
+//! each odd element is the number of subscribers.
 //!
 QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList &shardChannels)
 {
@@ -4127,7 +2168,7 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList
     argv << "PUBSUB" << "SHARDNUMSUB";
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    QtRedisReply reply = this->redisExecCommandArgv(argv);
+    const QtRedisReply reply = this->redisExecCommand(argv);
     if (reply.arrayValueSize() != tmpChannels.size() * 2)
         return QMap<QString, qlonglong>();
     // parse result
@@ -4147,6 +2188,8 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList
 //! \param message Сообщение
 //! \return The number of clients that received the message.
 //!
+//! Redis command: PUBLISH
+//!
 //! Syntax
 //!
 //! PUBLISH channel message
@@ -4162,6 +2205,10 @@ QMap<QString, qlonglong> QtRedisClient::redisPubSubShardNumSub(const QStringList
 //!
 //! In a Redis Cluster clients can publish to every node. The cluster makes sure that published messages are forwarded as needed,
 //! so clients can subscribe to any channel by connecting to any one of the nodes.
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of clients that the message was sent to. Note that in a Redis Cluster,
+//! only clients that are connected to the same node as the publishing client are included in the count.
 //!
 qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &message)
 {
@@ -4174,6 +2221,8 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &mes
 //! \param message Сообщение
 //! \return The number of clients that received the message.
 //!
+//! Redis command: PUBLISH
+//!
 //! Syntax
 //!
 //! PUBLISH channel message
@@ -4190,6 +2239,10 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QString &mes
 //! In a Redis Cluster clients can publish to every node. The cluster makes sure that published messages are forwarded as needed,
 //! so clients can subscribe to any channel by connecting to any one of the nodes.
 //!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of clients that the message was sent to. Note that in a Redis Cluster,
+//! only clients that are connected to the same node as the publishing client are included in the count.
+//!
 qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &message)
 {
     if (channel.trimmed().isEmpty() || message.isEmpty()) {
@@ -4198,7 +2251,7 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
     }
     QList<QByteArray> argv;
     argv << "PUBLISH" << channel.trimmed().toUtf8() << message;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToLong(this->redisExecCommand(argv));
 }
 
 //!
@@ -4206,6 +2259,8 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
 //! \param shardChannel Название канала
 //! \param message Сообщение
 //! \return The number of clients that received the message.
+//!
+//! Redis command: SPUBLISH
 //!
 //! Syntax
 //!
@@ -4225,13 +2280,18 @@ qlonglong QtRedisClient::redisPublish(const QString &channel, const QByteArray &
 //! The cluster makes sure that published shard messages are forwarded to all the node in the shard,
 //! so clients can subscribe to a shard channel by connecting to any one of the nodes in the shard.
 //!
-//! For more information about sharded pubsub, see Sharded Pubsub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded pubsub, see Sharded Pubsub.
+//!
 //! Examples
 //!
 //! For example the following command publish to channel orders with a subscriber already waiting for message(s).
 //!
 //! > spublish orders hello
 //! (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of clients that the message was sent to. Note that in a Redis Cluster,
+//! only clients that are connected to the same node as the publishing client are included in the count
 //!
 qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QString &message)
 {
@@ -4244,6 +2304,8 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QStrin
 //! \param message Сообщение
 //! \return The number of clients that received the message.
 //!
+//! Redis command: SPUBLISH
+//!
 //! Syntax
 //!
 //! SPUBLISH shardchannel message
@@ -4262,13 +2324,18 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QStrin
 //! The cluster makes sure that published shard messages are forwarded to all the node in the shard,
 //! so clients can subscribe to a shard channel by connecting to any one of the nodes in the shard.
 //!
-//! For more information about sharded pubsub, see Sharded Pubsub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded pubsub, see Sharded Pubsub.
+//!
 //! Examples
 //!
 //! For example the following command publish to channel orders with a subscriber already waiting for message(s).
 //!
 //! > spublish orders hello
 //! (integer) 1
+//!
+//! RESP2/RESP3 Reply
+//! Integer reply: the number of clients that the message was sent to. Note that in a Redis Cluster,
+//! only clients that are connected to the same node as the publishing client are included in the count
 //!
 qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteArray &message)
 {
@@ -4278,13 +2345,15 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteA
     }
     QList<QByteArray> argv;
     argv << "SPUBLISH" << shardChannel.trimmed().toUtf8() << message;
-    return this->replyToLong(this->redisExecCommandArgv(argv));
+    return QtRedisReply::replyToLong(this->redisExecCommand(argv));
 }
 
 //!
 //! \brief Подписаться на канал сообщений
 //! \param channel Название канала
 //! \return
+//!
+//! Redis command: SUBSCRIBE
 //!
 //! Syntax
 //!
@@ -4302,6 +2371,15 @@ qlonglong QtRedisClient::redisSPublish(const QString &shardChannel, const QByteA
 //! Once the client enters the subscribed state it is not supposed to issue any other commands,
 //! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
 //! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+//! For more information, see Pub/sub.
+//!
+//! Behavior change history
+//!     >= 6.2.0: RESET can be called to exit subscribed state.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each channel,
+//! one message with the first element being the string subscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisSubscribe(const QString &channel)
 {
@@ -4313,6 +2391,8 @@ bool QtRedisClient::redisSubscribe(const QString &channel)
 //! \param channels Названия каналов
 //! \return
 //!
+//! Redis command: SUBSCRIBE
+//!
 //! Syntax
 //!
 //! SUBSCRIBE channel [channel ...]
@@ -4330,6 +2410,15 @@ bool QtRedisClient::redisSubscribe(const QString &channel)
 //! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
 //! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
 //!
+//! For more information, see Pub/sub.
+//!
+//! Behavior change history
+//!     >= 6.2.0: RESET can be called to exit subscribed state.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each channel,
+//! one message with the first element being the string subscribe is pushed as a confirmation that the command succeeded.
+//!
 bool QtRedisClient::redisSubscribe(const QStringList &channels)
 {
     return this->redisSubscribe_safe("SUBSCRIBE", channels);
@@ -4339,6 +2428,8 @@ bool QtRedisClient::redisSubscribe(const QStringList &channels)
 //! \brief Отписаться от канала сообщений
 //! \param channel Название канала
 //! \return
+//!
+//! Redis command: UNSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -4355,6 +2446,10 @@ bool QtRedisClient::redisSubscribe(const QStringList &channels)
 //!
 //! When no channels are specified, the client is unsubscribed from all the previously subscribed channels.
 //! In this case, a message for every unsubscribed channel will be sent to the client.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each channel,
+//! one message with the first element being the string unsubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisUnsubscribe(const QString &channel)
 {
@@ -4366,6 +2461,8 @@ bool QtRedisClient::redisUnsubscribe(const QString &channel)
 //! \param channels Названия каналов
 //! \return
 //!
+//! Redis command: UNSUBSCRIBE
+//!
 //! Syntax
 //!
 //! UNSUBSCRIBE [channel [channel ...]]
@@ -4382,6 +2479,10 @@ bool QtRedisClient::redisUnsubscribe(const QString &channel)
 //! When no channels are specified, the client is unsubscribed from all the previously subscribed channels.
 //! In this case, a message for every unsubscribed channel will be sent to the client.
 //!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each channel,
+//! one message with the first element being the string unsubscribe is pushed as a confirmation that the command succeeded.
+//!
 bool QtRedisClient::redisUnsubscribe(const QStringList &channels)
 {
     return this->redisUnsubscribe_safe("UNSUBSCRIBE", channels);
@@ -4391,6 +2492,8 @@ bool QtRedisClient::redisUnsubscribe(const QStringList &channels)
 //! \brief Подписаться на канал по заданному шаблону
 //! \param pattern
 //! \return
+//!
+//! Redis command: PSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -4416,6 +2519,15 @@ bool QtRedisClient::redisUnsubscribe(const QStringList &channels)
 //! Once the client enters the subscribed state it is not supposed to issue any other commands,
 //! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
 //! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
+//!
+//! For more information, see Pub/sub.
+//!
+//! Behavior change history
+//!     >= 6.2.0: RESET can be called to exit subscribed state.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each pattern,
+//! one message with the first element being the string psubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisPSubscribe(const QString &pattern)
 {
@@ -4427,6 +2539,8 @@ bool QtRedisClient::redisPSubscribe(const QString &pattern)
 //! \param patterns
 //! \return
 //!
+//! Redis command: PSUBSCRIBE
+//!
 //! Syntax
 //!
 //! PSUBSCRIBE pattern [pattern ...]
@@ -4452,6 +2566,15 @@ bool QtRedisClient::redisPSubscribe(const QString &pattern)
 //! except for additional SUBSCRIBE, SSUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE, SUNSUBSCRIBE, PUNSUBSCRIBE, PING, RESET and QUIT commands.
 //! However, if RESP3 is used (see HELLO) it is possible for a client to issue any commands while in subscribed state.
 //!
+//! For more information, see Pub/sub.
+//!
+//! Behavior change history
+//!     >= 6.2.0: RESET can be called to exit subscribed state.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each pattern,
+//! one message with the first element being the string psubscribe is pushed as a confirmation that the command succeeded.
+//!
 bool QtRedisClient::redisPSubscribe(const QStringList &patterns)
 {
     return this->redisSubscribe_safe("PSUBSCRIBE", patterns);
@@ -4461,6 +2584,8 @@ bool QtRedisClient::redisPSubscribe(const QStringList &patterns)
 //! \brief Отписаться от канала по заданному шаблону
 //! \param pattern
 //! \return
+//!
+//! Redis command: PUNSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -4477,6 +2602,10 @@ bool QtRedisClient::redisPSubscribe(const QStringList &patterns)
 //!
 //! When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns.
 //! In this case, a message for every unsubscribed pattern will be sent to the client.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each pattern,
+//! one message with the first element being the string punsubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisPUnsubscribe(const QString &pattern)
 {
@@ -4488,6 +2617,8 @@ bool QtRedisClient::redisPUnsubscribe(const QString &pattern)
 //! \param patterns
 //! \return
 //!
+//! Redis command: PUNSUBSCRIBE
+//!
 //! Syntax
 //!
 //! PUNSUBSCRIBE [pattern [pattern ...]]
@@ -4504,6 +2635,10 @@ bool QtRedisClient::redisPUnsubscribe(const QString &pattern)
 //! When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns.
 //! In this case, a message for every unsubscribed pattern will be sent to the client.
 //!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each pattern,
+//! one message with the first element being the string punsubscribe is pushed as a confirmation that the command succeeded.
+//!
 bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
 {
     return this->redisUnsubscribe_safe("PUNSUBSCRIBE", patterns);
@@ -4513,6 +2648,8 @@ bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
 //! \brief Подписаться на сообщения указанного канала сегмента.
 //! \param shardChannel Название канала
 //! \return
+//!
+//! Redis command: SSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -4532,7 +2669,7 @@ bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
 //! All the specified shard channels needs to belong to a single slot to subscribe in a given SSUBSCRIBE call,
 //! A client can subscribe to channels across different slots over separate SSUBSCRIBE call.
 //!
-//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub.
 //!
 //! Examples
 //!
@@ -4544,6 +2681,16 @@ bool QtRedisClient::redisPUnsubscribe(const QStringList &patterns)
 //! 1) "smessage"
 //! 2) "orders"
 //! 3) "hello"
+//!
+//! RESP2 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string ssubscribe is pushed as a confirmation that the command succeeded.
+//! Note that this command can also return a -MOVED redirect.
+//!
+//! RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string 'ssubscribe' is pushed as a confirmation that the command succeeded.
+//! Note that this command can also return a -MOVED redirect.
 //!
 bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
 {
@@ -4555,6 +2702,8 @@ bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
 //! \param shardChannels Название канала
 //! \return
 //!
+//! Redis command: SSUBSCRIBE
+//!
 //! Syntax
 //!
 //! SSUBSCRIBE shardchannel [shardchannel ...]
@@ -4573,7 +2722,7 @@ bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
 //! All the specified shard channels needs to belong to a single slot to subscribe in a given SSUBSCRIBE call,
 //! A client can subscribe to channels across different slots over separate SSUBSCRIBE call.
 //!
-//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub.
 //!
 //! Examples
 //!
@@ -4586,6 +2735,16 @@ bool QtRedisClient::redisSSubscribe(const QString &shardChannel)
 //! 2) "orders"
 //! 3) "hello"
 //!
+//! RESP2 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string ssubscribe is pushed as a confirmation that the command succeeded.
+//! Note that this command can also return a -MOVED redirect.
+//!
+//! RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string 'ssubscribe' is pushed as a confirmation that the command succeeded.
+//! Note that this command can also return a -MOVED redirect.
+//!
 bool QtRedisClient::redisSSubscribe(const QStringList &shardChannels)
 {
     return this->redisSubscribe_safe("SSUBSCRIBE", shardChannels);
@@ -4595,6 +2754,8 @@ bool QtRedisClient::redisSSubscribe(const QStringList &shardChannels)
 //! \brief Отписаться от сообщений указанного канала сегмента.
 //! \param shardChannel
 //! \return
+//!
+//! Redis command: SUNSUBSCRIBE
 //!
 //! Syntax
 //!
@@ -4614,7 +2775,11 @@ bool QtRedisClient::redisSSubscribe(const QStringList &shardChannels)
 //!
 //! Note: The global channels and shard channels needs to be unsubscribed from separately.
 //!
-//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string sunsubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisSUnsubscribe(const QString &shardChannel)
 {
@@ -4626,6 +2791,8 @@ bool QtRedisClient::redisSUnsubscribe(const QString &shardChannel)
 //! \param shardChannels
 //! \return
 //!
+//! Redis command: SUNSUBSCRIBE
+//!
 //! Syntax
 //!
 //! SUNSUBSCRIBE [shardchannel [shardchannel ...]]
@@ -4644,7 +2811,11 @@ bool QtRedisClient::redisSUnsubscribe(const QString &shardChannel)
 //!
 //! Note: The global channels and shard channels needs to be unsubscribed from separately.
 //!
-//! For more information about sharded Pub/Sub, see Sharded Pub/Sub (https://redis.io/topics/pubsub#sharded-pubsub).
+//! For more information about sharded Pub/Sub, see Sharded Pub/Sub.
+//!
+//! RESP2/RESP3 Reply
+//! When successful, this command doesn't return anything. Instead, for each shard channel,
+//! one message with the first element being the string sunsubscribe is pushed as a confirmation that the command succeeded.
 //!
 bool QtRedisClient::redisSUnsubscribe(const QStringList &shardChannels)
 {
@@ -4653,120 +2824,137 @@ bool QtRedisClient::redisSUnsubscribe(const QStringList &shardChannels)
 
 
 // ------------------------------------------------------------------------
-// -- TOOLS COMMANDS ------------------------------------------------------
+// -- Pipeline & Transaction COMMANDS -------------------------------------
 // ------------------------------------------------------------------------
 
 //!
-//! \brief Преобразовать ответ от сервера в qlonglong
-//! \param reply Ответ от сервера
+//! \brief Создать объект для работы в режиме RedisPipeline
 //! \return
 //!
-qlonglong QtRedisClient::replyToLong(const QtRedisReply &reply)
+QtRedisPipeline QtRedisClient::createPipeline()
 {
-    if (reply.type() == QtRedisReply::ReplyType::Error) {
-        this->setLastError_safe(reply.strValue());
-        return -1;
-    } else if (reply.type() == QtRedisReply::ReplyType::Integer) {
-        return reply.intValue();
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QtRedisPipeline(nullptr);
     }
-    this->setLastError_safe("Invalid reply type!");
-    return -1;
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QtRedisPipeline(nullptr);
+    }
+    return QtRedisPipeline(_transporter);
 }
 
 //!
-//! \brief Преобразовать ответ от сервера в строку
-//! \param reply Ответ от сервера
+//! \brief Создать объект для работы в режиме RedisTransaction
 //! \return
 //!
-QString QtRedisClient::replyToString(const QtRedisReply &reply)
+// Note: If piped = true, then all commands of class QtRedisTransaction will be added to the queue.
+//       If piped = false, then all commands of class QtRedisTransaction will be executed immediately when the method is called.
+//
+// Default: piped = true.
+//!
+QtRedisTransaction QtRedisClient::createTransaction(const bool piped)
 {
-    if (reply.type() == QtRedisReply::ReplyType::Error) {
-        this->setLastError_safe(reply.strValue());
-        return QString();
-    } else if (reply.type() == QtRedisReply::ReplyType::String
-               || reply.type() == QtRedisReply::ReplyType::Status) {
-        return reply.strValue();
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QtRedisTransaction(nullptr, piped);
     }
-    this->setLastError_safe("Invalid reply type!");
-    return QString();
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QtRedisTransaction(nullptr, piped);
+    }
+    return QtRedisTransaction(_transporter, piped);
 }
 
+
+// ------------------------------------------------------------------------
+// -- TOOLS ---------------------------------------------------------------
+// ------------------------------------------------------------------------
+
 //!
-//! \brief Преобразовать ответ от сервера в список
-//! \param reply Ответ от сервера
+//! \brief Получить информацию о сервере в формате массива ключ-значение из "сырого" формата данных
+//! \param data "Сырой" формат данных
 //! \return
 //!
-QStringList QtRedisClient::replyToArray(const QtRedisReply &reply)
+QMap<QString, QVariant> QtRedisClient::redisInfoFromRawData(const QByteArray &data)
 {
-    if (reply.type() == QtRedisReply::ReplyType::Error) {
-        this->setLastError_safe(reply.strValue());
-        return QStringList();
-    } else if (reply.type() == QtRedisReply::ReplyType::Array) {
-        QStringList array;
-        for (const QtRedisReply &replyObj : reply.arrayValue()) {
-            if (replyObj.type() == QtRedisReply::ReplyType::String)
-                array.append(replyObj.strValue());
-        }
-        return array;
+    if (data.isEmpty())
+        return QMap<QString, QVariant>();
+
+    QMap<QString, QVariant> buffInfo;
+    QList<QByteArray> buffReplyList = data.split('\n');
+    for (int i = 0; i < buffReplyList.size(); i++) {
+        buffReplyList[i] = buffReplyList[i].trimmed();
+        if (buffReplyList[i].isEmpty())
+            continue;
+
+        const QList<QByteArray> buffSplitValue = buffReplyList[i].split(':');
+        if (buffSplitValue.size() < 2)
+            continue;
+        buffInfo.insert(QString::fromUtf8(buffSplitValue.at(0)), buffSplitValue.at(1));
     }
-    this->setLastError_safe("Invalid reply type!");
-    return QStringList();
+    return buffInfo;
 }
 
 //!
-//! \brief Преобразовать ответ от сервера (replyType_Integer) в bool
-//! \param reply Ответ от сервера
+//! \brief Получить информацию о сервере в формате массива ключ-значение из строкового формата данных
+//! \param data Строковый формат данных
 //! \return
 //!
-bool QtRedisClient::replyIntToBool(const QtRedisReply &reply)
+QMap<QString, QVariant> QtRedisClient::redisInfoFromStringData(const QString &data)
 {
-    if (reply.type() == QtRedisReply::ReplyType::Error) {
-        this->setLastError_safe(reply.strValue());
-        return false;
-    } else if (reply.type() == QtRedisReply::ReplyType::Integer) {
-        return (reply.intValue() == 0) ? false : true;
+    if (data.isEmpty())
+        return QMap<QString, QVariant>();
+
+    QMap<QString, QVariant> buffInfo;
+    QStringList buffReplyList = data.split("\n");
+    for (int i = 0; i < buffReplyList.size(); i++) {
+        buffReplyList[i] = buffReplyList[i].trimmed();
+        if (buffReplyList[i].isEmpty())
+            continue;
+
+        const QStringList buffSplitValue = buffReplyList[i].split(":");
+        if (buffSplitValue.size() < 2)
+            continue;
+        buffInfo.insert(buffSplitValue.at(0), buffSplitValue.at(1));
     }
-    this->setLastError_safe("Invalid reply type!");
-    return false;
+    return buffInfo;
 }
 
+// --- protected ---
+
 //!
-//! \brief Преобразовать ответ от сервера (replyType_Status|replyType_String) в bool
-//! \param reply Ответ от сервера
+//! \brief Выполнить команду
+//! \param command Команда
 //! \return
 //!
-bool QtRedisClient::replySimpleStringToBool(const QtRedisReply &reply)
+QtRedisReply QtRedisClient::processCommand(const QtRedisCommand &command)
 {
-    if (reply.type() == QtRedisReply::ReplyType::Error) {
-        this->setLastError_safe(reply.strValue());
-        return false;
-    } else if (reply.type() == QtRedisReply::ReplyType::Status
-               || reply.type() == QtRedisReply::ReplyType::String) {
-        return (reply.strValue() == "OK");
+    if (!_transporter) {
+        this->setLastError_safe("QtRedisTransporter is NULL!");
+        return QtRedisReply();
     }
-    this->setLastError_safe("Invalid reply type!");
-    return false;
+    if (!_transporter->isConnected()) {
+        this->setLastError_safe("Client is not connected!");
+        return QtRedisReply();
+    }
+    this->clearLastError_safe();
+    QString error;
+    bool isOk = false;
+    const QtRedisReply reply = _transporter->sendCommand(command, error, &isOk);
+    if (!error.isEmpty())
+        this->setLastError_safe(error);
+    return reply;
 }
 
-//!
-//! \brief Установить последнюю ошибку
-//! \param error Ошибка
-//!
-void QtRedisClient::setLastError_safe(const QString &error)
-{
-    QMutexLocker lock(&_mutexErr);
-    _lastError = error;
-}
+// --- private ---
 
 //!
-//! \brief Очистить посленюю ошибку
+//! \brief Выполнить подписку на каналы
+//! \param command Команда
+//! \param channels Список каналов
+//! \return
 //!
-void QtRedisClient::clearLastError_safe()
-{
-    QMutexLocker lock(&_mutexErr);
-    _lastError.clear();
-}
-
 bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringList &channels)
 {
     QMutexLocker lock(&_mutex);
@@ -4786,22 +2974,39 @@ bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringLis
         this->setLastError_safe("Client is not connected!");
         return false;
     }
+    QString error;
     if (!_transporter->isSubscribed()
-        && !_transporter->subscribeToServer()) {
-        this->setLastError_safe("Subscribe to the server failed!");
+        && !_transporter->subscribeToServer(error)) {
+        this->setLastError_safe(!error.isEmpty() ? error : "Subscribe to the server failed!");
         return false;
     }
     // make args
     QStringList argv;
     argv << command.trimmed().toUpper() << tmpChannels;
-    const QList<QtRedisReply> replyList = _transporter->sendChannelCommand_lst(argv);
-    if (replyList.size() != tmpChannels.size()) {
+    bool isOk = false;
+    const QtRedisReply replyList = _transporter->sendChannelCommand(QtRedisCommand::fromString(argv.join(" ")), error, &isOk);
+    if (!isOk) {
+        this->setLastError_safe(error);
+        return false;
+    }
+
+    // if 1 channel - check reply
+    if (tmpChannels.size() == 1
+        && replyList.type() == QtRedisReply::ReplyType::Array
+        && replyList.arrayValueSize() == 3
+        && replyList.arrayValue().at(0).strValue() == command.trimmed().toLower()
+        && replyList.arrayValue().at(1).strValue() == tmpChannels.constFirst())
+        return true;
+
+    // check size
+    if (replyList.arrayValueSize() != tmpChannels.size()) {
         this->setLastError_safe("Invalid reply list size!");
         return false;
     }
-    bool isOk = true;
+
+    isOk = true;
     for (int i = 0; i < tmpChannels.size(); i++) {
-        const QtRedisReply reply = replyList[i];
+        const QtRedisReply reply = replyList.arrayValueAt(i);
         const QString channel = tmpChannels[i];
         if (reply.isError())
             this->setLastError_safe(reply.strValue());
@@ -4809,12 +3014,18 @@ bool QtRedisClient::redisSubscribe_safe(const QString &command, const QStringLis
         isOk = isOk
                && reply.type() == QtRedisReply::ReplyType::Array
                && reply.arrayValueSize() == 3
-               && reply.arrayValue()[0].strValue() == command.trimmed().toLower()
-               && reply.arrayValue()[1].strValue() == channel;
+               && reply.arrayValue().at(0).strValue() == command.trimmed().toLower()
+               && reply.arrayValue().at(1).strValue() == channel;
     }
     return isOk;
 }
 
+//!
+//! \brief Выполнить отписку от каналов
+//! \param command Команда
+//! \param channels Список каналов
+//! \return
+//!
 bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringList &channels)
 {
     QMutexLocker lock(&_mutex);
@@ -4838,14 +3049,31 @@ bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringL
     argv << command.trimmed().toUpper();
     if (!tmpChannels.isEmpty())
         argv << tmpChannels;
-    const QList<QtRedisReply> replyList = _transporter->sendChannelCommand_lst(argv);
-    if (replyList.size() != tmpChannels.size()) {
+    QString error;
+    bool isOk = false;
+    const QtRedisReply replyList = _transporter->sendChannelCommand(QtRedisCommand::fromString(argv.join(" ")), error, &isOk);
+    if (!isOk) {
+        this->setLastError_safe(error);
+        return false;
+    }
+
+    // if 1 channel - check reply
+    if (tmpChannels.size() == 1
+        && replyList.type() == QtRedisReply::ReplyType::Array
+        && replyList.arrayValueSize() == 3
+        && replyList.arrayValue().at(0).strValue() == command.trimmed().toLower()
+        && replyList.arrayValue().at(1).strValue() == tmpChannels.constFirst())
+        return true;
+
+    // check size
+    if (replyList.arrayValueSize() != tmpChannels.size()) {
         this->setLastError_safe("Invalid reply list size!");
         return false;
     }
-    bool isOk = true;
+
+    isOk = true;
     for (int i = 0; i < tmpChannels.size(); i++) {
-        const QtRedisReply reply = replyList[i];
+        const QtRedisReply reply = replyList.arrayValueAt(i);
         const QString channel = tmpChannels[i];
         if (reply.isError())
             this->setLastError_safe(reply.strValue());
@@ -4853,8 +3081,8 @@ bool QtRedisClient::redisUnsubscribe_safe(const QString &command, const QStringL
         isOk = isOk
                && reply.type() == QtRedisReply::ReplyType::Array
                && reply.arrayValueSize() == 3
-               && reply.arrayValue()[0].strValue() == command.trimmed().toLower()
-               && reply.arrayValue()[1].strValue() == channel;
+               && reply.arrayValue().at(0).strValue() == command.trimmed().toLower()
+               && reply.arrayValue().at(1).strValue() == channel;
     }
     return isOk;
 }

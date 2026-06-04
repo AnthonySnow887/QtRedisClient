@@ -1,25 +1,26 @@
-#include "QtRedisContextSsl.h"
+#include "QtRedisContextTcp.h"
 #include "QtRedisParser.h"
+
+#include <QtNetwork/QHostAddress>
 
 //!
 //! \brief Конструктор класса
-//! \param host IP-адрес
+//! \param host Хост
 //! \param port Порт
 //!
-QtRedisContextSsl::QtRedisContextSsl(const QString &host, const uint port)
+QtRedisContextTcp::QtRedisContextTcp(const QString &host, const uint port)
     : QtRedisContext(host, port)
-    , _socket(new QSslSocket(this))
+    , _socket(new QTcpSocket(this))
 {
-    _socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
-    connect(_socket, &QSslSocket::connected, this, &QtRedisContext::connected);
-    connect(_socket, &QSslSocket::disconnected, this, &QtRedisContext::disconnected);
-    connect(_socket, &QSslSocket::readyRead, this, &QtRedisContext::readyRead);
+    connect(_socket, &QTcpSocket::connected, this, &QtRedisContext::connected);
+    connect(_socket, &QTcpSocket::disconnected, this, &QtRedisContext::disconnected);
+    connect(_socket, &QTcpSocket::readyRead, this, &QtRedisContext::readyRead);
 }
 
 //!
 //! \brief Деструктор класса
 //!
-QtRedisContextSsl::~QtRedisContextSsl()
+QtRedisContextTcp::~QtRedisContextTcp()
 {
     if (_socket) {
         this->disconnectFromServer();
@@ -33,44 +34,32 @@ QtRedisContextSsl::~QtRedisContextSsl()
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextSsl::connectToServer(const int msecs)
+bool QtRedisContextTcp::connectToServer(const int msecs, QString &error)
 {
     QMutexLocker lock(&_mutex);
-    if (!_socket)
-        return false;
-    if (_socket && _socket->isOpen())
-        return true;
-    if (_host.isEmpty() || _port == 0)
-        return false;
-
-    // check ssl
-    if (!QSslSocket::supportsSsl()) {
-        qCritical() << "[QtRedisContextSsl][connectToServer] SSL not supported!";
+    error.clear();
+    if (!_socket) {
+        error = QString("Invalid socket object (is nullptr)!");
         return false;
     }
-//    _socket->setSslConfiguration(QSslConfiguration::defaultConfiguration());
-
-//    QList<QSslCertificate> trustedCas = conf.sslCaCertificates();
-//    if (!trustedCas.empty()) {
-//        m_socket->addCaCertificates(trustedCas);
-//    }
-
-//    QString privateKey = conf.sslPrivateKeyPath();
-//    if (!privateKey.isEmpty()) {
-//        m_socket->setPrivateKey(privateKey);
-//    }
-
-//    QString localCert = conf.sslLocalCertPath();
-//    if (!localCert.isEmpty()) {
-//        m_socket->setLocalCertificate(localCert);
-//    }
+    if (_socket && _socket->isOpen())
+        return true;
+    if (_host.isEmpty() || _port == 0) {
+        error = QString("Invalid host or port!");
+        return false;
+    }
 
     int buffMsecs = 30 * 1000;
     if (msecs > 0)
         buffMsecs = msecs;
 
-    _socket->connectToHostEncrypted(_host, _port);
-    return _socket->waitForEncrypted(buffMsecs);
+    _socket->connectToHost(QHostAddress(_host), _port);
+    const bool isConnected = _socket->waitForConnected(buffMsecs);
+    if (!isConnected) {
+        const QString socketErr = _socket->errorString();
+        error = !socketErr.isEmpty() ? socketErr : "QTcpSocket: waitForConnected failed!";
+    }
+    return isConnected;
 }
 
 //!
@@ -78,22 +67,25 @@ bool QtRedisContextSsl::connectToServer(const int msecs)
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextSsl::reconnectToServer(const int msecs)
+bool QtRedisContextTcp::reconnectToServer(const int msecs, QString &error)
 {
     QMutexLocker lock(&_mutex);
-    if (!_socket)
+    error.clear();
+    if (!_socket) {
+        error = QString("Invalid socket object (is nullptr)!");
         return false;
+    }
 
     _socket->abort();
     _socket->close();
     lock.unlock();
-    return this->connectToServer(msecs);
+    return this->connectToServer(msecs, error);
 }
 
 //!
 //! \brief Отключиться от сервера
 //!
-void QtRedisContextSsl::disconnectFromServer()
+void QtRedisContextTcp::disconnectFromServer()
 {
     QMutexLocker lock(&_mutex);
     if (_socket) {
@@ -106,7 +98,7 @@ void QtRedisContextSsl::disconnectFromServer()
 //! \brief Подключен ли к серверу
 //! \return
 //!
-bool QtRedisContextSsl::isConnected()
+bool QtRedisContextTcp::isConnected()
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -121,7 +113,7 @@ bool QtRedisContextSsl::isConnected()
 //! \brief Доступны ли данные для чтения
 //! \return
 //!
-bool QtRedisContextSsl::canReadRawData() const
+bool QtRedisContextTcp::canReadRawData() const
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -136,7 +128,7 @@ bool QtRedisContextSsl::canReadRawData() const
 //! \brief Количество байт, доступных для чтения
 //! \return
 //!
-qint64 QtRedisContextSsl::bytesAvailable() const
+qint64 QtRedisContextTcp::bytesAvailable() const
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -150,7 +142,7 @@ qint64 QtRedisContextSsl::bytesAvailable() const
 //! \param data Данные
 //! \return
 //!
-qint64 QtRedisContextSsl::writeRawData(const QByteArray &data)
+qint64 QtRedisContextTcp::writeRawData(const QByteArray &data)
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -175,7 +167,7 @@ qint64 QtRedisContextSsl::writeRawData(const QByteArray &data)
 //! \brief Прочитать данные
 //! \return
 //!
-QByteArray QtRedisContextSsl::readRawData()
+QByteArray QtRedisContextTcp::readRawData()
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
@@ -189,7 +181,7 @@ QByteArray QtRedisContextSsl::readRawData()
 //! \param msecs Время ожидания мсек
 //! \return
 //!
-bool QtRedisContextSsl::waitForReadyRead(const int msecs)
+bool QtRedisContextTcp::waitForReadyRead(const int msecs)
 {
     QMutexLocker lock(&_mutex);
     if (!_socket)
