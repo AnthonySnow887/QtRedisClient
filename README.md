@@ -425,7 +425,7 @@ __RESULT_IMPL redisZUnionStore(const QString &destKey,
 ### Pipeline and Transaction create commands
 ```cpp
 //
-// For details see the file: Core/QtRedisBase.h
+// For details see the file: QtRedisClient.h
 //
 
 QtRedisPipeline createPipeline();
