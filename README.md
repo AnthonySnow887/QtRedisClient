@@ -429,6 +429,11 @@ __RESULT_IMPL redisZUnionStore(const QString &destKey,
 //
 
 QtRedisPipeline createPipeline();
+
+// Note: If piped = true, then all commands of class QtRedisTransaction will be added to the queue.
+//       If piped = false, then all commands of class QtRedisTransaction will be executed immediately when the method is called.
+//
+// Default: piped = true.
 QtRedisTransaction createTransaction(const bool piped = true);
 ```
 
