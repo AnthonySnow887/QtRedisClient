@@ -14,27 +14,21 @@
 //! \class QtRedisReply
 //! \brief Класс, описывающий ответ от сервера Redis
 //!
-//! Если тип:
-//! - String  - QtRedisReply.strValue()
-//! - Array   - QtRedisReply.arrayValue()
-//! - Integer - QtRedisReply.intValue()
-//! - Nil     - nothing
-//! - Status  - QtRedisReply.strValue()
-//! - Error   - QtRedisReply.strValue()
-//!
 class QtRedisReply
 {
+    friend class QtRedisParser;
+
 public:
     //!
     //! \brief Перечисление типов объекта
     //!
     enum class ReplyType {
-        String = 0,   //!< строка
-        Array,        //!< массив
-        Integer,      //!< число
-        Nil,          //!< нулевой объект
-        Status,       //!< состояние
-        Error         //!< ошибка
+        String = 0,   //!< строка (String object - use QtRedisReply.strValue())
+        Array,        //!< массив (Array object - use QtRedisReply.arrayValue())
+        Integer,      //!< число (Integer object - use QtRedisReply.intValue())
+        Nil,          //!< нулевой объект (Nil object - nothing)
+        Status,       //!< состояние (Status object - use QtRedisReply.strValue())
+        Error         //!< ошибка (Error object - use QtRedisReply.strValue())
     };
 
     //!
@@ -78,62 +72,15 @@ public:
     }
 
     //!
-    //! \brief Строковое представление типа объекта
-    //! \param type Тип объекта
-    //! \return
-    //!
-    static QString typeToStr(const ReplyType &type) {
-        switch (type) {
-            case ReplyType::String:
-                return QString("String");
-            case ReplyType::Array:
-                return QString("Array");
-            case ReplyType::Integer:
-                return QString("Integer");
-            case ReplyType::Nil:
-                return QString("Nil");
-            case ReplyType::Status:
-                return QString("Status");
-            case ReplyType::Error:
-                return QString("Error");
-            default:
-                break;
-        }
-        return QString();
-    }
-
-    //!
     //! \brief Содержит ли значение результата
     //! \return
+    //!
+    //! Checks that _type == ReplyType::String || _type == ReplyType::Array || _type == ReplyType::Integer
     //!
     bool isValue() const {
         return (_type == ReplyType::String
                 || _type == ReplyType::Array
                 || _type == ReplyType::Integer);
-    }
-
-    //!
-    //! \brief Является ли типом ReplyType::Status
-    //! \return
-    //!
-    bool isStatus() const {
-        return (_type == ReplyType::Status);
-    }
-
-    //!
-    //! \brief Является ли типом ReplyType::Nil
-    //! \return
-    //!
-    bool isNil() const {
-        return (_type == ReplyType::Nil);
-    }
-
-    //!
-    //! \brief Является ли типом ReplyType::Error
-    //! \return
-    //!
-    bool isError() const {
-        return (_type == ReplyType::Error);
     }
 
     //!
@@ -161,8 +108,34 @@ public:
     }
 
     //!
+    //! \brief Является ли типом ReplyType::Nil
+    //! \return
+    //!
+    bool isNil() const {
+        return (_type == ReplyType::Nil);
+    }
+
+    //!
+    //! \brief Является ли типом ReplyType::Status
+    //! \return
+    //!
+    bool isStatus() const {
+        return (_type == ReplyType::Status);
+    }
+
+    //!
+    //! \brief Является ли типом ReplyType::Error
+    //! \return
+    //!
+    bool isError() const {
+        return (_type == ReplyType::Error);
+    }
+
+    //!
     //! \brief Является ли пустым объектом
     //! \return
+    //!
+    //! Checks that _type != ReplyType::Nil && _rawValue.isEmpty()
     //!
     bool isEmpty() const {
         return (_type != ReplyType::Nil
@@ -336,24 +309,6 @@ public:
     }
 
     //!
-    //! \brief Задать тип объекта
-    //! \param type Тип объекта
-    //!
-    void setType(const ReplyType &type) { _type = type; }
-
-    //!
-    //! \brief Задать "сырое" значение
-    //! \param value "Сырое" значение
-    //!
-    void setRawValue(const QByteArray &value) { _rawValue = value; }
-
-    //!
-    //! \brief Добавить элемент в массив
-    //! \param object Объект ответа
-    //!
-    void appendArrayValue(const QtRedisReply &object) { _arrayValue.append(std::move(object)); }
-
-    //!
     //! \brief operator <<
     //! \param dbg QDebug
     //! \param object QtRedisReply
@@ -380,14 +335,39 @@ public:
     // ------------------------------------------------------------------------
 
     //!
+    //! \brief Строковое представление типа объекта
+    //! \param type Тип объекта
+    //! \return
+    //!
+    static QString typeToStr(const ReplyType &type) {
+        switch (type) {
+            case ReplyType::String:
+                return QString("String");
+            case ReplyType::Array:
+                return QString("Array");
+            case ReplyType::Integer:
+                return QString("Integer");
+            case ReplyType::Nil:
+                return QString("Nil");
+            case ReplyType::Status:
+                return QString("Status");
+            case ReplyType::Error:
+                return QString("Error");
+            default:
+                break;
+        }
+        return QString();
+    }
+
+    //!
     //! \brief Проверить результат на корректность
     //! \param reply
     //! \return
     //!
     //! Данный метод проверяет тип результирующего объекта, и если он:
-    //! - replyType_Error   - return false
-    //! - replyType_Nil     - return false
-    //! - replyType_Status  - если ответ != "OK" и != "QUEUED", то return false
+    //! - ReplyType::Error   - return false
+    //! - ReplyType::Nil     - return false
+    //! - ReplyType::Status  - если ответ != "OK" и != "QUEUED", то return false
     //!
     static bool isReplySuccess(const QtRedisReply &reply)
     {
@@ -412,6 +392,9 @@ public:
     //! \param reply Ответ от сервера
     //! \return
     //!
+    //! Note: Если объект является массивом, для преобразования используется первый элемент массива.
+    //! Warn: Проверяется тип ReplyType::Integer! Если тип объекта отличается, возвращается -1!
+    //!
     static qlonglong replyToLong(const QtRedisReply &reply)
     {
         if (reply.type() == QtRedisReply::ReplyType::Integer)
@@ -426,6 +409,9 @@ public:
     //! \brief Преобразовать ответ от сервера в строку
     //! \param reply Ответ от сервера
     //! \return
+    //!
+    //! Note: Если объект является массивом, для преобразования используется первый элемент массива.
+    //! Warn: Проверяется тип ReplyType::String или ReplyType::Status! Если тип объекта отличается, возвращается пустая строка!
     //!
     static QString replyToString(const QtRedisReply &reply)
     {
@@ -443,6 +429,9 @@ public:
     //! \param reply Ответ от сервера
     //! \return
     //!
+    //! Note: Если объект является массивом, для преобразования используется первый элемент массива.
+    //! Warn: Проверяется тип ReplyType::String или ReplyType::Status! Если тип объекта отличается, возвращается пустой массив байт!
+    //!
     static QByteArray replyToByteArray(const QtRedisReply &reply)
     {
         if (reply.type() == QtRedisReply::ReplyType::String
@@ -459,6 +448,9 @@ public:
     //! \param reply Ответ от сервера
     //! \param singleValueForNonArray Добавить в список единичный объект, если reply не является массивом
     //! \return
+    //!
+    //! Note: Если singleValueForNonArray = true, то в список добавляется один объект, если reply не является массивом.
+    //! Warn: Для объектов в массиве проверяется тип ReplyType::String! Если тип объекта отличается, он не будет добавлен в список результатов!
     //!
     static QStringList replyToStringList(const QtRedisReply &reply, const bool singleValueForNonArray = false)
     {
@@ -488,6 +480,9 @@ public:
     //! \param singleValueForNonArray Добавить в список единичный объект, если reply не является массивом
     //! \return
     //!
+    //! Note: Если singleValueForNonArray = true, то в список добавляется один объект, если reply не является массивом.
+    //! Warn: Для объектов в массиве проверяется тип ReplyType::String! Если тип объекта отличается, он не будет добавлен в список результатов!
+    //!
     static QList<QByteArray> replyToByteArrayList(const QtRedisReply &reply, const bool singleValueForNonArray = false)
     {
         if (reply.type() != QtRedisReply::ReplyType::Array) {
@@ -515,6 +510,9 @@ public:
     //! \param reply Ответ от сервера
     //! \return
     //!
+    //! Note: Если объект является массивом, для преобразования используется первый элемент массива.
+    //! Warn: Проверяется ReplyType::Integer! Если тип объекта отличается, возвращается false!
+    //!
     static bool replyIntToBool(const QtRedisReply &reply)
     {
         if (reply.type() == QtRedisReply::ReplyType::Integer)
@@ -529,6 +527,10 @@ public:
     //! \brief Преобразовать ответ от сервера (replyType_Status|replyType_String) в bool
     //! \param reply Ответ от сервера
     //! \return
+    //!
+    //! Note: Если объект является массивом, для преобразования используется первый элемент массива.
+    //! Warn: Проверяется ReplyType::String или ReplyType::Status! Если тип объекта другой, возвращается false!
+    //! Note: Если (reply.strValue() == "OK" || ответить.strValue() == "QUEUED"), то true, иначе - false.
     //!
     static bool replySimpleStringToBool(const QtRedisReply &reply)
     {
@@ -545,6 +547,24 @@ protected:
     ReplyType               _type {ReplyType::Nil}; //!< тип объекта
     QByteArray              _rawValue;              //!< "сырое" значение
     QVector<QtRedisReply>   _arrayValue;            //!< массив значений
+
+    //!
+    //! \brief Задать тип объекта
+    //! \param type Тип объекта
+    //!
+    void setType(const ReplyType &type) { _type = type; }
+
+    //!
+    //! \brief Задать "сырое" значение
+    //! \param value "Сырое" значение
+    //!
+    void setRawValue(const QByteArray &value) { _rawValue = value; }
+
+    //!
+    //! \brief Добавить элемент в массив
+    //! \param object Объект ответа
+    //!
+    void appendArrayValue(const QtRedisReply &object) { _arrayValue.append(std::move(object)); }
 };
 
 #endif // QTREDISREPLY_H

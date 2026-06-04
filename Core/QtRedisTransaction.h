@@ -13,6 +13,8 @@
 //!
 //! Документация по командам: https://redis.io/docs/latest/commands/
 //!
+//! Note: Commands `watch` and `unwatch` is sent directly to the server without being added to the queue.
+//!
 class QtRedisTransaction : public QtRedisBase<QtRedisTransaction, bool>
 {
     friend class QtRedisBase<QtRedisTransaction, bool>;

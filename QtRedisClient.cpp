@@ -2848,6 +2848,9 @@ QtRedisPipeline QtRedisClient::createPipeline()
 //! \brief Создать объект для работы в режиме RedisTransaction
 //! \return
 //!
+// Note: If piped = true, then all commands of class QtRedisTransaction will be added to the queue.
+//       If piped = false, then all commands of class QtRedisTransaction will be executed immediately when the method is called.
+//!
 QtRedisTransaction QtRedisClient::createTransaction(const bool piped)
 {
     if (!_transporter) {

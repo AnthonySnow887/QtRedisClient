@@ -83,10 +83,18 @@ public:
         return _commandArgv.size() + 1;
     }
 
+
+    // ------------------------------------------------------------------------
+    // -- TOOLS COMMANDS ------------------------------------------------------
+    // ------------------------------------------------------------------------
+
     //!
     //! \brief Создать объект команды из строки QString
     //! \param command Команда в формате строки QString
     //! \return
+    //!
+    //! Note: Строка разбивается на массив с помощью пробела.
+    //! Note: Первый элемент массива принимается за имя команды, остальные — за аргументы.
     //!
     static QtRedisCommand fromString(const QString &command) {
         if (command.trimmed().isEmpty())
@@ -105,6 +113,8 @@ public:
     //! \param command Команда в формате списка QStringList
     //! \return
     //!
+    //! Note: Первый элемент массива принимается за имя команды, остальные — за аргументы.
+    //!
     static QtRedisCommand fromStringList(const QStringList &commandArgv) {
         if (commandArgv.isEmpty())
             return QtRedisCommand();
@@ -120,6 +130,9 @@ public:
     //! \brief Создать объект команды из строки QByteArray
     //! \param command Команда в формате строки QByteArray
     //! \return
+    //!
+    //! Note: Строка QByteArray разбивается на массив с помощью пробела.
+    //! Note: Первый элемент массива принимается за имя команды, остальные — за аргументы.
     //!
     static QtRedisCommand fromByteArray(const QByteArray &command) {
         if (command.trimmed().isEmpty())
@@ -137,6 +150,8 @@ public:
     //! \brief Создать объект команды из списка QByteArray
     //! \param command Команда в формате списка QByteArray
     //! \return
+    //!
+    //! Note: Первый элемент массива принимается за имя команды, остальные — за аргументы.
     //!
     static QtRedisCommand fromByteArrayList(const QList<QByteArray> &commandArgv) {
         if (commandArgv.isEmpty())
