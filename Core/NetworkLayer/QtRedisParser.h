@@ -21,6 +21,8 @@ public:
 
     static QtRedisReply parseRawData(const QByteArray &data, QString &error, bool *ok = 0);
 
+    static bool isFullRawData(const QByteArray &data, QString &error);
+
 protected:
     static QByteArray createRawDataArgument(const QByteArray &arg);
 
@@ -30,6 +32,13 @@ protected:
     static QtRedisReply parseRawDataToInt(QByteArray &data, QString &error, bool *ok = 0);
     static QtRedisReply parseRawDataToString(QByteArray &data, QString &error, bool *ok = 0);
     static QtRedisReply parseRawDataToArray(QByteArray &data, QString &error, bool *ok = 0);
+
+    static bool isFullRawDataTypes(const QByteArray &data, int &index, QString &error);
+    static bool isFullRawDataToState(const QByteArray &data, int &index, QString &error);
+    static bool isFullRawDataToError(const QByteArray &data, int &index, QString &error);
+    static bool isFullRawDataToInt(const QByteArray &data, int &index, QString &error);
+    static bool isFullRawDataToString(const QByteArray &data, int &index, QString &error);
+    static bool isFullRawDataToArray(const QByteArray &data, int &index, QString &error);
 };
 
 #endif // QTREDISPARSER_H

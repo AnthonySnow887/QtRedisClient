@@ -467,7 +467,8 @@ QtRedisReply QtRedisTransporter::sendContextCommand(QtRedisContext *context, con
     QByteArray replyData;
     while (true) {
         replyData += context->readRawData();
-        if (!replyData.isEmpty()) {
+        const bool isFull = QtRedisParser::isFullRawData(replyData, error);
+        if (!replyData.isEmpty() && isFull) {
             bool isOk = false;
             reply = QtRedisParser::parseRawData(replyData, error, &isOk);
             if (isOk)
@@ -528,7 +529,8 @@ QtRedisReply QtRedisTransporter::sendContextCommands(QtRedisContext *context, co
     QByteArray replyData;
     while (true) {
         replyData += context->readRawData();
-        if (!replyData.isEmpty()) {
+        const bool isFull = QtRedisParser::isFullRawData(replyData, error);
+        if (!replyData.isEmpty() && isFull) {
             bool isOk = false;
             reply = QtRedisParser::parseRawData(replyData, error, &isOk);
             if (isOk && commands.size() == reply.arrayValueSize())

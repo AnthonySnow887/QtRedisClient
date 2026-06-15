@@ -788,6 +788,18 @@ QtRedisReply QtRedisParser::parseRawData(const QByteArray &data, QString &error,
     return replyArray;
 }
 
+
+//!
+//! \brief Проверить ответ от Redis-а, что получены все данные
+//! \param data "Сырые" данные
+//! \return
+//!
+bool QtRedisParser::isFullRawData(const QByteArray &data, QString &error)
+{
+    int index = 0;
+    return QtRedisParser::isFullRawDataTypes(data, index, error);
+}
+
 //!
 //! \brief Создать строку-команду для Redis-а
 //! \param arg Аргумент
@@ -886,19 +898,18 @@ QtRedisReply QtRedisParser::parseRawDataToState(QByteArray &data, QString &error
         error = QString("Parse raw data-to-state failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(0));
         return QtRedisReply();
     }
-    QByteArray buffData = data;
-    const int buffIndex = buffData.indexOf("\r\n");
+    const int buffIndex = data.indexOf("\r\n");
     if (buffIndex == -1) {
         error = QString("Parse raw data-to-state failed (incorrect data - line break character not found)!");
         return QtRedisReply();
     }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Status);
-    reply.setRawValue(buffData.mid(1, buffIndex - 1));
+    reply.setRawValue(data.mid(1, buffIndex - 1));
     if (ok)
         *ok = true;
 
-    data = data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
+    data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }
 
@@ -926,20 +937,19 @@ QtRedisReply QtRedisParser::parseRawDataToError(QByteArray &data, QString &error
         error = QString("Parse raw data-to-error failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(0));
         return QtRedisReply();
     }
-    QByteArray buffData = data;
-    const int buffIndex = buffData.indexOf("\r\n");
+    const int buffIndex = data.indexOf("\r\n");
     if (buffIndex == -1) {
         error = QString("Parse raw data-to-error failed (incorrect data - line break character not found)!");
         return QtRedisReply();
     }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Error);
-    reply.setRawValue(buffData.mid(1, buffIndex - 1));
+    reply.setRawValue(data.mid(1, buffIndex - 1));
     error = reply.strValue(); // save error message from reply
     if (ok)
         *ok = true; // set parsing success
 
-    data = data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
+    data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }
 
@@ -967,19 +977,18 @@ QtRedisReply QtRedisParser::parseRawDataToInt(QByteArray &data, QString &error, 
         error = QString("Parse raw data-to-int failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(0));
         return QtRedisReply();
     }
-    QByteArray buffData = data;
-    const int buffIndex = buffData.indexOf("\r\n");
+    const int buffIndex = data.indexOf("\r\n");
     if (buffIndex == -1) {
         error = QString("Parse raw data-to-int failed (incorrect data - line break character not found)!");
         return QtRedisReply();
     }
 
     QtRedisReply reply(QtRedisReply::ReplyType::Integer);
-    reply.setRawValue(buffData.mid(1, buffIndex - 1));
+    reply.setRawValue(data.mid(1, buffIndex - 1));
     if (ok)
         *ok = true;
 
-    data = data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
+    data.remove(0, buffIndex + 2); // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }
 
@@ -1009,8 +1018,7 @@ QtRedisReply QtRedisParser::parseRawDataToString(QByteArray &data, QString &erro
         error = QString("Parse raw data-to-string failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(0));
         return QtRedisReply();
     }
-    QByteArray buffData = data;
-    const int buffIndexLen = buffData.indexOf("\r\n");
+    const int buffIndexLen = data.indexOf("\r\n");
     if (buffIndexLen < 0) {
         error = QString("Parse raw data-to-string failed (incorrect data - line break character for string-length not found)!");
         return QtRedisReply();
@@ -1028,13 +1036,13 @@ QtRedisReply QtRedisParser::parseRawDataToString(QByteArray &data, QString &erro
     }
 
     // get data...
-    buffData = buffData.remove(0, buffIndexLen + 2); // remove type + strlen
-    const int buffIndexData = buffData.indexOf("\r\n", strLen);
+    data.remove(0, buffIndexLen + 2); // remove type + strlen
+    const int buffIndexData = data.indexOf("\r\n", strLen);
     if (buffIndexData == -1) {
         error = QString("Parse raw data-to-string failed (incorrect data - line break character for string data not found)!");
         return QtRedisReply();
     }
-    buffData = buffData.remove(buffIndexData, buffData.length() - buffIndexData);
+    const QByteArray buffData = data.mid(0, buffIndexData);
 
     // check data len
     if (buffData.length() != strLen) {
@@ -1047,7 +1055,7 @@ QtRedisReply QtRedisParser::parseRawDataToString(QByteArray &data, QString &erro
     if (ok)
         *ok = true;
 
-    data = data.remove(0, buffIndexLen + 2 + buffIndexData + 2); // remove parsed data (index + 2 chars (\r\n))
+    data.remove(0, buffIndexData + 2); // remove parsed data (index + 2 chars (\r\n))
     return reply;
 }
 
@@ -1076,15 +1084,14 @@ QtRedisReply QtRedisParser::parseRawDataToArray(QByteArray &data, QString &error
         return QtRedisReply();
     }
 
-    QByteArray buffData = data;
-    const int buffIndexLen = buffData.indexOf("\r\n");
+    const int buffIndexLen = data.indexOf("\r\n");
     if (buffIndexLen < 0) {
         error = QString("Parse raw data-to-array failed (incorrect data - line break character for array-length not found)!");
         return QtRedisReply();
     }
 
     // get strlen...
-    const QByteArray arrayLenData = data.mid(1, buffIndexLen - 1);;
+    const QByteArray arrayLenData = data.mid(1, buffIndexLen - 1);
     const qlonglong arrayLen = arrayLenData.toLongLong();
     // check is Nil object (Nil array)
     if (arrayLen < 0) {
@@ -1095,10 +1102,9 @@ QtRedisReply QtRedisParser::parseRawDataToArray(QByteArray &data, QString &error
     }
 
     // get data...
-    buffData = buffData.remove(0, buffIndexLen + 2); // remove type + len
+    data.remove(0, buffIndexLen + 2); // remove type + len
     QtRedisReply reply = QtRedisReply(QtRedisReply::ReplyType::Array);
-    reply.setRawValue(buffData);
-    data = buffData; // remove parsed data (index + 2 chars (\r\n))
+    reply.setRawValue(data);
     if (arrayLen == 0) {
         if (ok)
             *ok = true;
@@ -1109,12 +1115,12 @@ QtRedisReply QtRedisParser::parseRawDataToArray(QByteArray &data, QString &error
     // parse array args
     while (true) {
         bool buffOk = false;
-        QtRedisReply buffReply = QtRedisParser::parseRawDataTypes(buffData, error, &buffOk);
+        QtRedisReply buffReply = QtRedisParser::parseRawDataTypes(data, error, &buffOk);
         if (!buffOk)
             return QtRedisReply();
 
         reply.appendArrayValue(buffReply);
-        if (buffData.isEmpty())
+        if (data.isEmpty())
             break;
         if (reply.arrayValueSize() == arrayLen)
             break;
@@ -1126,11 +1132,222 @@ QtRedisReply QtRedisParser::parseRawDataToArray(QByteArray &data, QString &error
     if (ok)
         *ok = true;
 
-    if (!buffData.isEmpty()) {
-        const int oldRawSize = reply.rawValue().size();
-        const int newRawSize = buffData.size();
-        reply.setRawValue(data.left(oldRawSize - newRawSize));
+    if (!data.isEmpty()) {
+        const int oldRawSize = reply.rawValue_ref().size();
+        const int newRawSize = data.size();
+        reply.setRawValue(reply.rawValue_ref().left(oldRawSize - newRawSize));
     }
-    data = buffData; // remove parsed data (index + 2 chars (\r\n))
     return reply;
+}
+
+bool QtRedisParser::isFullRawDataTypes(const QByteArray &data, int &index, QString &error)
+{
+    // clear err & ok
+    error.clear();
+    // check data
+    if (data.isEmpty()) {
+        error = QString("Parse raw data failed (data is empty)!");
+        return false;
+    }
+
+    // state string
+    if (data.at(index) == '+')
+        return QtRedisParser::isFullRawDataToState(data, index, error);
+
+    // error string
+    else if (data.at(index) == '-')
+        return QtRedisParser::isFullRawDataToError(data, index, error);
+
+    // integer
+    else if (data.at(index) == ':')
+        return QtRedisParser::isFullRawDataToInt(data, index, error);
+
+    // string
+    else if (data.at(index) == '$')
+        return QtRedisParser::isFullRawDataToString(data, index, error);
+
+    // array
+    else if (data.at(index) == '*')
+        return QtRedisParser::isFullRawDataToArray(data, index, error);
+
+    else
+        error = QString("Parse raw data failed! Invalid type (symbol at 0 = \"%1\")!").arg(data.at(index));
+
+    return false;
+}
+
+bool QtRedisParser::isFullRawDataToState(const QByteArray &data, int &index, QString &error)
+{
+    // clear err & ok
+    error.clear();
+    // check data
+    if (data.isEmpty()) {
+        error = QString("Parse raw data-to-state failed (data is empty)!");
+        return false;
+    }
+
+    // state string
+    if (data.at(index) != '+') {
+        error = QString("Parse raw data-to-state failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(index));
+        return false;
+    }
+    const int buffIndex = data.indexOf("\r\n", index);
+    if (buffIndex == -1) {
+        error = QString("Parse raw data-to-state failed (incorrect data - line break character not found)!");
+        return false;
+    }
+
+    // change index pos
+    index = buffIndex + 2;
+    return true;
+}
+
+bool QtRedisParser::isFullRawDataToError(const QByteArray &data, int &index, QString &error)
+{
+    // clear err & ok
+    error.clear();
+    // check data
+    if (data.isEmpty()) {
+        error = QString("Parse raw data-to-error failed (data is empty)!");
+        return false;
+    }
+
+    // error string
+    if (data.at(index) != '-') {
+        error = QString("Parse raw data-to-error failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(index));
+        return false;
+    }
+    const int buffIndex = data.indexOf("\r\n", index);
+    if (buffIndex == -1) {
+        error = QString("Parse raw data-to-error failed (incorrect data - line break character not found)!");
+        return false;
+    }
+
+    // change index pos
+    index = buffIndex + 2;
+    return true;
+}
+
+bool QtRedisParser::isFullRawDataToInt(const QByteArray &data, int &index, QString &error)
+{
+    // clear ok
+    error.clear();
+    // check data
+    if (data.isEmpty()) {
+        error = QString("Parse raw data-to-int failed (data is empty)!");
+        return false;
+    }
+
+    // integer
+    if (data.at(index) != ':') {
+        error = QString("Parse raw data-to-int failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(index));
+        return false;
+    }
+    const int buffIndex = data.indexOf("\r\n", index);
+    if (buffIndex == -1) {
+        error = QString("Parse raw data-to-int failed (incorrect data - line break character not found)!");
+        return false;
+    }
+
+    // change index pos
+    index = buffIndex + 2;
+    return true;
+}
+
+bool QtRedisParser::isFullRawDataToString(const QByteArray &data, int &index, QString &error)
+{
+    // clear ok
+    error.clear();
+    // check data
+    if (data.isEmpty()) {
+        error = QString("Parse raw data-to-string failed (data is empty)!");
+        return false;
+    }
+
+    // string
+    // $3\r\nfoo\r\n
+    // $-1\r\n - Nil
+    if (data.at(index) != '$') {
+        error = QString("Parse raw data-to-string failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(index));
+        return false;
+    }
+    const int buffIndexLen = data.indexOf("\r\n", index);
+    if (buffIndexLen < 0) {
+        error = QString("Parse raw data-to-string failed (incorrect data - line break character for string-length not found)!");
+        return false;
+    }
+
+    // get strlen...
+    const QByteArray strLenData = data.mid(index + 1, buffIndexLen - 1 - index);
+    const qlonglong strLen = strLenData.toLongLong();
+    // check is Nil object (Nil string)
+    if (strLen < 0) {
+        // change index pos
+        index = buffIndexLen + 2;
+        return true;
+    }
+
+    // get data...
+    const int buffIndexData = data.indexOf("\r\n", buffIndexLen + 2 + strLen);
+    if (buffIndexData == -1) {
+        error = QString("Parse raw data-to-string failed (incorrect data - line break character for string data not found)!");
+        return false;
+    }
+    // change index pos
+    index = buffIndexData + 2;
+    return true;
+}
+
+bool QtRedisParser::isFullRawDataToArray(const QByteArray &data, int &index, QString &error)
+{
+    // clear ok
+    error.clear();
+    // check data
+    if (data.isEmpty()) {
+        error = QString("Parse raw data-to-array failed (data is empty)!");
+        return false;
+    }
+
+    // array
+    if (data.at(index) != '*') {
+        error = QString("Parse raw data-to-array failed! Invalid type (symbol at 0 = \"%1\")").arg(data.at(index));
+        return false;
+    }
+
+    const int buffIndexLen = data.indexOf("\r\n", index);
+    if (buffIndexLen < 0) {
+        error = QString("Parse raw data-to-array failed (incorrect data - line break character for array-length not found)!");
+        return false;
+    }
+
+    // get strlen...
+    const QByteArray arrayLenData = data.mid(index + 1, buffIndexLen - 1 - index);
+    const qlonglong arrayLen = arrayLenData.toLongLong();
+    // check is Nil object (Nil array)
+    if (arrayLen < 0) {
+        // change index pos
+        index = buffIndexLen + 2;
+        return true;
+    }
+
+    // change index pos
+    index = buffIndexLen + 2;
+    // parse array args
+    int tmpArrayLen = 0;
+    while (true) {
+        if (!QtRedisParser::isFullRawDataTypes(data, index, error))
+            return false;
+        else
+            tmpArrayLen++;
+
+        if (index >= data.size())
+            break;
+        if (arrayLen == tmpArrayLen)
+            break;
+    }
+    if (arrayLen != tmpArrayLen) {
+        error = QString("Parse raw data-to-array failed (incorrect length of parsed array data)!");
+        return false;
+    }
+    return true;
 }
