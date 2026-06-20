@@ -1329,6 +1329,12 @@ bool QtRedisParser::isFullRawDataToArray(const QByteArray &data, int &index, QSt
         index = buffIndexLen + 2;
         return true;
     }
+    // check is empty object
+    if (arrayLen == 0) {
+        // change index pos
+        index = buffIndexLen + 2;
+        return true;
+    }
 
     // change index pos
     index = buffIndexLen + 2;
