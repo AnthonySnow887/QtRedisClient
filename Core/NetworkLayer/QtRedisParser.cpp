@@ -1149,6 +1149,10 @@ bool QtRedisParser::isFullRawDataTypes(const QByteArray &data, int &index, QStri
         error = QString("Parse raw data failed (data is empty)!");
         return false;
     }
+    if (index >= data.size()) {
+        error = QString("Parse raw data failed (index exceeds data size)!");
+        return false;
+    }
 
     // state string
     if (data.at(index) == '+')
@@ -1185,6 +1189,10 @@ bool QtRedisParser::isFullRawDataToState(const QByteArray &data, int &index, QSt
         error = QString("Parse raw data-to-state failed (data is empty)!");
         return false;
     }
+    if (index >= data.size()) {
+        error = QString("Parse raw data failed (index exceeds data size)!");
+        return false;
+    }
 
     // state string
     if (data.at(index) != '+') {
@@ -1209,6 +1217,10 @@ bool QtRedisParser::isFullRawDataToError(const QByteArray &data, int &index, QSt
     // check data
     if (data.isEmpty()) {
         error = QString("Parse raw data-to-error failed (data is empty)!");
+        return false;
+    }
+    if (index >= data.size()) {
+        error = QString("Parse raw data failed (index exceeds data size)!");
         return false;
     }
 
@@ -1237,6 +1249,10 @@ bool QtRedisParser::isFullRawDataToInt(const QByteArray &data, int &index, QStri
         error = QString("Parse raw data-to-int failed (data is empty)!");
         return false;
     }
+    if (index >= data.size()) {
+        error = QString("Parse raw data failed (index exceeds data size)!");
+        return false;
+    }
 
     // integer
     if (data.at(index) != ':') {
@@ -1261,6 +1277,10 @@ bool QtRedisParser::isFullRawDataToString(const QByteArray &data, int &index, QS
     // check data
     if (data.isEmpty()) {
         error = QString("Parse raw data-to-string failed (data is empty)!");
+        return false;
+    }
+    if (index >= data.size()) {
+        error = QString("Parse raw data failed (index exceeds data size)!");
         return false;
     }
 
@@ -1305,6 +1325,10 @@ bool QtRedisParser::isFullRawDataToArray(const QByteArray &data, int &index, QSt
     // check data
     if (data.isEmpty()) {
         error = QString("Parse raw data-to-array failed (data is empty)!");
+        return false;
+    }
+    if (index >= data.size()) {
+        error = QString("Parse raw data failed (index exceeds data size)!");
         return false;
     }
 
